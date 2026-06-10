@@ -47,19 +47,24 @@ export default function IndexScreen() {
   // Bootstrap — check existing session on mount
   useEffect(() => {
     (async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { setStep('email'); return; }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) { setStep('email'); return; }
 
-      const { data: acct } = await supabase
-        .from('accounts')
-        .select('id')
-        .eq('id', session.user.id)
-        .maybeSingle();
+        const { data: acct } = await supabase
+          .from('accounts')
+          .select('id')
+          .eq('id', session.user.id)
+          .maybeSingle();
 
-      if (acct) {
-        router.replace('/write');
-      } else {
-        setStep('dob');
+        if (acct) {
+          router.replace('/write');
+        } else {
+          setStep('dob');
+        }
+      } catch {
+        // Supabase not configured or unreachable — show the email step anyway
+        setStep('email');
       }
     })();
   }, []);

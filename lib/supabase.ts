@@ -10,8 +10,10 @@ import { createClient, type SupportedStorage } from '@supabase/supabase-js';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 
-const SUPABASE_URL      = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
+// Fallback to placeholder values so the app renders even without real credentials.
+// API calls will fail gracefully at runtime instead of crashing the entire app.
+const SUPABASE_URL      = process.env.EXPO_PUBLIC_SUPABASE_URL      || 'https://placeholder.supabase.co';
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
 // SecureStore adapter for Supabase auth.
 // Web fallback uses sessionStorage (tokens cleared on tab close; acceptable for dev/web).

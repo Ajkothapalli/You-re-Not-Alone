@@ -2,9 +2,13 @@
  * Match reveal screen.
  *
  * noMatch === "1" — first person to feel this — shows "you're the first" copy
- * noMatch === "0" — shows ConfessionCard, share + report controls
+ * noMatch === "0" — shows ConfessionCard on screen + off-screen StoryCard for share
+ *
+ * Share flow: captureRef is called on the off-screen StoryCard (360×640),
+ * not the on-screen card. The visible ConfessionCard is display-only.
  */
 import ConfessionCard from '@/components/ConfessionCard';
+import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { reportConfession } from '@/lib/api';
 import { analytics } from '@/lib/analytics';
@@ -38,8 +42,9 @@ export default function MatchScreen() {
   const confessionId = params.confessionId ?? '';
   const isNoMatch    = params.noMatch === '1';
 
-  // ref attached to the inner View (collapsable=false) so captureRef can rasterize it
-  const cardRef = useRef<View>(null);
+  // Ref for the off-screen StoryCard (the share capture target)
+  const storyRef = useRef<View>(null);
+
   const [sharing,   setSharing]   = useState(false);
   const [reporting, setReporting] = useState(false);
 
@@ -52,7 +57,7 @@ export default function MatchScreen() {
   async function handleShare() {
     setSharing(true);
     try {
-      await shareConfessionCard(cardRef);
+      await shareConfessionCard(storyRef);
       analytics.cardShared();
     } catch (err: any) {
       Alert.alert('Could not share', err.message ?? 'Try again.');
@@ -108,46 +113,61 @@ export default function MatchScreen() {
 
   // ── Match path ───────────────────────────────────────────────────────────────
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={styles.scroll}
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={styles.heading}>you're not alone in this</Text>
+    <View style={styles.root}>
+      {/*
+        Off-screen StoryCard — always rendered while on this screen so captureRef
+        can rasterize it. Positioned at left:-9999 inside StoryCard itself.
+        Not inside the ScrollView so it is never unmounted by virtualisation.
+      */}
+      <StoryCard
+        ref={storyRef}
+        youText={youText}
+        themText={themText}
+        feltCount={feltCount}
+        palette={palette}
+      />
 
-      {/* collapsable=false ensures RN doesn't flatten this node before capture */}
-      <View ref={cardRef} collapsable={false} style={styles.cardWrapper}>
-        <ConfessionCard
-          youText={youText}
-          themText={themText}
-          feltCount={feltCount}
-          palette={palette}
-        />
-      </View>
-
-      <View style={styles.actions}>
-        <PrimaryButton
-          label="Share this moment"
-          onPress={handleShare}
-          loading={sharing}
-        />
-        <GhostButton
-          label="Write another"
-          onPress={() => router.replace('/write')}
-        />
-      </View>
-
-      <Pressable
-        style={styles.reportRow}
-        onPress={handleReport}
-        disabled={reporting}
-        hitSlop={12}
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.reportText}>
-          {reporting ? 'Reporting…' : 'report this confession'}
-        </Text>
-      </Pressable>
-    </ScrollView>
+        <Text style={styles.heading}>you're not alone in this</Text>
+
+        {/* On-screen card — display only, not the capture target */}
+        <View style={styles.cardWrapper}>
+          <ConfessionCard
+            youText={youText}
+            themText={themText}
+            feltCount={feltCount}
+            palette={palette}
+          />
+        </View>
+
+        <View style={styles.actions}>
+          <PrimaryButton
+            label={sharing ? 'Preparing…' : 'Share this moment'}
+            onPress={handleShare}
+            loading={sharing}
+          />
+          <GhostButton
+            label="Write another"
+            onPress={() => router.replace('/write')}
+          />
+        </View>
+
+        <Pressable
+          style={styles.reportRow}
+          onPress={handleReport}
+          disabled={reporting}
+          hitSlop={12}
+        >
+          <Text style={styles.reportText}>
+            {reporting ? 'Reporting…' : 'report this confession'}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -155,6 +175,9 @@ const styles = StyleSheet.create({
   root: {
     flex:            1,
     backgroundColor: color.ink,
+  },
+  fill: {
+    flex: 1,
   },
   scroll: {
     flexGrow:      1,

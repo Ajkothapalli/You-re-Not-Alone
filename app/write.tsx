@@ -14,6 +14,8 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 const MIN_CHARS = 10;

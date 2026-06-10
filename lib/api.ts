@@ -77,6 +77,33 @@ export async function reportConfession(
   if (error) throw error;
 }
 
+/**
+ * Permanently deletes the current account and all attributable data.
+ * Irreversible.
+ *
+ * After calling:
+ * - Authored confessions without active reports are hard-deleted immediately.
+ * - Authored confessions with active reports are set 'removed' (legal hold)
+ *   and hard-deleted automatically by the daily purge once those reports age out.
+ * - crisis_events are stored without account linkage; they cannot be attributed
+ *   or deleted per DSAR.
+ * - CSAM reports are never deleted (legal obligation).
+ *
+ * Calls supabase.auth.signOut() on success.
+ * No UI is wired to this function yet — wrapper only.
+ */
+export async function deleteAccount(): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const { error } = await supabase.functions.invoke('delete-account', {
+    body: { confirm: 'DELETE' },
+  });
+  if (error) throw error;
+
+  await supabase.auth.signOut();
+}
+
 export async function createOrUpdateAccount(dob: Date): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
