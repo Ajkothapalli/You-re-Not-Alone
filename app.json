@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "you-are-not-alone",
+    "name": "You Are Not Alone",
     "slug": "you-are-not-alone",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "scheme": "yana",
     "ios": {
       "supportsTablet": true
     },
@@ -20,6 +21,15 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-status-bar"
+    ],
+    "extra": {
+      "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",
+      "supabaseAnonKey": "$EXPO_PUBLIC_SUPABASE_ANON_KEY"
     }
   }
 }
