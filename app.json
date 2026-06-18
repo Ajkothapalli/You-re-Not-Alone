@@ -8,16 +8,19 @@
     "userInterfaceStyle": "dark",
     "scheme": "yana",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.you-are-not-alone",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#1C1828",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.youarenotalone"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -25,11 +28,27 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      "expo-apple-authentication",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#0E0C13"
+        }
+      ],
+      "expo-sharing"
     ],
     "extra": {
       "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",
-      "supabaseAnonKey": "$EXPO_PUBLIC_SUPABASE_ANON_KEY"
+      "supabaseAnonKey": "$EXPO_PUBLIC_SUPABASE_ANON_KEY",
+      "router": {},
+      "eas": {
+        "projectId": "1e30157a-f0cf-4d56-9af9-b10d30396387"
+      }
     }
   }
 }

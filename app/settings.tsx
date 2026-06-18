@@ -7,6 +7,7 @@ import { useState } from 'react';
 import {
   Alert,
   Linking,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -62,7 +63,7 @@ export default function SettingsScreen() {
       setDeleting(false);
       Alert.alert(
         'Something went wrong',
-        'Deletion failed. Please try again, or contact support@example.com.',
+        'Deletion failed. Please try again, or contact nani.ajay@gmail.com.',
         [{ text: 'OK' }],
       );
     }
@@ -70,7 +71,17 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
-      <Text style={styles.heading}>about this place</Text>
+      <View style={styles.topBar}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.backLabel}>←</Text>
+        </Pressable>
+        <Text style={styles.heading} accessibilityRole="header">about this place</Text>
+      </View>
 
       {/* Anonymity explainer */}
       <View style={styles.card}>
@@ -93,20 +104,37 @@ export default function SettingsScreen() {
       {/* Policy links */}
       <View style={styles.policySection}>
         <Text style={styles.sectionLabel}>policies</Text>
-        <TouchableOpacity onPress={() => Linking.openURL(POLICY_URLS.privacy)} hitSlop={8}>
+        <TouchableOpacity
+          onPress={() => Linking.openURL(POLICY_URLS.privacy)}
+          hitSlop={8}
+          accessibilityRole="link"
+          accessibilityLabel="Privacy Policy"
+          accessibilityHint="Opens in your browser"
+        >
           <Text style={styles.policyLink}>Privacy Policy</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => Linking.openURL(POLICY_URLS.terms)} hitSlop={8}>
+        <TouchableOpacity
+          onPress={() => Linking.openURL(POLICY_URLS.terms)}
+          hitSlop={8}
+          accessibilityRole="link"
+          accessibilityLabel="Terms of Service"
+          accessibilityHint="Opens in your browser"
+        >
           <Text style={styles.policyLink}>Terms of Service</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => Linking.openURL(POLICY_URLS.content)} hitSlop={8}>
+        <TouchableOpacity
+          onPress={() => Linking.openURL(POLICY_URLS.content)}
+          hitSlop={8}
+          accessibilityRole="link"
+          accessibilityLabel="Content Policy"
+          accessibilityHint="Opens in your browser"
+        >
           <Text style={styles.policyLink}>Content Policy</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Navigation */}
+      {/* Actions */}
       <View style={styles.actions}>
-        <GhostButton label="Back"     onPress={() => router.back()} />
         <GhostButton label="Sign out" onPress={handleSignOut} />
       </View>
 
@@ -116,11 +144,16 @@ export default function SettingsScreen() {
         disabled={deleting}
         hitSlop={12}
         style={styles.deleteRow}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: deleting, busy: deleting }}
+        accessibilityLabel="Delete my account and confessions"
+        accessibilityHint="Permanently erases everything from our servers. Cannot be undone."
       >
         <Text style={[styles.deleteLink, deleting && styles.deleteLinkMuted]}>
           {deleting ? 'deleting…' : 'delete my account and confessions'}
         </Text>
       </TouchableOpacity>
+
     </ScrollView>
   );
 }
@@ -128,13 +161,24 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   root: {
     flex:            1,
-    backgroundColor: color.ink,
+    backgroundColor: color.bg,
   },
   scroll: {
     padding:        spacing.screenPadding,
     paddingTop:     60,
     paddingBottom:  48,
     gap:            24,
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           12,
+  },
+  backLabel: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   18,
+    color:      color.dim,
+    lineHeight: 22,
   },
   heading: {
     fontFamily: fontFamily.serifItalic,

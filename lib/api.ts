@@ -5,6 +5,7 @@
  * switch on it. The Edge Function returns the same field name.
  */
 import { supabase } from './supabase';
+import { getDummyRecommendations, getDummyMatchCount } from './dummyConfessions';
 
 // "submitted" = confession stored, no match found yet (first person to feel this)
 // "matched"   = a semantically close past confession was found
@@ -50,7 +51,16 @@ export async function submitConfession(
     { body: { text, deviceHash, region } },
   );
 
-  if (error) throw error;
+  if (error) {
+    // FunctionsHttpError wraps the raw Response in .context — extract the real message
+    try {
+      const body = await (error as any).context?.json?.();
+      if (body?.error) throw new Error(body.error);
+    } catch (inner: any) {
+      if (inner?.message && !inner.message.startsWith('Edge Function')) throw inner;
+    }
+    throw error;
+  }
 
   // The Edge Function currently returns `outcome`; normalise to `type` here
   // until the Edge Function is updated to use the `type` field directly.
@@ -104,7 +114,157 @@ export async function deleteAccount(): Promise<void> {
   await supabase.auth.signOut();
 }
 
-export async function createOrUpdateAccount(dob: Date): Promise<void> {
+export interface ReadConfession {
+  id:         string;
+  text:       string;
+  felt_count: number;
+}
+
+export async function getOnboardingConfessions(): Promise<ReadConfession[]> {
+  const { data, error } = await supabase.rpc('get_onboarding_confessions', { max_count: 2 });
+  if (error) throw error;
+  return (data ?? []) as ReadConfession[];
+}
+
+// ─── Reader preferences ───────────────────────────────────────────────────────
+
+export interface ReaderPreferences {
+  categories: string[];
+}
+
+export async function getReaderPreferences(): Promise<ReaderPreferences | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from('reader_preferences')
+    .select('categories')
+    .eq('account_id', user.id)
+    .maybeSingle();
+  return data ?? null;
+}
+
+export async function saveReaderPreferences(categories: string[]): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const { error } = await supabase.from('reader_preferences').upsert(
+    {
+      account_id: user.id,
+      categories,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'account_id' },
+  );
+  if (error) throw error;
+}
+
+// ─── Recommendations ──────────────────────────────────────────────────────────
+
+export interface Recommendation {
+  id:         string;
+  text:       string;
+  feltCount:  number;
+  categories: string[];
+}
+
+export interface RecommendationsResult {
+  confessions:    Recommendation[];
+  premiumRequired: boolean;
+}
+
+export async function getRecommendations(): Promise<RecommendationsResult> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  try {
+    const { data, error } = await supabase.functions.invoke<{ confessions: Recommendation[]; premiumRequired?: boolean }>(
+      'recommend-confessions',
+      { body: { action: 'recommend' } },
+    );
+    if (error) throw error;
+    // Server enforced the paywall — respect it, never fall back to dummy
+    // (dummy data would defeat the gate in production).
+    if (data?.premiumRequired) return { confessions: [], premiumRequired: true };
+    if (data?.confessions?.length) return { confessions: data.confessions, premiumRequired: false };
+  } catch {
+    // Edge Function not deployed — fall through to preview data so the
+    // feature is still usable before billing/backend are wired.
+  }
+
+  // PREVIEW FALLBACK — dummy confessions across the reader's chosen
+  // categories. Remove once the recommend-confessions function and a
+  // real pool are live.
+  const prefs = await getReaderPreferences();
+  return {
+    confessions:    getDummyRecommendations(prefs?.categories ?? []),
+    premiumRequired: false,
+  };
+}
+
+/**
+ * How many more confessions match the reader's chosen categories — the count
+ * shown under the onboarding cards as the "read more" unlock hook. Uses the
+ * preview pool until the real pool/count endpoint is live.
+ */
+export async function getMatchingCount(): Promise<number> {
+  const prefs = await getReaderPreferences();
+  return getDummyMatchCount(prefs?.categories ?? []);
+}
+
+// ─── Improve writing (drafting aid) ───────────────────────────────────────────
+
+export type ImproveResult =
+  | { type: 'improved'; text: string; preview?: boolean }
+  | { type: 'crisis' }
+  | { type: 'blocked' };
+
+// Local light tidy — used as a preview fallback when the Edge Function isn't
+// deployed. Whitespace/capitalization only; never changes meaning. The real
+// safety pipeline still runs on submit, so this is safe as a drafting aid.
+function localPolish(text: string): string {
+  return text
+    .replace(/[ \t]+/g, ' ')                              // collapse runs of spaces
+    .replace(/\n{3,}/g, '\n\n')                           // cap blank lines
+    .split('\n')
+    .map((line) => line.trim().replace(/^([a-z])/, (m) => m.toUpperCase()))
+    .join('\n')
+    .trim();
+}
+
+/**
+ * Improve a draft confession. Tries the server (which gates crisis/moderation
+ * before rewriting); falls back to a local tidy so the feature previews
+ * without a deployed backend. Never stores anything — submit still gates.
+ */
+export async function improveWriting(text: string): Promise<ImproveResult> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  try {
+    const { data, error } = await supabase.functions.invoke<ImproveResult>(
+      'improve-writing',
+      { body: { text } },
+    );
+    if (error) throw error;
+    if (data?.type) return data;
+  } catch {
+    // Edge Function not deployed — fall through to local preview tidy.
+  }
+  return { type: 'improved', text: localPolish(text), preview: true };
+}
+
+export type ReadSignal = 'impression' | 'read_to_end' | 'felt' | 'share' | 'skip' | 'report';
+
+export async function logReadEvent(confessionId: string, signal: ReadSignal): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return; // fire-and-forget; don't throw
+
+  supabase.functions.invoke('recommend-confessions', {
+    body: { action: 'signal', confessionId, signal },
+  }).catch(() => {}); // analytics: never block the UI on failures
+}
+
+export async function createOrUpdateAccount(dob: Date, authProvider = 'email'): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Not authenticated');
 
@@ -112,7 +272,7 @@ export async function createOrUpdateAccount(dob: Date): Promise<void> {
     {
       id:            user.id,
       dob:           dob.toISOString().split('T')[0],
-      auth_provider: 'email',
+      auth_provider: authProvider,
     },
     { onConflict: 'id' },
   );

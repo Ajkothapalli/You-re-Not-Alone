@@ -31,9 +31,10 @@ const secureStorage: SupportedStorage = Platform.OS === 'web'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: secureStorage,
-    autoRefreshToken: true,
-    persistSession: true,
+    storage:            secureStorage,
+    autoRefreshToken:   true,
+    persistSession:     true,
     detectSessionInUrl: false,
+    flowType:           'pkce',
   },
 });

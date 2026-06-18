@@ -13,7 +13,7 @@ import * as Crypto from 'expo-crypto';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 
-const STORE_KEY = '@yana/device_hash';
+const STORE_KEY = 'yana.device_hash';
 
 export async function getDeviceHash(): Promise<string> {
   const cached = await SecureStore.getItemAsync(STORE_KEY);

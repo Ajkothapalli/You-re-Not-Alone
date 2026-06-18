@@ -54,7 +54,13 @@ export const StoryCard = forwardRef<View, Props>(function StoryCard(
   const [back, mid, front] = palette.bands;
 
   return (
-    <View ref={ref} collapsable={false} style={styles.canvas}>
+    <View
+      ref={ref}
+      collapsable={false}
+      style={styles.canvas}
+      accessibilityElementsHidden={true}
+      importantForAccessibility="no-hide-descendants"
+    >
 
       {/* ── Full-bleed outer wave background ── */}
       <Svg

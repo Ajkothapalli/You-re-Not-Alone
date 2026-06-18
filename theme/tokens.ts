@@ -1,5 +1,6 @@
 export const color = {
-  ink:           '#0E0C13',                  // app + card background
+  ink:           '#0E0C13',                  // card background (stays dark)
+  bg:            '#1C1828',                  // screen background (lighter than card)
   paper:         '#F3EEE8',                  // primary text
   dim:           '#A29CAA',                  // muted text / labels
   line:          'rgba(243,238,232,0.10)',   // hairlines / dividers

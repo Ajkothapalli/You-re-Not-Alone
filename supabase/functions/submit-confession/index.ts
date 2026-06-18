@@ -93,7 +93,7 @@ async function computeDeviceHash(accountId: string, req: Request): Promise<strin
 
 async function runModeration(
   text: string,
-): Promise<{ pass: boolean; reason?: string; csam?: boolean }> {
+): Promise<{ pass: boolean; reason?: string; csam?: boolean; adultSignal?: boolean }> {
   if (!MODERATION_API_KEY) {
     if (IS_PRODUCTION) {
       // Hard fail in production — see CLAUDE.md non-negotiables.
@@ -105,7 +105,7 @@ async function runModeration(
       '[SAFETY] MODERATION_API_KEY not set — passing submission in development mode only.',
       'Set ENVIRONMENT=production to enforce hard blocking.',
     );
-    return { pass: true };
+    return { pass: true, adultSignal: false };
   }
 
   const res = await fetch('https://api.openai.com/v1/moderations', {
@@ -145,7 +145,13 @@ async function runModeration(
     };
   }
 
-  return { pass: true };
+  // Pass: check whether the adult-sexual signal is above threshold.
+  // Score > 0.3 but not flagged = mature adult content that passed moderation.
+  // This signal is used to tag sexuality_intimacy — never to block.
+  const scores: Record<string, number> = result.category_scores ?? {};
+  const adultSignal = (scores['sexual'] ?? 0) > 0.3;
+
+  return { pass: true, adultSignal };
 }
 
 // ─── Step 3: Crisis detection ─────────────────────────────────────────────────
@@ -227,6 +233,80 @@ async function runCrisisCheck(text: string): Promise<{ crisis: boolean }> {
   }
 }
 
+// ─── Step 4.5: Category classification ───────────────────────────────────────
+//
+// Assigns 1–3 category tags from the fixed taxonomy using gpt-4o-mini.
+// The sexuality_intimacy tag is set ONLY from the moderation adult signal —
+// never from the LLM. This ensures safety tags cannot be downgraded by authors.
+// Fail open on errors: empty categories is safe (recommendation falls back to
+// popularity ordering).
+
+const CLASSIFIER_TAXONOMY = [
+  'mental_health', 'relationships', 'grief',
+  'secrets', 'work_identity', 'body_health', 'faith_meaning',
+] as const;
+
+async function classifyCategories(
+  text:        string,
+  adultSignal: boolean,
+): Promise<string[]> {
+  const categories: string[] = [];
+
+  // Adult tag comes from the moderation classifier's adult-sexual signal — not LLM.
+  if (adultSignal) categories.push('sexuality_intimacy');
+
+  if (!OPENAI_API_KEY) {
+    return categories; // No key: adult tag only (or empty)
+  }
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization:  `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model:       'gpt-4o-mini',
+        temperature: 0,
+        max_tokens:  40,
+        messages: [
+          {
+            role:    'system',
+            content: [
+              'Classify this personal confession into 1–3 categories.',
+              `Choose ONLY from this exact list: ${CLASSIFIER_TAXONOMY.join(', ')}.`,
+              'Respond with ONLY a JSON array of strings, e.g. ["mental_health","grief"].',
+              'No explanation, no extra text.',
+            ].join(' '),
+          },
+          { role: 'user', content: text },
+        ],
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn('[CATEGORIZE] API returned', res.status, '— skipping LLM categories');
+      return categories;
+    }
+
+    const data   = await res.json();
+    const raw    = (data.choices?.[0]?.message?.content ?? '').trim();
+    const parsed = JSON.parse(raw);
+
+    if (Array.isArray(parsed)) {
+      const valid = (parsed as string[])
+        .filter(c => (CLASSIFIER_TAXONOMY as readonly string[]).includes(c))
+        .slice(0, 3);
+      categories.push(...valid);
+    }
+  } catch (err) {
+    console.warn('[CATEGORIZE] Error — failing open:', err);
+  }
+
+  return [...new Set(categories)];
+}
+
 // ─── Step 4: Embeddings — text-embedding-3-small ─────────────────────────────
 //
 // Dimension MUST be 1536 to match the pgvector column and HNSW index.
@@ -289,25 +369,28 @@ async function checkRateLimit(
 
   const authorToken = await getAuthorToken(accountId);
 
-  // 5 submissions per device per hour
+  const hourLimit = IS_PRODUCTION ? 5   : 500;
+  const dayLimit  = IS_PRODUCTION ? 10  : 1000;
+
+  // submissions per device per hour
   const { count: deviceCount } = await supabase
     .from('confessions')
     .select('id', { count: 'exact', head: true })
     .eq('author_token', authorToken)
     .gte('created_at', oneHourAgo);
 
-  if ((deviceCount ?? 0) >= 5) {
+  if ((deviceCount ?? 0) >= hourLimit) {
     return { allowed: false, reason: 'rate_limit_device' };
   }
 
-  // 10 submissions per account per day
+  // submissions per account per day
   const { count: dayCount } = await supabase
     .from('confessions')
     .select('id', { count: 'exact', head: true })
     .eq('author_token', authorToken)
     .gte('created_at', oneDayAgo);
 
-  if ((dayCount ?? 0) >= 10) {
+  if ((dayCount ?? 0) >= dayLimit) {
     return { allowed: false, reason: 'rate_limit_account' };
   }
 
@@ -356,19 +439,76 @@ function getCrisisResources(region = 'IN'): CrisisResource[] {
 }
 
 // ─── NCMEC CSAM reporting hook ────────────────────────────────────────────────
-// IMPORTANT: Do NOT include account_id, user PII, or confession text in the report.
-// TODO: Integrate NCMEC CyberTipline API before launch.
-//   Reference: https://www.missingkids.org/gethelpnow/cybertipline
-//   Requires a platform agreement + API credentials from NCMEC.
-//   Report should include: platform name, timestamp, content type, no PII.
+//
+// US 18 U.S.C. § 2258A — mandatory report to NCMEC upon awareness of CSAM.
+//
+// SETUP (one-time — cannot be automated):
+//   1. Complete the NCMEC Electronic Service Provider (ESP) agreement:
+//      https://www.missingkids.org/gethelpnow/cybertipline
+//   2. Receive NCMEC_ESP_ID and NCMEC_API_KEY from NCMEC after approval.
+//   3. Set both as Edge Function secrets:
+//        supabase secrets set NCMEC_ESP_ID=...
+//        supabase secrets set NCMEC_API_KEY=...
+//   4. Confirm the API endpoint below matches the one NCMEC provides for ESPs.
+//
+// INVARIANT: no account_id, no user PII, no confession text in the report.
+// The report carries only: platform identifier, content type, and timestamp.
+// CSAM content is NEVER stored — it is blocked at step [2] before INSERT.
+//
+// Fail behaviour:
+//   - Missing credentials in production → log critical + throw (blocks the 400 response)
+//   - NCMEC API non-200              → log critical + throw
+//   - Development (no credentials)   → log and return (no throw, so dev pipeline runs)
+
+const NCMEC_ESP_ID  = Deno.env.get('NCMEC_ESP_ID')  ?? '';
+const NCMEC_API_KEY = Deno.env.get('NCMEC_API_KEY') ?? '';
+
+// Endpoint provided by NCMEC after ESP agreement. Update when NCMEC confirms.
+const NCMEC_API_URL = 'https://api.cybertipline.org/api/v2/reports';
 
 async function reportCsam(): Promise<void> {
-  console.error(
-    '[CSAM] Potential CSAM detected. NCMEC CyberTipline reporting required before launch.',
-    'Reference: https://www.missingkids.org/gethelpnow/cybertipline',
-    'Timestamp:', new Date().toISOString(),
-  );
-  // TODO: POST to NCMEC CyberTipline API
+  const timestamp = new Date().toISOString();
+
+  if (!NCMEC_ESP_ID || !NCMEC_API_KEY) {
+    const msg = `[CSAM] NCMEC credentials not set — mandatory report NOT filed. Timestamp: ${timestamp}`;
+    if (IS_PRODUCTION) {
+      // In production, unconfigured NCMEC reporting is a legal blocker.
+      // Throw so the caller still returns 400 (submission blocked), and the
+      // error surfaces in Supabase logs for immediate human review.
+      throw new Error(msg);
+    }
+    // Development: log and return so the pipeline can be exercised locally.
+    console.error(msg);
+    console.error('[CSAM] Complete NCMEC ESP registration before production launch.');
+    return;
+  }
+
+  // Report fields: platform identity + content type + timestamp. No PII. No text.
+  const reportBody = {
+    espId:          NCMEC_ESP_ID,
+    reportedAt:     timestamp,
+    incidentType:   'CSAM',
+    contentType:    'text/submission-blocked',
+    platformName:   'You Are Not Alone',
+    // No account_id, no confession text, no device info — ever.
+  };
+
+  const res = await fetch(NCMEC_API_URL, {
+    method:  'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${NCMEC_API_KEY}`,
+    },
+    body: JSON.stringify(reportBody),
+  });
+
+  if (!res.ok) {
+    // Non-200 from NCMEC = mandatory report failed. Throw so the error lands
+    // in Supabase logs and alerts on-call. The submission is still blocked (400).
+    throw new Error(`[CSAM] NCMEC CyberTipline API returned ${res.status} — report not filed. Timestamp: ${timestamp}`);
+  }
+
+  console.error(`[CSAM] Report filed with NCMEC. Timestamp: ${timestamp}`);
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
@@ -481,6 +621,11 @@ serve(async (req: Request) => {
     // embedText() throws on API failure or dimension mismatch (fail closed).
     const embedding = await embedText(rawText);
 
+    // ── [4.5] CATEGORIZE ──────────────────────────────────────────────────────
+    // Fail open — missing categories degrade recommendation quality only,
+    // not safety. The adult signal comes from step [2] moderation, never the LLM.
+    const categories = await classifyCategories(rawText, modResult.adultSignal ?? false);
+
     // ── [5] STORE ──────────────────────────────────────────────────────────────
     const authorToken = await getAuthorToken(user.id);
 
@@ -490,6 +635,7 @@ serve(async (req: Request) => {
         author_token: authorToken,
         text:         rawText,
         embedding:    JSON.stringify(embedding),
+        categories,
         status:       'live',
       })
       .select('id')
@@ -538,7 +684,8 @@ serve(async (req: Request) => {
     });
 
   } catch (err) {
-    console.error('[submit-confession] unhandled error:', err);
-    return json({ error: 'Internal server error' }, 500);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[submit-confession] unhandled error:', msg);
+    return json({ error: msg }, 500);
   }
 });

@@ -13,7 +13,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 export default function BlockedScreen() {
   return (
     <View style={styles.root}>
-      <Text style={styles.heading}>We couldn't post that</Text>
+      <Text style={styles.heading} accessibilityRole="header">We couldn't post that</Text>
       <Text style={styles.body}>
         Some confessions can't go through. This space is meant to be a safe place for
         everyone — including you.
@@ -21,7 +21,12 @@ export default function BlockedScreen() {
       <Text style={styles.body}>
         If you're going through something difficult right now, you deserve real support.
       </Text>
-      <Pressable style={styles.primaryBtn} onPress={() => router.replace('/write')}>
+      <Pressable
+        style={styles.primaryBtn}
+        onPress={() => router.replace('/write')}
+        accessibilityRole="button"
+        accessibilityLabel="Write something else"
+      >
         <Text style={styles.primaryBtnText}>Write something else</Text>
       </Pressable>
     </View>

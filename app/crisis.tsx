@@ -4,7 +4,7 @@
  * INVARIANT: no ConfessionCard, no felt counter, no match, no upsell.
  * Per the non-negotiables: never monetize or gamify a crisis moment.
  *
- * Resources last verified: 2026-06-10
+ * Resources last verified: 2026-06-14
  */
 import { analytics } from '@/lib/analytics';
 import { GhostButton } from '@/components/Buttons';
@@ -58,7 +58,7 @@ export default function CrisisScreen() {
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.heading}>you don't have to carry this alone</Text>
+      <Text style={styles.heading} accessibilityRole="header">you don't have to carry this alone</Text>
 
       <Text style={styles.body}>
         What you shared sounds really heavy. There are people trained to listen — right now, for
@@ -73,7 +73,7 @@ export default function CrisisScreen() {
             style={styles.resourceCard}
             onPress={() => Linking.openURL(r.uri)}
             accessibilityRole="link"
-            accessibilityLabel={`${r.name}: ${r.label}`}
+            accessibilityLabel={`${r.name}: ${r.label}${r.note ? `, ${r.note}` : ''}`}
           >
             <Text style={styles.resourceName}>{r.name}</Text>
             <Text style={styles.resourceAction}>{r.label}</Text>
@@ -97,7 +97,7 @@ export default function CrisisScreen() {
 const styles = StyleSheet.create({
   root: {
     flex:            1,
-    backgroundColor: color.ink,
+    backgroundColor: color.bg,
   },
   scroll: {
     flexGrow:        1,

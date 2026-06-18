@@ -12,10 +12,12 @@
  * Background: three wave Path elements each filled with a vertical
  * LinearGradient that fades from 0% opacity at the top to full colour
  * at the bottom — the colour "melts up" from the dark base.
+ *
+ * Entrance: fades + rises + scales in on mount (700ms, Easing.out cubic).
  */
 
-import React from 'react';
-import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient,
@@ -25,6 +27,7 @@ import Svg, {
 } from 'react-native-svg';
 import type { Palette } from '../theme/palettes';
 import { color, font, fontFamily, radius, spacing } from '../theme/tokens';
+import { useReducedMotion } from '../lib/a11y';
 
 // ─── Wave path data (viewBox 0 0 340 472, preserveAspectRatio="none") ─────────
 const WAVE_BACK  = 'M0,300 C95,262 250,338 340,296 L340,472 L0,472 Z';
@@ -41,7 +44,7 @@ interface Props {
 
 // ─── Wave background ──────────────────────────────────────────────────────────
 
-function WaveBackground({ bands }: { bands: Palette['bands'] }) {
+export function WaveBackground({ bands }: { bands: Palette['bands'] }) {
   const [back, mid, front] = bands;
 
   return (
@@ -51,6 +54,8 @@ function WaveBackground({ bands }: { bands: Palette['bands'] }) {
       height="100%"
       viewBox="0 0 340 472"
       preserveAspectRatio="none"
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
     >
       <Defs>
         <LinearGradient id="waveBack" x1="0" y1="0" x2="0" y2="1">
@@ -100,42 +105,85 @@ function Seam({ you, them }: { you: string; them: string }) {
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 export default function ConfessionCard({ youText, themText, feltCount, palette, style }: Props) {
+  const anim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (reduceMotion) { anim.setValue(1); return; }
+    Animated.timing(anim, {
+      toValue:         1,
+      duration:        700,
+      easing:          Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [reduceMotion]);
+
+  const a11yLabel =
+    `You wrote: ${youText}. ` +
+    `Someone, at the same moment, wrote: ${themText}. ` +
+    `${feltCount.toLocaleString()} people felt this too. You're not alone.`;
+
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] });
+  const scale      = anim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
+
   return (
-    <View style={[styles.card, style]}>
-      <WaveBackground bands={palette.bands} />
+    <Animated.View
+      style={[
+        styles.shadow,
+        style,
+        {
+          backgroundColor: color.ink,
+          shadowColor:     palette.bands[1],
+          shadowOpacity:   0.55,
+          shadowRadius:    26,
+          shadowOffset:    { width: 0, height: 10 },
+          elevation:       16,
+          opacity:         anim,
+          transform:       [{ translateY }, { scale }],
+        },
+      ]}
+    >
+      <View style={styles.card}>
+        <WaveBackground bands={palette.bands} />
 
-      <View style={styles.content}>
+        <View style={styles.content} accessible accessibilityLabel={a11yLabel}>
 
-        {/* ── You wrote ── */}
-        <Text style={[styles.label, { color: palette.you }]}>you wrote</Text>
-        <Text style={styles.confessionText}>{youText}</Text>
+          {/* ── You wrote ── */}
+          <Text style={[styles.label, { color: palette.you }]}>you wrote</Text>
+          <Text style={styles.confessionText}>{youText}</Text>
 
-        {/* ── Seam ── */}
-        <Seam you={palette.you} them={palette.them} />
+          {/* ── Seam ── */}
+          <Seam you={palette.you} them={palette.them} />
 
-        {/* ── They wrote ── */}
-        <Text style={[styles.label, { color: palette.them }]}>they wrote</Text>
-        <Text style={styles.confessionText}>{themText}</Text>
+          {/* ── They wrote ── */}
+          <Text style={[styles.label, { color: palette.them }]}>they wrote</Text>
+          <Text style={styles.confessionText}>{themText}</Text>
 
-        {/* Push footer to bottom */}
-        <View style={{ flex: 1 }} />
+          {/* Push footer to bottom */}
+          <View style={{ flex: 1 }} />
 
-        {/* ── Footer ── */}
-        <View style={styles.footer}>
-          <Text style={styles.footerFelt}>
-            {feltCount.toLocaleString()} felt this too
-          </Text>
-          <Text style={styles.footerYNA}>you're not alone</Text>
+          {/* ── Footer ── */}
+          <View style={styles.footer}>
+            <Text style={styles.footerFelt}>
+              {feltCount.toLocaleString()} felt this too
+            </Text>
+            <Text style={styles.footerYNA}>you're not alone</Text>
+          </View>
+
         </View>
-
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  shadow: {
+    width:        340,
+    borderRadius: radius.card,
+    // shadowColor / shadowOpacity / shadowRadius / elevation set inline (palette-tinted)
+  },
   card: {
     width:           340,
     minHeight:       472,

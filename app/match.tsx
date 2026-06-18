@@ -6,8 +6,15 @@
  *
  * Share flow: captureRef is called on the off-screen StoryCard (360×640),
  * not the on-screen card. The visible ConfessionCard is display-only.
+ *
+ * Sequencing: Celebration overlay mounts first. ScrollView content (including
+ * ConfessionCard) only mounts after celebrating = false, so the card's entrance
+ * animation plays as the reveal rather than finishing hidden behind the overlay.
+ * StoryCard stays mounted throughout so share capture always works.
  */
+import { Celebration } from '@/components/Celebration';
 import ConfessionCard from '@/components/ConfessionCard';
+import CounterPill from '@/components/CounterPill';
 import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { reportConfession } from '@/lib/api';
@@ -45,8 +52,9 @@ export default function MatchScreen() {
   // Ref for the off-screen StoryCard (the share capture target)
   const storyRef = useRef<View>(null);
 
-  const [sharing,   setSharing]   = useState(false);
-  const [reporting, setReporting] = useState(false);
+  const [celebrating, setCelebrating] = useState(true);
+  const [sharing,     setSharing]     = useState(false);
+  const [reporting,   setReporting]   = useState(false);
 
   useEffect(() => {
     if (!isNoMatch && confessionId) {
@@ -96,18 +104,25 @@ export default function MatchScreen() {
   // ── No match path ────────────────────────────────────────────────────────────
   if (isNoMatch) {
     return (
-      <ScrollView
-        style={styles.root}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.heading}>you're the first to feel this</Text>
-        <Text style={styles.body}>
-          Your words are waiting. When someone else shares something similar, they'll find
-          you — and know they're not alone.
-        </Text>
-        <PrimaryButton label="Write another" onPress={() => router.replace('/write')} />
-      </ScrollView>
+      <View style={styles.root}>
+        {celebrating && (
+          <Celebration palette={palette} onDone={() => setCelebrating(false)} />
+        )}
+        {!celebrating && (
+          <ScrollView
+            style={styles.fill}
+            contentContainerStyle={styles.scroll}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.heading} accessibilityRole="header">you're the first to feel this</Text>
+            <Text style={styles.body}>
+              Your words are waiting. When someone else shares something similar, they'll find
+              you — and know they're not alone.
+            </Text>
+            <PrimaryButton label="Write another" onPress={() => router.replace('/write')} />
+          </ScrollView>
+        )}
+      </View>
     );
   }
 
@@ -127,46 +142,63 @@ export default function MatchScreen() {
         palette={palette}
       />
 
-      <ScrollView
-        style={styles.fill}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.heading}>you're not alone in this</Text>
+      {celebrating && (
+        <Celebration palette={palette} onDone={() => setCelebrating(false)} />
+      )}
 
-        {/* On-screen card — display only, not the capture target */}
-        <View style={styles.cardWrapper}>
+      {!celebrating && (
+        <ScrollView
+          style={styles.fill}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.heading} accessibilityRole="header">you're not alone in this</Text>
+
+          {/* On-screen card — display only, not the capture target */}
           <ConfessionCard
             youText={youText}
             themText={themText}
             feltCount={feltCount}
             palette={palette}
           />
-        </View>
 
-        <View style={styles.actions}>
-          <PrimaryButton
-            label={sharing ? 'Preparing…' : 'Share this moment'}
-            onPress={handleShare}
-            loading={sharing}
+          {/* Tappable counter — opens supporter plans (owner decision 2026-06-12,
+              overriding the original "never paywall relief" rule; see CLAUDE.md) */}
+          <CounterPill
+            count={feltCount}
+            youColor={palette.you}
+            palette={palette}
+            onPress={() => router.push('/plans')}
           />
-          <GhostButton
-            label="Write another"
-            onPress={() => router.replace('/write')}
-          />
-        </View>
 
-        <Pressable
-          style={styles.reportRow}
-          onPress={handleReport}
-          disabled={reporting}
-          hitSlop={12}
-        >
-          <Text style={styles.reportText}>
-            {reporting ? 'Reporting…' : 'report this confession'}
-          </Text>
-        </Pressable>
-      </ScrollView>
+          <View style={styles.actions}>
+            <PrimaryButton
+              label={sharing ? 'Preparing…' : 'Share this moment'}
+              onPress={handleShare}
+              loading={sharing}
+            />
+            <GhostButton
+              label="Write another"
+              onPress={() => router.replace('/write')}
+            />
+          </View>
+
+          <Pressable
+            style={styles.reportRow}
+            onPress={handleReport}
+            disabled={reporting}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: reporting, busy: reporting }}
+            accessibilityLabel="Report this confession"
+            accessibilityHint="Hides it and sends it for review"
+          >
+            <Text style={styles.reportText}>
+              {reporting ? 'Reporting…' : 'report this confession'}
+            </Text>
+          </Pressable>
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -174,7 +206,7 @@ export default function MatchScreen() {
 const styles = StyleSheet.create({
   root: {
     flex:            1,
-    backgroundColor: color.ink,
+    backgroundColor: color.bg,
   },
   fill: {
     flex: 1,
@@ -200,11 +232,6 @@ const styles = StyleSheet.create({
     textAlign:         'center',
     lineHeight:        24,
     paddingHorizontal: 8,
-  },
-  cardWrapper: {
-    borderRadius: radius.card,
-    overflow:     'hidden',
-    width:        '100%',
   },
   actions: {
     width: '100%',

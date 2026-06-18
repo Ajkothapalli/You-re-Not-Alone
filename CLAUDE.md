@@ -11,9 +11,23 @@
    Stubs MUST BLOCK — a missing classifier key blocks all submissions and logs a warning.
    It NEVER silently passes everything through.
 
-2. **No messaging, no replies, no DMs, no profiles, no following.**
+2. **No messaging, no replies, no DMs, no public profiles, no following.**
    The absence of a reply channel is the core safety design, not a missing feature.
-   Never add one.
+   Never add one. ("No profiles" = no user-visible/author profiles linkable to
+   confessions. The PRIVATE reader profile — character + name in the `profiles`
+   table, owner-RLS, account-synced for iOS↔Android since 2026-06-14 — is allowed:
+   it is never shown on confessions, which always carry a random per-confession
+   persona, so author-identity separation is unaffected.)
+   **Two sanctioned read surfaces only:**
+   - The onboarding read screen (`app/read.tsx`): hard-capped at 2 confessions
+     (enforced server-side in `get_onboarding_confessions`), shown every launch,
+     with a report control on every card. Never expand into a feed, add pagination,
+     add a refresh gesture, or raise the cap.
+   - The explore screen (`app/explore.tsx`): owner-approved, personalized,
+     capped at 10 confessions per session, one at a time, no infinite scroll,
+     no refresh gesture. Safety filters in `recommend_confessions` SQL RPC are
+     applied BEFORE scoring and CANNOT be bypassed by the edge function.
+   No other read surface may be added.
 
 3. **Identity is stored separately from confessions.**
    `author_token = HMAC-SHA256(account_id, AUTHOR_TOKEN_SECRET)` — computed in
@@ -23,8 +37,31 @@
 4. **Adults only.** Age gate (18+) enforced server-side. CSAM detection, reporting
    (NCMEC hook), and human review stay on permanently in all environments.
 
-5. **Never paywall relief and never monetize a crisis moment.**
-   Crisis path returns resources only — no card, no counter, no upsell.
+5. **Recommender hard rules (owner-approved expansion 2026-06-13).**
+   - The recommender models the user as a READER (consumption), keyed to
+     `account_id` in `reader_preferences`/`read_events`. It MUST NEVER join to
+     `author_token` or reveal what a user authored. Reader identity and author
+     identity are separate.
+   - Categories are assigned SERVER-SIDE by the classifier at submission.
+     Safety tags can NEVER be downgraded by the author.
+   - Crisis content is never a category — always routes to the crisis screen.
+   - **Sexual / adult category is REMOVED for now (owner decision 2026-06-13).**
+     No `sexuality_intimacy` category, no adult opt-in, no adult content in the
+     pool. CSAM detection + reporting stay on regardless (invariant 4). If adult
+     content is reintroduced later it requires: server-side adult-sexual tagging,
+     off-by-default opt-in, SQL hard-filtering for non-opted-in readers, and
+     Apple 1.1.4 / Play UGC + legal sign-off BEFORE it ships.
+
+6. **Never monetize a crisis moment.**
+   Crisis path returns resources only — no card, no counter, no upsell, no plans.
+   *Owner decision 2026-06-12:* the original "never paywall relief" rule was
+   deliberately overridden — the felt-counter pill on the match screen opens
+   supporter plans (`app/plans.tsx`). Boundaries that still hold:
+   - Plans NEVER gate matching, reading, writing, or the counter itself —
+     supporting buys nothing another user is denied.
+   - No plans, prompts, or upsells anywhere on the crisis path.
+   - Purchases go through App Store / Play Billing (Apple 3.1.1) — wire
+     RevenueCat or store billing before launch; `handleContinue()` is a stub.
 
 ---
 

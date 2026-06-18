@@ -19,6 +19,50 @@ See `CLAUDE.md` for the full non-negotiables and threat model.
 
 ---
 
+## Configure sign-in providers
+
+Both Apple and Google must be configured in two places: the provider's own
+developer console, and the Supabase dashboard. Neither works without the other.
+
+### Apple Sign-In (iOS only)
+
+1. In the [Apple Developer portal](https://developer.apple.com), open your App
+   ID (`com.anonymous.you-are-not-alone`) and enable the **Sign in with Apple**
+   capability. The bundle ID must match `ios.bundleIdentifier` in `app.json`.
+2. In the Supabase dashboard → **Authentication → Providers → Apple**, enable
+   the provider and add your bundle ID to the **Client IDs** list.
+
+### Google Sign-In
+
+1. In [Google Cloud Console](https://console.cloud.google.com), create a
+   **Web OAuth 2.0 client ID** for your project.
+2. Add the following **Authorised redirect URI**:
+   ```
+   https://<your-project-ref>.supabase.co/auth/v1/callback
+   ```
+3. Copy the **Client ID** and **Client Secret** into Supabase dashboard →
+   **Authentication → Providers → Google**.
+
+### Allowed redirect URL (both providers)
+
+In Supabase dashboard → **Authentication → URL Configuration → Allowed Redirect
+URLs**, add:
+```
+yana://auth
+```
+Without this entry the OAuth consent succeeds but the redirect back to the app
+is rejected by Supabase.
+
+> **App Store guideline 4.8** — as long as Google sign-in is offered on iOS,
+> Apple sign-in must be offered alongside it. Never remove the Apple button
+> while the Google button exists.
+
+> **Development builds** — native sign-in requires a development build (not
+> Expo Go). Run `npx expo run:ios` / `npx expo run:android` or use EAS Build
+> to test both providers on real devices.
+
+---
+
 ## Local setup
 
 ```bash

@@ -22,7 +22,8 @@ type AnalyticsEvent =
   | { name: 'crisis_flagged';        props: Record<string, never> }
   | { name: 'match_shown';           props: { confession_id: string; felt_count: number } }
   | { name: 'card_shared';           props: Record<string, never> }
-  | { name: 'report_submitted';      props: { confession_id: string } };
+  | { name: 'report_submitted';      props: { confession_id: string } }
+  | { name: 'onboarding_read_shown'; props: { confession_id: string } };
 
 function track(event: AnalyticsEvent): void {
   if (__DEV__) {
@@ -64,5 +65,8 @@ export const analytics = {
   },
   reportSubmitted(confession_id: string) {
     track({ name: 'report_submitted', props: { confession_id } });
+  },
+  onboardingReadShown(confession_id: string) {
+    track({ name: 'onboarding_read_shown', props: { confession_id } });
   },
 };

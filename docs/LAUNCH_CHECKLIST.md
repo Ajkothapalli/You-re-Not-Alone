@@ -62,7 +62,12 @@
 
 ## App Store
 
+- ✅ **Apple 4.8 Sign in with Apple** — offered alongside Google on iOS (`app/index.tsx`); `appleAvailable` guard renders the button only on capable devices; never remove while Google exists
+- ⚠️ **Supabase provider config + redirect URL** — enable Apple and Google providers in Supabase dashboard; add `yana://auth` to Allowed Redirect URLs; add Apple bundle ID and Google client credentials (see README "Configure sign-in providers")
+- ⚠️ **Native sign-in needs a development build** — Apple and Google sign-in do not work in Expo Go; test both providers on real devices using `npx expo run:ios` / `npx expo run:android` or EAS Build
 - ⚠️ **Apple App Store** — UGC apps require: in-app reporting, content moderation, ability to block users (confirm YANA's no-reply design satisfies this), content policy page URL in metadata
+- ✅ **Apple 5.1.1(v) in-app account deletion** — settings screen with two-step destructive confirm calling `delete-account` Edge Function (`app/settings.tsx`)
+- ⚠️ **Policy URLs** — replace `POLICY_URLS` placeholders in `app/settings.tsx` with live hosted URLs before store submission; Apple and Google require accessible URLs at review time
 - ⚠️ **Google Play** — User Generated Content policy: moderation system described, reporting mechanism confirmed, sensitive content handled per Play policy
 - ⚠️ **Content policy page** — draft at `docs/policies/CONTENT_POLICY.md`; requires lawyer review, published URL, and grievance officer details before store submission
 - ⚠️ **Mental health content** — follow Apple/Google guidance on crisis resources and helpline display in apps dealing with sensitive topics
