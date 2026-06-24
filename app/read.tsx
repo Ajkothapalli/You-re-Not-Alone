@@ -21,6 +21,7 @@ import { getMatchingCount, getOnboardingConfessions, reportConfession, type Read
 import { session } from '@/lib/sessionFlags';
 import { palettes } from '@/theme/palettes';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
+import { useReturnLoop } from '@/hooks';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -49,6 +50,7 @@ const FALLBACK_CONFESSIONS: ReadConfession[] = [
 ];
 
 export default function ReadScreen() {
+  const { totalNewFelt, visible: returnVisible, dismiss: dismissReturn } = useReturnLoop();
 
   const [items,      setItems]      = useState<ReadConfession[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -121,6 +123,23 @@ export default function ReadScreen() {
         <ProfileButton />
       </View>
 
+      {/* Return loop: show felt-count growth since last visit. Dismissed once per session. */}
+      {returnVisible && (
+        <Pressable
+          style={styles.returnBanner}
+          onPress={dismissReturn}
+          accessibilityRole="button"
+          accessibilityLabel={`Since you left, ${totalNewFelt} more ${totalNewFelt === 1 ? 'person' : 'people'} felt what you wrote. Tap to dismiss.`}
+        >
+          <Text style={styles.returnText}>
+            since you left,{' '}
+            <Text style={styles.returnCount}>{totalNewFelt.toLocaleString()}</Text>
+            {' '}more {totalNewFelt === 1 ? 'person' : 'people'} felt what you wrote
+          </Text>
+          <Text style={styles.returnDismiss}>tap to dismiss</Text>
+        </Pressable>
+      )}
+
       <View style={styles.header}>
         <Text style={styles.heading} accessibilityRole="header">before you write, read</Text>
         <Text style={styles.sub}>
@@ -150,28 +169,39 @@ export default function ReadScreen() {
         />
       ))}
 
-      {/* Read-more unlock — opens premium plans. Quiet by design. */}
-      {matchCount > 0 && (
-        <Pressable
-          onPress={() => router.push('/plans')}
-          style={({ pressed }) => [styles.unlockCard, pressed && styles.unlockPressed]}
-          accessibilityRole="button"
-          accessibilityLabel={`Read ${matchCount} more confessions that match your categories`}
-          accessibilityHint="Opens subscription plans"
-        >
-          <Text style={styles.unlockCount}>{matchCount}</Text>
-          <View style={styles.unlockDivider} />
-          <View style={styles.unlockTextWrap}>
-            <Text style={styles.unlockTitle}>Read more like these</Text>
-            <Text style={styles.unlockSub}>members only</Text>
-          </View>
-          <Text style={styles.unlockArrow}>›</Text>
-        </Pressable>
-      )}
-
       <View style={styles.actions}>
         <PrimaryButton label="Now it's your turn" onPress={finish} />
+        <Text style={styles.writeHint}>write one confession — unlock 2 more reads</Text>
       </View>
+
+      <View style={styles.orRow}>
+        <View style={styles.orLine} />
+        <Text style={styles.orText}>or</Text>
+        <View style={styles.orLine} />
+      </View>
+
+      <Pressable
+        onPress={() => router.push('/plans')}
+        style={({ pressed }) => [styles.promoCard, pressed && styles.promoCardPressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Unlock unlimited reads"
+      >
+        <View style={styles.promoTop}>
+          <Text style={styles.promoEyebrow}>PREMIUM</Text>
+          {matchCount > 0 && (
+            <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ waiting</Text>
+          )}
+        </View>
+        <Text style={styles.promoTitle}>don't stop at 2</Text>
+        <Text style={styles.promoBody}>
+          Right now, hundreds of confessions match what you carry.
+          Premium readers see every one — no writing, no waiting.
+        </Text>
+        <View style={styles.promoCta}>
+          <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
+          <Text style={styles.promoCtaArrow}> →</Text>
+        </View>
+      </Pressable>
     </ScrollView>
   );
 }
@@ -215,53 +245,112 @@ const styles = StyleSheet.create({
     lineHeight:   22,
     marginBottom: 4,
   },
-  unlockCard: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    gap:               16,
-    backgroundColor:   '#16131C',
-    borderRadius:      radius.input,
-    borderWidth:       StyleSheet.hairlineWidth,
-    borderColor:       color.line,
-    paddingVertical:   16,
-    paddingHorizontal: 18,
-  },
-  unlockPressed: {
-    backgroundColor: '#1C1824',
-  },
-  unlockCount: {
-    fontFamily: fontFamily.serif,
-    fontSize:   34,
-    color:      color.paper,
-    lineHeight: 38,
-  },
-  unlockDivider: {
-    alignSelf:       'stretch',
-    width:           StyleSheet.hairlineWidth,
-    backgroundColor: color.line,
-    marginVertical:  3,
-  },
-  unlockTextWrap: { flex: 1, gap: 3 },
-  unlockTitle: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   17,
-    color:      color.paper,
-  },
-  unlockSub: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      10,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color:         color.dim,
-  },
-  unlockArrow: {
-    fontFamily: fontFamily.serif,
-    fontSize:   26,
-    color:      color.dim,
-  },
   actions: {
     alignItems: 'center',
-    gap:        16,
+    gap:        12,
     marginTop:  8,
+  },
+  writeHint: {
+    fontFamily: fontFamily.sans,
+    fontSize:   13,
+    color:      color.dim,
+    textAlign:  'center',
+  },
+  orRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           12,
+  },
+  orLine: {
+    flex:            1,
+    height:          StyleSheet.hairlineWidth,
+    backgroundColor: color.line,
+  },
+  orText: {
+    fontFamily: fontFamily.sans,
+    fontSize:   12,
+    color:      color.dim,
+  },
+  promoCard: {
+    backgroundColor: '#16131C',
+    borderRadius:    radius.input,
+    borderWidth:     1,
+    borderColor:     '#FBBF2444',
+    padding:         20,
+    gap:             12,
+  },
+  promoCardPressed: {
+    backgroundColor: '#1C1824',
+  },
+  promoTop: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    alignItems:     'center',
+  },
+  promoEyebrow: {
+    fontFamily:    fontFamily.sansBold,
+    fontSize:      10,
+    letterSpacing: 1.6,
+    color:         '#FBBF24',
+  },
+  promoStat: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   12,
+    color:      color.dim,
+  },
+  promoTitle: {
+    fontFamily: fontFamily.serifItalic,
+    fontSize:   24,
+    color:      color.paper,
+    lineHeight: 30,
+  },
+  promoBody: {
+    fontFamily: fontFamily.sans,
+    fontSize:   14,
+    color:      color.dim,
+    lineHeight: 21,
+  },
+  promoCta: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    backgroundColor:   '#FBBF24',
+    borderRadius:      radius.pill,
+    paddingHorizontal: 18,
+    paddingVertical:   11,
+    alignSelf:         'flex-start',
+    marginTop:         4,
+  },
+  promoCtaText: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   14,
+    color:      '#1A0A00',
+  },
+  promoCtaArrow: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   14,
+    color:      '#1A0A00',
+  },
+  returnBanner: {
+    backgroundColor: 'rgba(110,150,255,0.10)',
+    borderRadius:    radius.input,
+    borderWidth:     1,
+    borderColor:     'rgba(110,150,255,0.25)',
+    padding:         14,
+    gap:             4,
+  },
+  returnText: {
+    fontFamily: fontFamily.sans,
+    fontSize:   14,
+    color:      color.paper,
+    lineHeight: 21,
+  },
+  returnCount: {
+    fontFamily: fontFamily.sansBold,
+    color:      '#6E96FF',
+  },
+  returnDismiss: {
+    fontFamily: fontFamily.sans,
+    fontSize:   12,
+    color:      color.dim,
   },
 });

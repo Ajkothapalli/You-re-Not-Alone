@@ -4,7 +4,8 @@
  * native wiring for the provider-based hooks.
  */
 
-export { useAppLock } from './useAppLock';
+export { useAppLock }    from './useAppLock';
+export { useReturnLoop } from './useReturnLoop';
 export { useScreenCaptureGuard, registerScreenCaptureControls } from './useScreenCaptureGuard';
 export type { ScreenCaptureControls } from './useScreenCaptureGuard';
 export { useAppIntegrity, registerIntegrityProvider } from './useAppIntegrity';

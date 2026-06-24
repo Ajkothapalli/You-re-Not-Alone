@@ -907,8 +907,13 @@ serve(async (req: Request) => {
 
     // ── [8] RETURN ─────────────────────────────────────────────────────────────
     // author_token is never returned to the client.
+    // submittedId: the author's OWN new confession id, returned so the client
+    // can store an on-device receipt for the return-loop feature.
+    // Identity invariant preserved: confessions_public has no author_token column;
+    // the client cannot correlate submittedId to an account via the DB.
     return json({
-      type:  'matched',
+      type:        'matched',
+      submittedId: newConfession.id,
       match: {
         id:        matchRow.id,
         text:      matchRow.text,

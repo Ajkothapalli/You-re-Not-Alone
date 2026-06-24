@@ -1,16 +1,19 @@
 {
   "expo": {
-    "name": "You Are Not Alone",
+    "name": "soulyap",
     "slug": "you-are-not-alone",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "scheme": "yana",
+    "scheme": "soulyap",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.you-are-not-alone",
-      "usesAppleSignIn": true
+      "bundleIdentifier": "me.soulyap.app",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +23,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.youarenotalone"
+      "package": "me.soulyap.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -40,7 +43,14 @@
           "backgroundColor": "#0E0C13"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Turns your spoken words into text on your device. Audio is never recorded or sent anywhere.",
+          "speechRecognitionPermission": "Turns your spoken words into text on your device. Audio is never recorded or sent anywhere."
+        }
+      ]
     ],
     "extra": {
       "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",

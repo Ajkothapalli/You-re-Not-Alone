@@ -6,6 +6,8 @@
  */
 import { supabase } from './supabase';
 import { getDummyRecommendations, getDummyMatchCount } from './dummyConfessions';
+import type { AuthorshipPayload } from './authorship';
+import { saveReceipt, clearReceipts } from './confessionReceipt';
 
 // "submitted" = confession stored, no match found yet (first person to feel this)
 // "matched"   = a semantically close past confession was found
@@ -29,6 +31,7 @@ export interface MatchResult {
 export interface SubmitResult {
   type:             PipelineType;
   match?:           MatchResult;
+  submittedId?:     string;  // author's own new confession id (on-device receipt only)
   crisisResources?: CrisisResource[];
   blockReason?:     string;
 }
@@ -42,13 +45,14 @@ export async function submitConfession(
   text:        string,
   deviceHash:  string,
   region?:     string,
+  authorship?: AuthorshipPayload,
 ): Promise<SubmitResult> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
   const { data, error } = await supabase.functions.invoke<SubmitResult>(
     'submit-confession',
-    { body: { text, deviceHash, region } },
+    { body: { text, deviceHash, region, authorship } },
   );
 
   if (error) {
@@ -71,7 +75,21 @@ export async function submitConfession(
       : raw.outcome;
   }
 
-  return data!;
+  const result = data!;
+
+  // On-device receipt: store the author's own new confession id so the return
+  // loop can track felt_count growth across sessions.
+  // - submitted: match.id IS the author's new confession
+  // - matched:   submittedId is the author's new confession; match.id is the reader's match
+  // Privacy: links this device to its confessions; ids only; clearable; never sent to server.
+  const ownId =
+    result.submittedId ??
+    (result.type === 'submitted' ? result.match?.id : undefined);
+  if (ownId && (result.type === 'matched' || result.type === 'submitted')) {
+    saveReceipt(ownId, 0).catch(() => {});
+  }
+
+  return result;
 }
 
 export async function reportConfession(
@@ -111,6 +129,7 @@ export async function deleteAccount(): Promise<void> {
   });
   if (error) throw error;
 
+  await clearReceipts();
   await supabase.auth.signOut();
 }
 
