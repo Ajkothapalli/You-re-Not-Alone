@@ -12,6 +12,7 @@
  * animation plays as the reveal rather than finishing hidden behind the overlay.
  * StoryCard stays mounted throughout so share capture always works.
  */
+import { useScreenCaptureGuard } from '@/hooks';
 import { Celebration } from '@/components/Celebration';
 import ConfessionCard from '@/components/ConfessionCard';
 import CounterPill from '@/components/CounterPill';
@@ -19,6 +20,7 @@ import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { reportConfession } from '@/lib/api';
 import { analytics } from '@/lib/analytics';
+import { session } from '@/lib/sessionFlags';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { usePalette } from '@/theme/ThemeProvider';
 import { color, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -34,6 +36,7 @@ import {
 } from 'react-native';
 
 export default function MatchScreen() {
+  useScreenCaptureGuard(); // prevent screenshots of matched confession
   const palette = usePalette();
   const params = useLocalSearchParams<{
     youText:      string;
@@ -101,6 +104,11 @@ export default function MatchScreen() {
     );
   }
 
+  function handleReadMore() {
+    session.readCredits += 2;
+    router.replace('/explore');
+  }
+
   // ── No match path ────────────────────────────────────────────────────────────
   if (isNoMatch) {
     return (
@@ -119,7 +127,8 @@ export default function MatchScreen() {
               Your words are waiting. When someone else shares something similar, they'll find
               you — and know they're not alone.
             </Text>
-            <PrimaryButton label="Write another" onPress={() => router.replace('/write')} />
+            <PrimaryButton label="Read 2 more confessions" onPress={handleReadMore} />
+            <GhostButton label="Write another" onPress={() => router.replace('/write')} />
           </ScrollView>
         )}
       </View>
@@ -162,17 +171,18 @@ export default function MatchScreen() {
             palette={palette}
           />
 
-          {/* Tappable counter — opens supporter plans (owner decision 2026-06-12,
-              overriding the original "never paywall relief" rule; see CLAUDE.md) */}
           <CounterPill
             count={feltCount}
             youColor={palette.you}
             palette={palette}
-            onPress={() => router.push('/plans')}
           />
 
           <View style={styles.actions}>
             <PrimaryButton
+              label="Read 2 more confessions"
+              onPress={handleReadMore}
+            />
+            <GhostButton
               label={sharing ? 'Preparing…' : 'Share this moment'}
               onPress={handleShare}
               loading={sharing}

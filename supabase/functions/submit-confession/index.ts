@@ -29,7 +29,7 @@ const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const AUTHOR_TOKEN_SECRET  = Deno.env.get('AUTHOR_TOKEN_SECRET');
 const MODERATION_API_KEY   = Deno.env.get('MODERATION_API_KEY');
-const OPENAI_API_KEY       = Deno.env.get('OPENAI_API_KEY');   // gpt-4o-mini crisis classifier
+const OPENAI_API_KEY       = Deno.env.get('OPENAI_API_KEY');   // gpt-4o-mini crisis + judge
 const EMBEDDING_API_KEY    = Deno.env.get('EMBEDDING_API_KEY');
 const ENVIRONMENT          = Deno.env.get('ENVIRONMENT') ?? 'development';
 
@@ -38,8 +38,16 @@ const IS_PRODUCTION = ENVIRONMENT === 'production';
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin':  '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+
+// Added to every response — never leak content type, never cache auth'd data.
+const SEC = {
+  'X-Content-Type-Options': 'nosniff',
+  'Cache-Control':          'no-store',
+  'Referrer-Policy':        'same-origin',
 };
 
 // ─── HMAC helpers ─────────────────────────────────────────────────────────────
@@ -511,6 +519,210 @@ async function reportCsam(): Promise<void> {
   console.error(`[CSAM] Report filed with NCMEC. Timestamp: ${timestamp}`);
 }
 
+// ─── Step [4.5]: Authorship scoring ──────────────────────────────────────────
+//
+// Bayesian log-likelihood ratio model.
+//   logit_total = logit_prior + Σ LLR_i
+//   p = sigmoid(logit_total)
+//
+// Hard invariants (from spec):
+//   - Crisis content: NEVER scored (this runs after crisis hard-return)
+//   - Missing / invalid payload: FAIL OPEN (eligible = true, no penalty)
+//   - Content signals bounded to ±1.5 so they can't dominate behavioral evidence
+//   - Abstain (insufficient evidence): eligible = true
+//   - Hard punitive actions require p ≥ 0.97 precision
+//
+// Action ladder (gentlest → most severe):
+//   eligible      amplification_eligible = true
+//   invisible     amplification_eligible = false   (user gets own match, not surfaced)
+//   friction      amplification_eligible = false + ai_friction flag
+//   hold          amplification_eligible = false + ai_hold flag (human review queue)
+
+interface AuthorshipPayload {
+  keystroke_count:    number;
+  edit_entropy:       number;
+  paste_count:        number;
+  paste_chars:        number;
+  dictation_detected: boolean;
+  think_pause_count:  number;
+  composition_ms:     number;
+  typed_chars:        number;
+}
+
+interface AuthorshipResult {
+  amplification_eligible: boolean;
+  flags: string[];
+}
+
+// Prior: P(AI_dump) = 0.15 in the wild on anonymous confession apps
+const LOGIT_PRIOR  = -1.74;  // log(0.15 / 0.85)
+const INVISIBLE_T  =  0.0;   // logit > 0  → P > 0.50 → remove amplification
+const FRICTION_T   =  1.8;   // logit > 1.8 → P > 0.86 → friction
+const HOLD_T       =  3.5;   // logit > 3.5 → P > 0.97 → hold for human review
+
+function sigmoid(x: number): number {
+  return 1 / (1 + Math.exp(-x));
+}
+
+// ── LLM judge: 3x self-consistency (gpt-4o-mini) ─────────────────────────────
+// Returns LLR contribution. Caller bounds to ±1.5.
+// Only called when behavioral logit is already suspicious (saves cost + latency).
+async function runLlmJudge(text: string): Promise<number> {
+  const systemPrompt = [
+    'You assess whether a confession submitted to an anonymous app is genuine human writing',
+    'or AI-generated. Focus on: emotional specificity, personal detail, natural voice,',
+    'versus generic phrasing or AI patterns. When genuinely uncertain say "uncertain".',
+    'Respond ONLY with valid JSON: {"verdict":"human"|"ai"|"uncertain","confidence":0.0-1.0}',
+  ].join(' ');
+
+  const call = async () => {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model:       'gpt-4o-mini',
+        temperature: 0.2,
+        max_tokens:  40,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: text },
+        ],
+      }),
+    });
+    if (!r.ok) throw new Error(`LLM judge ${r.status}`);
+    const d   = await r.json();
+    const raw = (d.choices?.[0]?.message?.content ?? '{}').trim();
+    return JSON.parse(raw) as { verdict: string; confidence: number };
+  };
+
+  const [a, b, c] = await Promise.all([call(), call(), call()]);
+  const results = [a, b, c];
+
+  const ai_votes      = results.filter(r => r.verdict === 'ai').length;
+  const human_votes   = results.filter(r => r.verdict === 'human').length;
+  const uncertain_votes = results.filter(r => r.verdict === 'uncertain').length;
+
+  // High variance or split → abstain (0)
+  if (uncertain_votes >= 2 || (ai_votes > 0 && human_votes > 0)) return 0;
+
+  if (ai_votes === 3)    return 1.5;   // unanimous AI
+  if (ai_votes === 2)    return 0.5;   // majority AI
+  if (human_votes === 3) return -0.5;  // unanimous human
+  if (human_votes === 2) return -0.3;  // majority human
+  return 0;
+}
+
+// ── Beta-Bernoulli account trust update ──────────────────────────────────────
+async function updateAccountTrust(accountId: string, success: boolean): Promise<void> {
+  try {
+    await supabase.rpc('update_account_trust', {
+      p_account_id: accountId,
+      p_alpha_inc:  success ? 1 : 0,
+      p_beta_inc:   success ? 0 : 1,
+    });
+  } catch { /* non-blocking */ }
+}
+
+// ── Main scoring function ─────────────────────────────────────────────────────
+async function runAuthorshipScoring(
+  text:      string,
+  payload:   AuthorshipPayload | undefined,
+  accountId: string,
+): Promise<AuthorshipResult> {
+  // Fail open: missing or malformed payload → treat as human
+  if (!payload || typeof payload.keystroke_count !== 'number') {
+    await updateAccountTrust(accountId, true);
+    return { amplification_eligible: true, flags: [] };
+  }
+
+  let logit = LOGIT_PRIOR;
+
+  // ── Behavioral signals (client-advisory; spoofable but costly to defeat) ────
+
+  if (payload.dictation_detected) {
+    // Speech-to-text / OS dictation: strong whitelist — not an AI dump
+    logit -= 3.0;
+  } else {
+    const textLen      = Math.max(text.length, 1);
+    const pasteFrac    = payload.paste_chars / textLen;
+
+    if (pasteFrac > 0.90 && payload.keystroke_count < 5) {
+      // Entire text pasted with almost no typing: clearest AI-dump pattern
+      logit += 3.0;
+    } else if (pasteFrac > 0.70 && payload.keystroke_count < 10) {
+      logit += 1.0;
+    }
+
+    // Genuine edits (backspaces) = human signal
+    if (payload.edit_entropy > 0.06) logit -= 0.8;
+
+    // Think pauses correlated with linguistic boundaries = human signal
+    if (payload.think_pause_count > 3) {
+      logit -= 1.0;
+    } else if (payload.think_pause_count === 0 && payload.composition_ms > 15_000) {
+      // Long composition with zero pauses = reading-ahead (retyping prepared text)
+      logit += 0.3;
+    }
+
+    // Typing speed on typed chars
+    if (payload.composition_ms > 2_000 && payload.typed_chars > 5) {
+      const cps = (payload.typed_chars * 1000) / payload.composition_ms;
+      if (cps > 15) logit += 0.5;  // suspiciously fast (retyping)
+      if (cps < 1.5) logit -= 0.5; // very slow deliberate typing = human
+    }
+  }
+
+  // ── Account trust signal ──────────────────────────────────────────────────
+  try {
+    const { data: trust } = await supabase
+      .from('account_trust')
+      .select('trust_alpha, trust_beta, fraud_risk')
+      .eq('account_id', accountId)
+      .maybeSingle();
+
+    if (trust) {
+      const mean = trust.trust_alpha / (trust.trust_alpha + trust.trust_beta);
+      if (mean > 0.65) logit -= 0.5;  // high trust → human signal
+      if (mean < 0.25) logit += 0.5;  // low trust → suspicious
+      if ((trust.fraud_risk ?? 0) > 0.6) logit += 1.0;
+    }
+    // New / missing row → LLR = 0 (fail open)
+  } catch { /* fail open */ }
+
+  // ── LLM judge (bounded ±1.5) — only when behavioral signals are suspicious ─
+  // Skip when OPENAI_API_KEY is absent — already used for crisis/categories.
+  if (logit > LOGIT_PRIOR && OPENAI_API_KEY) {
+    try {
+      const llr     = await runLlmJudge(text);
+      const bounded = Math.max(-1.5, Math.min(1.5, llr));
+      logit += bounded;
+    } catch { /* LLM judge failure → fail open, LLR = 0 */ }
+  }
+
+  // ── Action policy ─────────────────────────────────────────────────────────
+  const flags: string[] = [];
+
+  if (logit < INVISIBLE_T) {
+    // Confident human OR abstain (insufficient evidence above prior)
+    await updateAccountTrust(accountId, true);
+    return { amplification_eligible: true, flags };
+  }
+
+  await updateAccountTrust(accountId, false);
+
+  if (logit >= HOLD_T) {
+    flags.push('ai_invisible', 'ai_friction', 'ai_hold');
+    return { amplification_eligible: false, flags };
+  }
+  if (logit >= FRICTION_T) {
+    flags.push('ai_invisible', 'ai_friction');
+    return { amplification_eligible: false, flags };
+  }
+  // INVISIBLE_T ≤ logit < FRICTION_T
+  flags.push('ai_invisible');
+  return { amplification_eligible: false, flags };
+}
+
 // ─── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -521,8 +733,19 @@ serve(async (req: Request) => {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
-      headers: { ...CORS, 'Content-Type': 'application/json' },
+      headers: { ...CORS, ...SEC, 'Content-Type': 'application/json' },
     });
+
+  // Reject oversized payloads before JSON parsing (DoS / memory protection).
+  // 32 KB is well above any legitimate confession; embedding payload is ≤ 6 KB.
+  const contentLength = parseInt(req.headers.get('content-length') ?? '0', 10);
+  if (contentLength > 32_768) {
+    return json({ error: 'Request too large.' }, 413);
+  }
+
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed.' }, 405);
+  }
 
   // ── [0] Auth + ban check ──────────────────────────────────────────────────────
   const jwt = req.headers.get('Authorization')?.replace('Bearer ', '');
@@ -564,7 +787,7 @@ serve(async (req: Request) => {
     }
 
     // ── Input validation ──────────────────────────────────────────────────────
-    let body: { text?: string; region?: string; deviceHash?: string };
+    let body: { text?: string; region?: string; deviceHash?: string; authorship?: AuthorshipPayload };
     try {
       body = await req.json();
     } catch {
@@ -621,7 +844,15 @@ serve(async (req: Request) => {
     // embedText() throws on API failure or dimension mismatch (fail closed).
     const embedding = await embedText(rawText);
 
-    // ── [4.5] CATEGORIZE ──────────────────────────────────────────────────────
+    // ── [4.5] AUTHORSHIP SCORING ──────────────────────────────────────────────
+    // Crisis-exempt by structure: this step is only reached after the crisis
+    // hard-return at step [3] has already passed. Fail OPEN throughout.
+    // Identity invariant: scoring signals live account-side (account_trust table);
+    // authorship_flags are stored on the confession row (server-only, never returned).
+    const { amplification_eligible, flags: authorshipFlags } =
+      await runAuthorshipScoring(rawText, body.authorship, user.id);
+
+    // ── [4.6] CATEGORIZE ──────────────────────────────────────────────────────
     // Fail open — missing categories degrade recommendation quality only,
     // not safety. The adult signal comes from step [2] moderation, never the LLM.
     const categories = await classifyCategories(rawText, modResult.adultSignal ?? false);
@@ -632,11 +863,13 @@ serve(async (req: Request) => {
     const { data: newConfession, error: insertErr } = await supabase
       .from('confessions')
       .insert({
-        author_token: authorToken,
-        text:         rawText,
-        embedding:    JSON.stringify(embedding),
+        author_token:           authorToken,
+        text:                   rawText,
+        embedding:              JSON.stringify(embedding),
         categories,
-        status:       'live',
+        amplification_eligible,
+        authorship_flags:       authorshipFlags,
+        status:                 'live',
       })
       .select('id')
       .single();

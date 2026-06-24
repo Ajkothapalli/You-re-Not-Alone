@@ -1,15 +1,17 @@
+import { useScreenCaptureGuard } from '@/hooks';
 import ConfessionInput from '@/components/ConfessionInput';
 import ProfileButton from '@/components/ProfileButton';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
 import { improveWriting, submitConfession } from '@/lib/api';
+import { type AuthorshipPayload } from '@/lib/authorship';
 import { useDraft } from '@/lib/draftContext';
 import { getDeviceHash } from '@/lib/deviceHash';
 import { session } from '@/lib/sessionFlags';
 import { usePalette } from '@/theme/ThemeProvider';
 import { color, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -28,12 +30,14 @@ const MIN_CHARS         = 1;
 const IMPROVE_MIN_CHARS = 15;
 
 export default function WriteScreen() {
+  useScreenCaptureGuard(); // prevent screenshots while composing a confession
   const palette                        = usePalette();
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading,   setLoading]        = useState(false);
   const [improving, setImproving]      = useState(false);
   const [original,  setOriginal]       = useState<string | null>(null);
   const [rewritten, setRewritten]      = useState<string | null>(null);
+  const authorshipRef = useRef<AuthorshipPayload | null>(null);
 
   useEffect(() => {
     if (!session.readShown) router.replace('/read');
@@ -81,7 +85,7 @@ export default function WriteScreen() {
       const deviceHash = await getDeviceHash();
       const region = Intl.DateTimeFormat().resolvedOptions().timeZone.startsWith('Asia/Kolkata')
         ? 'IN' : 'US';
-      const result = await submitConfession(trimmed, deviceHash, region);
+      const result = await submitConfession(trimmed, deviceHash, region, authorshipRef.current ?? undefined);
 
       if (result.type === 'crisis')  { router.push('/crisis'); return; }
       if (result.type === 'blocked') { analytics.blockedByModeration(result.blockReason); return; }
@@ -129,6 +133,7 @@ export default function WriteScreen() {
       <ConfessionInput
         value={draft}
         onChangeText={setDraft}
+        onAuthorshipChange={(p) => { authorshipRef.current = p; }}
         placeholder="Write or paste it here. It stays private."
         autoFocus
         style={styles.inputArea}
