@@ -29,11 +29,12 @@ export interface MatchResult {
 }
 
 export interface SubmitResult {
-  type:             PipelineType;
-  match?:           MatchResult;
-  submittedId?:     string;  // author's own new confession id (on-device receipt only)
-  crisisResources?: CrisisResource[];
-  blockReason?:     string;
+  type:               PipelineType;
+  match?:             MatchResult;
+  submittedId?:       string;  // author's own new confession id (on-device receipt only)
+  status?:            'live' | 'under_review';  // confession's post-insert status
+  crisisResources?:   CrisisResource[];
+  blockReason?:       string;
 }
 
 /**

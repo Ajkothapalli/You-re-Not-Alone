@@ -101,7 +101,7 @@ async function computeDeviceHash(accountId: string, req: Request): Promise<strin
 
 async function runModeration(
   text: string,
-): Promise<{ pass: boolean; reason?: string; csam?: boolean; adultSignal?: boolean }> {
+): Promise<{ pass: boolean; reason?: string; csam?: boolean; adultSignal?: boolean; borderline?: boolean }> {
   if (!MODERATION_API_KEY) {
     if (IS_PRODUCTION) {
       // Hard fail in production — see CLAUDE.md non-negotiables.
@@ -153,13 +153,21 @@ async function runModeration(
     };
   }
 
-  // Pass: check whether the adult-sexual signal is above threshold.
-  // Score > 0.3 but not flagged = mature adult content that passed moderation.
-  // This signal is used to tag sexuality_intimacy — never to block.
+  // Pass: check adult signal and borderline harm scores.
+  // Adult > 0.3 but not flagged = mature content that cleared moderation.
+  // Borderline = any harm-adjacent category above 0.25 — queued for human review
+  // rather than blocked, so the confession goes in as 'under_review' not 'live'.
   const scores: Record<string, number> = result.category_scores ?? {};
   const adultSignal = (scores['sexual'] ?? 0) > 0.3;
 
-  return { pass: true, adultSignal };
+  const BORDERLINE_CATEGORIES = [
+    'harassment', 'harassment/threatening',
+    'hate', 'hate/threatening',
+    'violence', 'violence/graphic',
+  ];
+  const borderline = BORDERLINE_CATEGORIES.some(k => (scores[k] ?? 0) > 0.25);
+
+  return { pass: true, adultSignal, borderline };
 }
 
 // ─── Step 3: Crisis detection ─────────────────────────────────────────────────
@@ -860,6 +868,11 @@ serve(async (req: Request) => {
     // ── [5] STORE ──────────────────────────────────────────────────────────────
     const authorToken = await getAuthorToken(user.id);
 
+    // Borderline confessions enter as 'under_review' + auto_flagged=true.
+    // They are hidden from the match/explore pool until an operator approves them.
+    // The author is notified on their next app open via get_confession_statuses().
+    const confessionStatus = modResult.borderline ? 'under_review' : 'live';
+
     const { data: newConfession, error: insertErr } = await supabase
       .from('confessions')
       .insert({
@@ -869,7 +882,8 @@ serve(async (req: Request) => {
         categories,
         amplification_eligible,
         authorship_flags:       authorshipFlags,
-        status:                 'live',
+        status:                 confessionStatus,
+        auto_flagged:           modResult.borderline ?? false,
       })
       .select('id')
       .single();
@@ -890,7 +904,9 @@ serve(async (req: Request) => {
     if (!matchRow) {
       // Pool empty — first person to feel this
       return json({
-        type:  'submitted',
+        type:        'submitted',
+        submittedId: newConfession.id,
+        status:      confessionStatus,
         match: { id: newConfession.id, text: rawText, feltCount: 0 },
       });
     }
@@ -914,6 +930,7 @@ serve(async (req: Request) => {
     return json({
       type:        'matched',
       submittedId: newConfession.id,
+      status:      confessionStatus,
       match: {
         id:        matchRow.id,
         text:      matchRow.text,

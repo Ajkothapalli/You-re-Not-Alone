@@ -18,8 +18,10 @@
 
 import ReadCard from '@/components/ReadCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
+import ConfessionQuote from '@/components/ConfessionQuote';
 import { announce } from '@/lib/a11y';
 import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
+import { session } from '@/lib/sessionFlags';
 import { palettes } from '@/theme/palettes';
 import { color, fontFamily, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
@@ -37,26 +39,29 @@ import {
 const DWELL_THRESHOLD_MS = 5_000;
 
 export default function ExploreScreen() {
-  const [confessions,     setConfessions]     = useState<Recommendation[]>([]);
-  const [index,           setIndex]           = useState(0);
-  const [loading,         setLoading]         = useState(true);
-  const [done,            setDone]            = useState(false);
-  const [premiumRequired, setPremiumRequired] = useState(false);
+  const [confessions, setConfessions] = useState<Recommendation[]>([]);
+  const [index,       setIndex]       = useState(0);
+  const [loading,     setLoading]     = useState(true);
+  const [done,        setDone]        = useState(false);
 
   const dwellTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dwellFired   = useRef(false);
   const mountTimeRef = useRef<number>(Date.now());
 
-  // Fetch on mount
+  // Consume credits atomically on mount — no credits = skip straight to end
   useEffect(() => {
+    const allowed = session.readCredits;
+    session.readCredits = 0;
+
+    if (allowed <= 0) {
+      setLoading(false);
+      setDone(true);
+      return;
+    }
+
     getRecommendations()
-      .then(({ confessions: data, premiumRequired: gated }) => {
-        if (gated) {
-          setPremiumRequired(true);
-          setLoading(false);
-          return;
-        }
-        setConfessions(data);
+      .then(({ confessions: data }) => {
+        setConfessions(data.slice(0, allowed));
         setLoading(false);
         if (data.length === 0) setDone(true);
       })
@@ -144,30 +149,52 @@ export default function ExploreScreen() {
 
   // ── End of session ────────────────────────────────────────────────────────────
   if (done || confessions.length === 0) {
+    const isEmpty = confessions.length === 0;
     return (
       <View style={styles.root}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
+        {/* Scrollable top content */}
+        <ScrollView
+          style={styles.fill}
+          contentContainerStyle={styles.endContent}
+          showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.backLabel}>← back</Text>
-        </Pressable>
-        <View style={styles.endContent}>
           <Text style={styles.endHeading} accessibilityRole="header">
-            {confessions.length === 0
-              ? 'nothing here yet'
-              : 'you\'re all caught up'}
+            {isEmpty ? 'nothing here yet' : 'that\'s your 2 for now'}
           </Text>
           <Text style={styles.endBody}>
-            {confessions.length === 0
+            {isEmpty
               ? 'Add more reading categories or check back soon — more people are sharing every day.'
-              : 'Come back later. New confessions are matched to your taste as they arrive.'}
+              : 'Write another confession to unlock 2 more reads. The more people share, the richer this place gets.'}
           </Text>
-          <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
-          <GhostButton label="Write your own" onPress={() => router.replace('/write')} />
+          <PrimaryButton label="Write another" onPress={() => router.replace('/write')} />
+          {isEmpty && (
+            <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
+          )}
+          <ConfessionQuote />
+        </ScrollView>
+
+        {/* Premium promo — always pinned at the bottom */}
+        <View style={styles.promoSection}>
+          <View style={styles.orRow}>
+            <View style={styles.orLine} />
+            <Text style={styles.orText}>or</Text>
+            <View style={styles.orLine} />
+          </View>
+          <Pressable
+            onPress={() => router.push('/plans')}
+            style={({ pressed }) => [styles.promoCard, pressed && styles.promoCardPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Unlock unlimited reads"
+          >
+            <Text style={styles.promoEyebrow}>PREMIUM</Text>
+            <Text style={styles.promoTitle}>want more?</Text>
+            <Text style={styles.promoBody}>
+              Hundreds of confessions match what you carry. Premium readers never run out — no writing required.
+            </Text>
+            <View style={styles.promoCta}>
+              <Text style={styles.promoCtaText}>Unlock unlimited reads →</Text>
+            </View>
+          </Pressable>
         </View>
       </View>
     );
@@ -270,11 +297,20 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   endContent: {
-    flex:              1,
-    padding:           spacing.screenPadding,
-    paddingTop:        24,
-    justifyContent:    'center',
-    gap:               16,
+    flexGrow:      1,
+    padding:       spacing.screenPadding,
+    paddingTop:    80,
+    paddingBottom: 24,
+    gap:           16,
+    justifyContent: 'center',
+  },
+  promoSection: {
+    padding:       spacing.screenPadding,
+    paddingBottom: 48,
+    gap:           16,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: color.line,
+    backgroundColor: color.bg,
   },
   endHeading: {
     fontFamily: fontFamily.serifItalic,
@@ -286,5 +322,62 @@ const styles = StyleSheet.create({
     fontSize:   15,
     color:      color.dim,
     lineHeight: 23,
+  },
+  orRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           12,
+    marginTop:     4,
+  },
+  orLine: {
+    flex:            1,
+    height:          StyleSheet.hairlineWidth,
+    backgroundColor: color.line,
+  },
+  orText: {
+    fontFamily: fontFamily.sans,
+    fontSize:   12,
+    color:      color.dim,
+  },
+  promoCard: {
+    backgroundColor: '#16131C',
+    borderRadius:    16,
+    borderWidth:     1,
+    borderColor:     '#FBBF2444',
+    padding:         20,
+    gap:             10,
+  },
+  promoCardPressed: {
+    backgroundColor: '#1C1824',
+  },
+  promoEyebrow: {
+    fontFamily:    fontFamily.sansBold,
+    fontSize:      10,
+    letterSpacing: 1.6,
+    color:         '#FBBF24',
+  },
+  promoTitle: {
+    fontFamily: fontFamily.serifItalic,
+    fontSize:   22,
+    color:      color.paper,
+  },
+  promoBody: {
+    fontFamily: fontFamily.sans,
+    fontSize:   14,
+    color:      color.dim,
+    lineHeight: 21,
+  },
+  promoCta: {
+    backgroundColor:   '#FBBF24',
+    borderRadius:      999,
+    paddingHorizontal: 18,
+    paddingVertical:   11,
+    alignSelf:         'flex-start',
+    marginTop:         4,
+  },
+  promoCtaText: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   14,
+    color:      '#1A0A00',
   },
 });

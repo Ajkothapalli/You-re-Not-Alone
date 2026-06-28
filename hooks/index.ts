@@ -11,4 +11,5 @@ export type { ScreenCaptureControls } from './useScreenCaptureGuard';
 export { useAppIntegrity, registerIntegrityProvider } from './useAppIntegrity';
 export type { IntegrityResult } from './useAppIntegrity';
 export { useTamperGuard, registerTamperChecker } from './useTamperGuard';
-export { useSecureFetch } from './useSecureFetch';
+export { useSecureFetch }        from './useSecureFetch';
+export { useConfessionStatus }   from './useConfessionStatus';

@@ -14,14 +14,16 @@
  */
 
 import { PrimaryButton } from '@/components/Buttons';
+import ConfessionQuote from '@/components/ConfessionQuote';
 import ProfileButton from '@/components/ProfileButton';
 import ReadCard from '@/components/ReadCard';
 import { analytics } from '@/lib/analytics';
 import { getMatchingCount, getOnboardingConfessions, reportConfession, type ReadConfession } from '@/lib/api';
 import { session } from '@/lib/sessionFlags';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { palettes } from '@/theme/palettes';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
-import { useReturnLoop } from '@/hooks';
+import { useReturnLoop, useConfessionStatus } from '@/hooks';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -51,10 +53,12 @@ const FALLBACK_CONFESSIONS: ReadConfession[] = [
 
 export default function ReadScreen() {
   const { totalNewFelt, visible: returnVisible, dismiss: dismissReturn } = useReturnLoop();
+  const { removed: removedConfessions, underReview: underReviewCount } = useConfessionStatus();
 
-  const [items,      setItems]      = useState<ReadConfession[]>([]);
-  const [loading,    setLoading]    = useState(true);
-  const [matchCount, setMatchCount] = useState(0);
+  const [items,         setItems]         = useState<ReadConfession[]>([]);
+  const [loading,       setLoading]       = useState(true);
+  const [matchCount,    setMatchCount]    = useState(0);
+  const [paletteOffset, setPaletteOffset] = useState(0);
 
   const done = useRef(false);
 
@@ -68,11 +72,18 @@ export default function ReadScreen() {
   useEffect(() => {
     session.readShown = true;
     (async () => {
+      // Rotate card palettes once per session — load current offset then bump for next login.
+      try {
+        const stored = await AsyncStorage.getItem('palette_session_v1');
+        const offset = stored ? parseInt(stored, 10) : 0;
+        setPaletteOffset(isNaN(offset) ? 0 : offset);
+        await AsyncStorage.setItem('palette_session_v1', String(offset + 1));
+      } catch {}
+
       try {
         const rows = await getOnboardingConfessions();
         setItems(rows.length > 0 ? rows : FALLBACK_CONFESSIONS);
       } catch {
-        // RPC unavailable (migration not yet applied, network error, etc.)
         setItems(FALLBACK_CONFESSIONS);
       } finally {
         setLoading(false);
@@ -140,6 +151,35 @@ export default function ReadScreen() {
         </Pressable>
       )}
 
+      {/* Under-review: borderline confession pending human check */}
+      {underReviewCount > 0 && (
+        <View
+          style={styles.reviewBanner}
+          accessibilityRole="text"
+          accessibilityLabel="One of your confessions is being reviewed before it goes live."
+        >
+          <Text style={styles.reviewText}>
+            we're giving your words a second look —{' '}
+            {underReviewCount === 1 ? 'it' : 'they'}'ll be live soon if all's well
+          </Text>
+        </View>
+      )}
+
+      {/* Removed: one or more confessions taken down by a moderator */}
+      {removedConfessions.map(c => (
+        <View
+          key={c.id}
+          style={styles.removedBanner}
+          accessibilityRole="text"
+          accessibilityLabel="One of your confessions was removed."
+        >
+          <Text style={styles.removedText}>
+            a confession was removed
+            {c.removedReason ? ` · ${c.removedReason.replace(/_/g, ' ')}` : ''}
+          </Text>
+        </View>
+      ))}
+
       <View style={styles.header}>
         <Text style={styles.heading} accessibilityRole="header">before you write, read</Text>
         <Text style={styles.sub}>
@@ -153,7 +193,7 @@ export default function ReadScreen() {
           key={item.id}
           text={item.text}
           feltCount={item.felt_count}
-          palette={i === 0 ? palettes[0] : palettes[3]}
+          palette={i === 0 ? palettes[paletteOffset % palettes.length] : palettes[(paletteOffset + 3) % palettes.length]}
           onReport={() => handleReport(item)}
           onPress={() => router.push({
             pathname: '/read-detail',
@@ -202,6 +242,8 @@ export default function ReadScreen() {
           <Text style={styles.promoCtaArrow}> →</Text>
         </View>
       </Pressable>
+
+      <ConfessionQuote />
     </ScrollView>
   );
 }
@@ -352,5 +394,31 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.sans,
     fontSize:   12,
     color:      color.dim,
+  },
+  reviewBanner: {
+    backgroundColor: 'rgba(120,120,160,0.10)',
+    borderRadius:    radius.input,
+    borderWidth:     1,
+    borderColor:     'rgba(120,120,160,0.22)',
+    padding:         14,
+  },
+  reviewText: {
+    fontFamily: fontFamily.sans,
+    fontSize:   13,
+    color:      color.dim,
+    lineHeight: 19,
+  },
+  removedBanner: {
+    backgroundColor: 'rgba(200,120,60,0.10)',
+    borderRadius:    radius.input,
+    borderWidth:     1,
+    borderColor:     'rgba(200,120,60,0.25)',
+    padding:         14,
+  },
+  removedText: {
+    fontFamily: fontFamily.sans,
+    fontSize:   13,
+    color:      '#C87840',
+    lineHeight: 19,
   },
 });
