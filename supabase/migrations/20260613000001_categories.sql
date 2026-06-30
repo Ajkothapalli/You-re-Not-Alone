@@ -12,6 +12,7 @@ CREATE INDEX IF NOT EXISTS confessions_categories_gin
   ON confessions USING GIN(categories);
 
 -- Extend confessions_public view to expose categories (read-only, no author data).
+DROP VIEW IF EXISTS confessions_public CASCADE;
 CREATE OR REPLACE VIEW confessions_public
   WITH (security_invoker = true) AS
   SELECT id, text, felt_count, categories, created_at

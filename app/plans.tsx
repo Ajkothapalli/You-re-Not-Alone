@@ -123,20 +123,21 @@ export default function PlansScreen() {
   }
 
   return (
-    <View style={styles.root}>
-      <ScrollView
-        style={styles.fill}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.back}>← back</Text>
-        </Pressable>
+    <ScrollView
+      style={styles.root}
+      contentContainerStyle={styles.scroll}
+      showsVerticalScrollIndicator={false}
+    >
+        <View style={styles.closeRow}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Text style={styles.closeLabel}>Done</Text>
+          </Pressable>
+        </View>
 
         {/* Premium header */}
         <LinearGradient colors={GOLD} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.badge}>
@@ -212,25 +213,26 @@ export default function PlansScreen() {
           Billed through the app store. Cancel anytime. Reading never replaces
           support — crisis resources are always free and never behind a plan.
         </Text>
-      </ScrollView>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.bg },
-  fill: { flex: 1 },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    64,
+    paddingTop:    20,
     paddingBottom: 48,
     gap:           14,
   },
-  back: {
+  closeRow: {
+    alignItems: 'flex-end',
+    marginBottom: 4,
+  },
+  closeLabel: {
     fontFamily: fontFamily.sans,
-    fontSize:   14,
+    fontSize:   16,
     color:      color.dim,
-    marginBottom: 8,
   },
   badge: {
     alignSelf:         'flex-start',

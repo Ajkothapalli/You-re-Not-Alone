@@ -7,11 +7,12 @@ const MAX_RECEIPTS = 20;
 export interface ConfessionReceipt {
   id:                string;
   feltCountAtSubmit: number;
+  text?:             string;  // on-device author text; added 2026-06-30
 }
 
-export async function saveReceipt(id: string, feltCountAtSubmit: number): Promise<void> {
+export async function saveReceipt(id: string, feltCountAtSubmit: number, text?: string): Promise<void> {
   const existing = await getReceipts();
-  const updated  = [{ id, feltCountAtSubmit }, ...existing.filter(r => r.id !== id)].slice(0, MAX_RECEIPTS);
+  const updated  = [{ id, feltCountAtSubmit, text }, ...existing.filter(r => r.id !== id)].slice(0, MAX_RECEIPTS);
   await AsyncStorage.setItem(RECEIPTS_KEY, JSON.stringify(updated));
   await AsyncStorage.removeItem(SEEN_KEY);
 }

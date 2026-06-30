@@ -88,6 +88,8 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="index"       />
+          <Stack.Screen name="welcome"     options={{ gestureEnabled: false, animation: 'fade' }} />
+          <Stack.Screen name="rtue"        options={{ gestureEnabled: false, animation: 'fade' }} />
           <Stack.Screen name="read"        />
           <Stack.Screen name="write"       />
           <Stack.Screen name="match"       />

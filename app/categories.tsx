@@ -161,15 +161,16 @@ export default function CategoriesScreen() {
       showsVerticalScrollIndicator={false}
     >
       {isEdit && (
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.backLabel}>← back</Text>
-        </Pressable>
+        <View style={styles.closeRow}>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Text style={styles.closeLabel}>Done</Text>
+          </Pressable>
+        </View>
       )}
 
       <Text style={styles.heading} accessibilityRole="header">
@@ -225,12 +226,14 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    64,
+    paddingTop:    20,
     paddingBottom: 60,
     gap:           20,
   },
-  backBtn:   { marginBottom: 0 },
-  backLabel: { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim },
+  closeRow: {
+    alignItems: 'flex-end',
+  },
+  closeLabel: { fontFamily: fontFamily.sans, fontSize: 16, color: color.dim },
 
   heading: {
     fontFamily: fontFamily.serifItalic,

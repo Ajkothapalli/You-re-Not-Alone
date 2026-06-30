@@ -2,8 +2,8 @@
  * AnimatedSplash — takes over from the static native splash and animates
  * ONLY the two quote glyphs. No halo, no background elements.
  *
- * The logo PNG is pre-split into assets/splash-quote-left.png (the warm “)
- * and assets/splash-quote-right.png (the cool ”) at the exact gap column,
+ * The logo PNG is pre-split into assets/splash-quote-left.png (the warm ")
+ * and assets/splash-quote-right.png (the cool ") at the exact gap column,
  * so rendering them side by side at LEFT/RIGHT widths reconstructs the
  * native splash pixel-for-pixel. The choreography starts from that exact
  * pose — the native → JS handoff is invisible.
@@ -14,6 +14,7 @@
  *   3. the meeting — they swing back with a spring overshoot, crossing
  *                    slightly inward and pulsing as they "meet"
  *   4. idle      — a slow off-phase float, alive until the overlay melts
+ *   5. hold & fade — wordmark visible briefly, then overlay melts to onDone()
  */
 
 import * as SplashScreen from 'expo-splash-screen';
@@ -26,7 +27,9 @@ const LOGO_SIZE  = 220;            // must match app.json imageWidth
 const LEFT_RATIO = 0.4111;         // split column from the asset (421/1024)
 const LEFT_W     = LOGO_SIZE * LEFT_RATIO;
 const RIGHT_W    = LOGO_SIZE * (1 - LEFT_RATIO);
-const TOTAL_MS   = 2800;
+
+const LEFT_SRC   = require('../assets/splash-quote-left.png');
+const RIGHT_SRC  = require('../assets/splash-quote-right.png');
 
 interface Props {
   onDone: () => void;
@@ -54,6 +57,18 @@ export default function AnimatedSplash({ onDone }: Props) {
       }, 1100);
       return () => clearTimeout(t);
     }
+
+    let done = false;
+    const dismissNow = () => {
+      if (done) return;
+      done = true;
+      Animated.timing(overlay, {
+        toValue:         0,
+        duration:        450,
+        easing:          Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }).start(({ finished }) => { if (finished) onDone(); });
+    };
 
     // 2. breathe apart → 3. spring back together (overshoot = the meeting)
     Animated.sequence([
@@ -109,19 +124,16 @@ export default function AnimatedSplash({ onDone }: Props) {
       useNativeDriver: true,
     }).start();
 
-    const dismiss = setTimeout(() => {
-      Animated.timing(overlay, {
-        toValue:         0,
-        duration:        450,
-        easing:          Easing.in(Easing.quad),
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) onDone();
-      });
-    }, TOTAL_MS);
+    // 5. hold briefly after wordmark is fully visible, then fade out
+    // wordmark fully visible at ~1700ms; hold 800ms before dismissing
+    const dismissTimer = setTimeout(dismissNow, 2500);
+
+    // safety net — splash can never hang
+    const hardStop = setTimeout(dismissNow, 4000);
 
     return () => {
-      clearTimeout(dismiss);
+      clearTimeout(dismissTimer);
+      clearTimeout(hardStop);
       clearTimeout(floatStart);
       floatLoopL.stop();
       floatLoopR.stop();
@@ -157,7 +169,7 @@ export default function AnimatedSplash({ onDone }: Props) {
       pointerEvents="auto"
       accessible
       accessibilityRole="image"
-      accessibilityLabel="You're not alone. A private place to say what you can't."
+      accessibilityLabel="soulyap — a private place to say what you can't."
       style={[styles.overlay, { opacity: overlay }]}
     >
       <Animated.View
@@ -166,12 +178,12 @@ export default function AnimatedSplash({ onDone }: Props) {
         importantForAccessibility="no-hide-descendants"
       >
         <Animated.Image
-          source={require('../assets/splash-quote-left.png')}
+          source={LEFT_SRC}
           style={leftStyle}
           resizeMode="stretch"
         />
         <Animated.Image
-          source={require('../assets/splash-quote-right.png')}
+          source={RIGHT_SRC}
           style={rightStyle}
           resizeMode="stretch"
         />
@@ -186,7 +198,7 @@ export default function AnimatedSplash({ onDone }: Props) {
           },
         ]}
       >
-        <Text style={styles.wordmarkText}>you're not alone</Text>
+        <Text style={styles.wordmarkText}>soulyap</Text>
         <Text style={styles.subText}>a private place to say what you can't</Text>
       </Animated.View>
     </Animated.View>

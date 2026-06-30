@@ -12,24 +12,27 @@
  */
 
 // Monthly / 6-month / Yearly. The core relief loop stays free; premium is
-// "unlimited reading · support this place", priced low on purpose (solo
-// operator, infra-only costs). Anchor: Monthly $1.99/₹79, Yearly $11.99/₹499.
-// 6-month sits between — cheaper per-month than monthly, dearer than yearly.
+// "unlimited reading · support this place". Graded by per-capita income / PPP:
+// India is the cheapest anchor (₹79 / ₹499); emerging markets (Brazil) stay low;
+// high-income markets scale up with per-capita, US at the top ($3.99 / $19.99).
+// Per-month MUST decrease month→6mo→year (yearly best value) in every currency.
 export type TierId = 'month' | 'sixmonth' | 'year';
 type Amounts = Record<TierId, number>;
 
 // Store-tier-style local prices (not raw FX) — what these would plausibly
 // cost in each market. Keep in sync with App Store Connect tiers at launch.
+// Graded low → high by per-capita income / PPP.
 const TABLE: Record<string, Amounts> = {
-  USD: { month: 1.99,  sixmonth: 7.99,  year: 11.99 },
-  EUR: { month: 1.99,  sixmonth: 7.99,  year: 11.99 },
-  GBP: { month: 1.99,  sixmonth: 6.99,  year: 10.99 },
-  INR: { month: 79,    sixmonth: 299,   year: 499 },
-  CAD: { month: 2.99,  sixmonth: 11.99, year: 15.99 },
-  AUD: { month: 2.99,  sixmonth: 12.99, year: 16.99 },
-  JPY: { month: 300,   sixmonth: 1200,  year: 1800 },
-  BRL: { month: 9.90,  sixmonth: 34.90, year: 49.90 },
-  AED: { month: 6.99,  sixmonth: 24.99, year: 39.99 },
+  INR: { month: 79,    sixmonth: 299,   year: 499 },   // India — cheapest anchor (unchanged)
+  BRL: { month: 5.90,  sixmonth: 19.90, year: 34.90 }, // Brazil — just above India
+  JPY: { month: 500,   sixmonth: 1700,  year: 2500 },  // Japan
+  EUR: { month: 3.49,  sixmonth: 11.99, year: 16.99 }, // Eurozone
+  GBP: { month: 3.49,  sixmonth: 11.99, year: 16.99 }, // UK
+  AED: { month: 12.99, sixmonth: 44.99, year: 64.99 }, // UAE
+  CAD: { month: 4.99,  sixmonth: 16.99, year: 24.99 }, // Canada
+  NZD: { month: 5.99,  sixmonth: 19.99, year: 29.99 }, // New Zealand
+  AUD: { month: 5.99,  sixmonth: 19.99, year: 29.99 }, // Australia
+  USD: { month: 3.99,  sixmonth: 12.99, year: 19.99 }, // US — top per-capita
 };
 const FALLBACK = 'USD';
 
@@ -59,7 +62,7 @@ function fmt(amount: number, currency: string): string {
 
 // region → currency, covering the markets in TABLE
 const REGION_CURRENCY: Record<string, string> = {
-  US: 'USD', GB: 'GBP', IN: 'INR', CA: 'CAD', AU: 'AUD',
+  US: 'USD', GB: 'GBP', IN: 'INR', CA: 'CAD', AU: 'AUD', NZ: 'NZD',
   JP: 'JPY', BR: 'BRL', AE: 'AED',
   // Euro-zone
   DE: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR',

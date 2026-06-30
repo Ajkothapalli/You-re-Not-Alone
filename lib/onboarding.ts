@@ -23,3 +23,26 @@ export async function resetIntroReads(): Promise<void> {
     await AsyncStorage.removeItem(KEY);
   } catch {}
 }
+
+// ── FTUE (first-time user experience) ─────────────────────────────────────────
+// Tracks whether the new-user illustrated onboarding (app/welcome.tsx) has
+// been completed. Separate key from intro-reads so they don't interfere.
+
+const FTUE_KEY = '@yana/ftue_done';
+
+export async function hasDoneFtue(): Promise<boolean> {
+  try {
+    return (await AsyncStorage.getItem(FTUE_KEY)) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export async function markFtueDone(): Promise<void> {
+  await AsyncStorage.setItem(FTUE_KEY, '1').catch(() => {});
+}
+
+/** Dev helper — resets FTUE so the welcome screen shows again on next new-user auth. */
+export async function resetFtue(): Promise<void> {
+  await AsyncStorage.removeItem(FTUE_KEY).catch(() => {});
+}

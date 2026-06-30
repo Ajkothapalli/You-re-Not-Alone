@@ -142,17 +142,17 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={12}
-        style={styles.backBtn}
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-      >
-        <Text style={styles.backLabel}>← back</Text>
-      </Pressable>
-
-      <Text style={styles.heading} accessibilityRole="header">your corner</Text>
+      <View style={styles.topBar}>
+        <Text style={styles.heading} accessibilityRole="header">your corner</Text>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+        >
+          <Text style={styles.closeLabel}>Done</Text>
+        </Pressable>
+      </View>
 
       {/* Current character + editable name */}
       <View style={styles.identityCard}>
@@ -340,16 +340,18 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    64,
+    paddingTop:    20,
     paddingBottom: 48,
     gap:           16,
   },
-  backBtn: {
-    marginBottom: 4,
+  topBar: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
   },
-  backLabel: {
+  closeLabel: {
     fontFamily: fontFamily.sans,
-    fontSize:   14,
+    fontSize:   16,
     color:      color.dim,
   },
   heading: {

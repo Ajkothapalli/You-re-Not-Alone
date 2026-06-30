@@ -120,9 +120,9 @@ BEGIN
   FROM reader_preferences WHERE account_id = p_reader_id;
 
   -- Alpha: positive signals pull toward the confession; negative push away.
-  v_alpha := CASE p_signal
-    WHEN 'felt', 'read_to_end', 'share' THEN  0.15
-    WHEN 'report', 'skip'               THEN -0.05
+  v_alpha := CASE
+    WHEN p_signal IN ('felt', 'read_to_end', 'share') THEN  0.15
+    WHEN p_signal IN ('report', 'skip')               THEN -0.05
     ELSE 0.0
   END;
 

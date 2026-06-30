@@ -18,9 +18,9 @@ import {
 // [REPLACE BEFORE LAUNCH] — Apple and Google require live, publicly accessible
 // policy URLs at review time. Placeholder URLs will cause app rejection.
 const POLICY_URLS = {
-  privacy: 'https://example.com/privacy',
-  terms:   'https://example.com/terms',
-  content: 'https://example.com/content-policy',
+  privacy: 'https://soulyap.me/privacy.html',
+  terms:   'https://soulyap.me/terms.html',
+  content: 'https://soulyap.me/content-policy.html',
 } as const;
 
 export default function SettingsScreen() {
@@ -72,15 +72,15 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
       <View style={styles.topBar}>
+        <Text style={styles.heading} accessibilityRole="header">about this place</Text>
         <Pressable
           onPress={() => router.back()}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Go back"
+          accessibilityLabel="Close"
         >
-          <Text style={styles.backLabel}>←</Text>
+          <Text style={styles.closeLabel}>Done</Text>
         </Pressable>
-        <Text style={styles.heading} accessibilityRole="header">about this place</Text>
       </View>
 
       {/* Anonymity explainer */}
@@ -165,20 +165,19 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding:        spacing.screenPadding,
-    paddingTop:     60,
+    paddingTop:     20,
     paddingBottom:  48,
     gap:            24,
   },
   topBar: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           12,
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
   },
-  backLabel: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   18,
+  closeLabel: {
+    fontFamily: fontFamily.sans,
+    fontSize:   16,
     color:      color.dim,
-    lineHeight: 22,
   },
   heading: {
     fontFamily: fontFamily.serifItalic,

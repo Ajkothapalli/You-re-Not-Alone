@@ -8,6 +8,9 @@ import { supabase } from './supabase';
 import { getDummyRecommendations, getDummyMatchCount } from './dummyConfessions';
 import type { AuthorshipPayload } from './authorship';
 import { saveReceipt, clearReceipts } from './confessionReceipt';
+import { resetFtue, resetIntroReads } from './onboarding';
+import { clearRtueCache, markRtueSeen } from './rtue';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // "submitted" = confession stored, no match found yet (first person to feel this)
 // "matched"   = a semantically close past confession was found
@@ -87,7 +90,7 @@ export async function submitConfession(
     result.submittedId ??
     (result.type === 'submitted' ? result.match?.id : undefined);
   if (ownId && (result.type === 'matched' || result.type === 'submitted')) {
-    saveReceipt(ownId, 0).catch(() => {});
+    saveReceipt(ownId, 0, text).catch(() => {});
   }
 
   return result;
@@ -130,7 +133,14 @@ export async function deleteAccount(): Promise<void> {
   });
   if (error) throw error;
 
-  await clearReceipts();
+  await Promise.allSettled([
+    clearReceipts(),
+    resetFtue(),
+    resetIntroReads(),
+    AsyncStorage.removeItem('@yana/rtue_v1'),
+    AsyncStorage.removeItem('@yana/reader_prefs'),
+  ]);
+  clearRtueCache();
   await supabase.auth.signOut();
 }
 

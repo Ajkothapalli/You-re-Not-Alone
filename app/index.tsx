@@ -12,7 +12,9 @@
 
 import { announce } from '@/lib/a11y';
 import { createOrUpdateAccount, getReaderPreferences } from '@/lib/api';
+import { resetFtue } from '@/lib/onboarding';
 import { hydrateProfile } from '@/lib/profile';
+import { evaluateRtue } from '@/lib/rtue';
 import { signInWithGoogle } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
@@ -77,16 +79,25 @@ export default function IndexScreen() {
     // on every device the user signs into (iOS ↔ Android). Non-blocking on failure.
     await hydrateProfile().catch(() => {});
     if (acct) {
-      // Existing account: check whether categories have been picked.
-      // If not, route to the category picker before the read screen.
-      const prefs = await getReaderPreferences().catch(() => null);
-      if (!prefs || prefs.categories.length === 0) {
-        router.replace('/categories');
+      // reader_preferences is a server-side signal: if missing, the user
+      // hasn't completed onboarding regardless of any stale on-device flag.
+      // Route to /welcome (FTUE) which includes category selection in beat 4.
+      const prefs = await getReaderPreferences().catch((): null => null);
+      if ((prefs?.categories.length ?? 0) === 0) {
+        await resetFtue().catch(() => {});
+        router.replace('/welcome');
+        return;
+      }
+      // Check for a meaningful return moment before landing on read.
+      const rtue = await evaluateRtue().catch((): null => null);
+      if (rtue) {
+        router.replace('/rtue');
       } else {
-        // Always show the read screen first — owner decision 2026-06-12.
         router.replace('/read');
       }
     } else {
+      // New account row — clear stale on-device FTUE flag before DOB step.
+      await resetFtue().catch(() => {});
       setStep('dob');
     }
   }
@@ -164,7 +175,6 @@ export default function IndexScreen() {
     try {
       const { error: err } = await supabase.auth.signInWithOtp({
         email: email.trim().toLowerCase(),
-        options: { emailRedirectTo: Linking.createURL('/') },
       });
       if (err) throw err;
       setStep('otp');
@@ -218,8 +228,10 @@ export default function IndexScreen() {
       const { data: { user } } = await supabase.auth.getUser();
       const authProvider = (user?.app_metadata?.provider as string) ?? 'email';
       await createOrUpdateAccount(new Date(dob), authProvider);
-      // New user: pick categories before seeing the read screen.
-      router.replace('/categories');
+      // New account row just created — always show FTUE regardless of any
+      // stale on-device flag left over from a previous deleted account.
+      await resetFtue().catch(() => {});
+      router.replace('/welcome');
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong. Try again.');
     } finally {
@@ -357,7 +369,7 @@ export default function IndexScreen() {
           </Text>
         )}
 
-        <Text style={[styles.legal, { color: palette.them }]}>
+        <Text style={styles.legal}>
           By continuing you agree to our{'\n'}Terms of Service and Privacy Policy.
         </Text>
       </ScrollView>
@@ -459,8 +471,10 @@ const styles = StyleSheet.create({
   },
   legal: {
     fontFamily: fontFamily.sans,
-    fontSize:   12,
+    fontSize:   11,
     textAlign:  'center',
     marginTop:  8,
+    color:      color.dim,
+    opacity:    0.45,
   },
 });
