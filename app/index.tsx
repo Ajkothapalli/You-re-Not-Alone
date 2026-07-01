@@ -22,6 +22,7 @@ import { GhostButton, PrimaryButton } from '@/components/Buttons';
 import { usePalette } from '@/theme/ThemeProvider';
 import { color, fontFamily, radius, spacing } from '@/theme/tokens';
 import * as Linking from 'expo-linking';
+import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -63,7 +64,8 @@ export default function IndexScreen() {
   const [busy,  setBusy]  = useState(false);
   const [error, setError] = useState('');
 
-  const stepRef = useRef(step);
+  const stepRef     = useRef(step);
+  const routingRef  = useRef(false);   // prevents concurrent routeAfterAuth calls
   useEffect(() => { stepRef.current = step; }, [step]);
 
   // Announce errors to the screen reader as they appear.
@@ -73,6 +75,8 @@ export default function IndexScreen() {
 
   // ── Routing helper (reused by email OTP and OAuth paths) ─────────────────────
   async function routeAfterAuth(userId: string) {
+    if (routingRef.current) return;   // guard against concurrent calls
+    routingRef.current = true;
     const { data: acct } = await supabase
       .from('accounts').select('id').eq('id', userId).maybeSingle();
     // Pull the account's character/name/release-count so they're identical
@@ -102,8 +106,40 @@ export default function IndexScreen() {
     }
   }
 
-  // ── Deep link handler (magic-link email tap) ─────────────────────────────────
+  // ── Deep link handler (magic-link + Google OAuth PKCE redirect) ──────────────
   async function handleDeepLink(url: string) {
+    // PKCE code flow — Google OAuth on Android fires this BEFORE (or instead of)
+    // openAuthSessionAsync resolving. Dismiss the browser first so it doesn't
+    // block, then exchange the code for a session.
+    const codeMatch = url.match(/[?&#]code=([^&#]+)/);
+    if (codeMatch) {
+      WebBrowser.dismissBrowser();
+      setBusy(true);
+      try {
+        const { error: exchErr } = await supabase.auth.exchangeCodeForSession(
+          decodeURIComponent(codeMatch[1]),
+        );
+        if (exchErr) throw exchErr;
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('No user after sign-in');
+        await routeAfterAuth(user.id);
+      } catch (err: any) {
+        // Code may have already been exchanged by openAuthSessionAsync path —
+        // check for an existing session before surfacing an error.
+        const { data: { session } } = await supabase.auth.getSession().catch(
+          () => ({ data: { session: null } }),
+        );
+        if (!session?.user) {
+          setError(err.message ?? 'Sign-in failed. Try again.');
+          setStep('email');
+        }
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // Implicit flow — magic link with #access_token= in the fragment
     const { accessToken, refreshToken } = parseAuthTokens(url);
     if (!accessToken || !refreshToken) return;
 

@@ -80,14 +80,30 @@ export async function signInWithGoogle(): Promise<boolean> {
   // no system Safari handoff, no "Open in X?" dialog. The second argument
   // is the redirect scheme Expo should intercept to close the modal.
   const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_URL);
-  if (result.type !== 'success') return false;
+  if (result.type !== 'success') {
+    // On Android, the Linking listener in index.tsx may have already exchanged
+    // the PKCE code and dismissed the browser — check for an existing session
+    // before reporting failure so we don't block the caller unnecessarily.
+    const { data: { session } } = await supabase.auth.getSession().catch(
+      () => ({ data: { session: null } }),
+    );
+    if (session?.user) return true;
+    return false;
+  }
 
   const url = result.url;
 
   const code = extractParam(url, 'code');
   if (code) {
+    // handleDeepLink in index.tsx may have already exchanged this code via the
+    // Linking listener — ignore "code already used" errors if session exists.
     const { error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
-    if (exchErr) throw exchErr;
+    if (exchErr) {
+      const { data: { session } } = await supabase.auth.getSession().catch(
+        () => ({ data: { session: null } }),
+      );
+      if (!session?.user) throw exchErr;
+    }
     return true;
   }
 
