@@ -17,8 +17,6 @@ export interface Category {
   hint:        string;
   /** Full sentence — used where more context helps; NOT the picker default. */
   description: string;
-  /** A single symbol that gives the category character at a glance. */
-  emoji:       string;
   /** Accent colour for the tile tint, icon badge, and selected state. */
   color:       string;
 }
@@ -29,7 +27,6 @@ export const CATEGORIES: Category[] = [
     label:       'Mental health',
     hint:        'the weight no one sees',
     description: 'Anxiety, depression, loneliness, the weight no one sees',
-    emoji:       '🌧️',
     color:       '#9C8BF6',
   },
   {
@@ -37,7 +34,6 @@ export const CATEGORIES: Category[] = [
     label:       'Relationships',
     hint:        'love & the unsaid',
     description: 'Love, family, friendships, the things left unsaid',
-    emoji:       '🫂',
     color:       '#F5996E',
   },
   {
@@ -45,31 +41,27 @@ export const CATEGORIES: Category[] = [
     label:       'Grief & loss',
     hint:        'what we carry',
     description: 'What we carry when someone or something is gone',
-    emoji:       '🕊️',
     color:       '#7FA0FF',
   },
   {
     id:          'secrets',
     label:       'Secrets & guilt',
     hint:        'what we hide',
-    description: 'Things we did, truths we hide, weight that won\'t lift',
-    emoji:       '🔒',
+    description: "Things we did, truths we hide, weight that won't lift",
     color:       '#FBBF24',
   },
   {
     id:          'work_identity',
     label:       'Work & identity',
-    hint:        'who you\'d become',
-    description: 'Ambition, failure, who you thought you\'d become',
-    emoji:       '🧭',
+    hint:        "who you'd become",
+    description: "Ambition, failure, who you thought you'd become",
     color:       '#4FC8D6',
   },
   {
     id:          'body_health',
     label:       'Body & health',
-    hint:        'the body\'s protests',
-    description: 'Illness, chronic pain, the body\'s quiet protests',
-    emoji:       '🌿',
+    hint:        "the body's protests",
+    description: "Illness, chronic pain, the body's quiet protests",
     color:       '#9BC47E',
   },
   {
@@ -77,7 +69,6 @@ export const CATEGORIES: Category[] = [
     label:       'Faith & meaning',
     hint:        'doubt & meaning',
     description: 'Doubt, belief, searching for why any of this matters',
-    emoji:       '✨',
     color:       '#B795E8',
   },
 ];

@@ -58,6 +58,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { CATEGORIES, type CategoryId } from '@/lib/categories';
+import { CategoryBadge } from '@/components/CategoryGlyph';
 import { markFtueDone } from '@/lib/onboarding';
 import { setProfilePersona, setProfileName } from '@/lib/profile';
 import { saveReaderPreferences } from '@/lib/api';
@@ -758,12 +759,18 @@ export default function WelcomeScreen() {
                   <Pressable
                     key={cat.id}
                     onPress={() => toggleCategory(cat.id)}
-                    style={[s.chip, on && s.chipOn]}
+                    style={[
+                      s.chip,
+                      on && { borderColor: cat.color, backgroundColor: cat.color + '1A' },
+                    ]}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={cat.label}
                   >
-                    <Text style={[s.chipTxt, on && s.chipTxtOn]}>{cat.label}</Text>
+                    <CategoryBadge id={cat.id} size={26} />
+                    <Text style={[s.chipTxt, on && { color: cat.color, fontFamily: fontFamily.sansBold }]}>
+                      {cat.label}
+                    </Text>
                   </Pressable>
                 );
               })}
@@ -965,24 +972,19 @@ const s = StyleSheet.create({
     marginTop:      4,
   },
   chip: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               6,
     borderWidth:       1.5,
     borderColor:       'rgba(243,238,232,0.22)',
     borderRadius:      999,
-    paddingVertical:   7,
-    paddingHorizontal: 13,
-  },
-  chipOn: {
-    backgroundColor: WARM,
-    borderColor:     WARM,
+    paddingVertical:   5,
+    paddingHorizontal: 10,
   },
   chipTxt: {
     fontFamily: fontFamily.sans,
     fontSize:   11.5,
     color:      '#EDE7DE',
-  },
-  chipTxtOn: {
-    color: '#2a0f06',
-    fontFamily: fontFamily.sansBold,
   },
 
   // CTA buttons
