@@ -64,9 +64,8 @@ export function DialogHost(): React.ReactElement {
   const [pendingIndex, setPendingIndex] = useState<number | null>(null);
   const reduced = useReducedMotion();
 
-  const scaleAnim   = useRef(new Animated.Value(reduced ? 1 : 0.92)).current;
-  const opacityAnim = useRef(new Animated.Value(reduced ? 1 : 0)).current;
-  const animating   = useRef(false);
+  const scaleAnim = useRef(new Animated.Value(reduced ? 1 : 0.92)).current;
+  const animating = useRef(false);
 
   useEffect(() => {
     listener = setCurrentQueue;
@@ -80,15 +79,12 @@ export function DialogHost(): React.ReactElement {
     if (visible && !reduced && !animating.current) {
       animating.current = true;
       scaleAnim.setValue(0.92);
-      opacityAnim.setValue(0);
-      Animated.parallel([
-        Animated.spring(scaleAnim,   { toValue: 1, useNativeDriver: true, tension: 180, friction: 22 }),
-        Animated.timing(opacityAnim, { toValue: 1, duration: 160,         useNativeDriver: true }),
-      ]).start(() => { animating.current = false; });
+      Animated.spring(scaleAnim, {
+        toValue: 1, useNativeDriver: true, tension: 180, friction: 22,
+      }).start(() => { animating.current = false; });
     }
     if (!visible) {
       scaleAnim.setValue(reduced ? 1 : 0.92);
-      opacityAnim.setValue(reduced ? 1 : 0);
       animating.current = false;
     }
   }, [visible, current?.title]);
@@ -141,7 +137,7 @@ export function DialogHost(): React.ReactElement {
         <Animated.View
           style={[
             styles.cardWrap,
-            { transform: [{ scale: scaleAnim }], opacity: opacityAnim },
+            { transform: [{ scale: scaleAnim }] },
           ]}
         >
           {/* Prevent scrim press propagation from the card */}
