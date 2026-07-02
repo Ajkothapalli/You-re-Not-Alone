@@ -40,10 +40,10 @@ export default function RootLayout() {
           <Stack.Screen name="blocked"     />
           <Stack.Screen name="read-detail" />
           <Stack.Screen name="explore"     />
-          <Stack.Screen name="settings"    options={{ animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="plans"       options={{ animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="profile"     options={{ animation: 'slide_from_bottom' }} />
-          <Stack.Screen name="categories"  options={{ animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="settings"    options={{ presentation: 'modal', gestureEnabled: true }} />
+          <Stack.Screen name="plans"       options={{ presentation: 'modal', gestureEnabled: true }} />
+          <Stack.Screen name="profile"     options={{ presentation: 'modal', gestureEnabled: true }} />
+          <Stack.Screen name="categories"  options={{ presentation: 'modal', gestureEnabled: true }} />
         </Stack>
         {!splashDone && <AnimatedSplash onDone={() => setSplashDone(true)} />}
         <DialogHost />
