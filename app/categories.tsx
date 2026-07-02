@@ -6,8 +6,7 @@
  * pending) we log the failure and route through anyway.
  */
 
-import { CATEGORIES, type CategoryId } from '@/lib/categories';
-import { CategoryBadge } from '@/components/CategoryGlyph';
+import { CATEGORIES } from '@/lib/categories';
 import { getReaderPreferences, saveReaderPreferences } from '@/lib/api';
 import { announce } from '@/lib/a11y';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
@@ -15,7 +14,6 @@ import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Animated,
   Pressable,
   ScrollView,
@@ -24,22 +22,23 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { showDialog } from '@/components/AppDialog';
 
 // ─── chip ────────────────────────────────────────────────────────────────────
 
 type ChipProps = {
-  id:          CategoryId;
   label:       string;
-  hint:        string;
   description: string;
-  catColor:    string;
+  id:          string;
   selected:    boolean;
   width:       number;
-  onToggle:    (id: CategoryId) => void;
+  onToggle:    (id: string) => void;
 };
 
-function CategoryChip({ id, label, hint, description, catColor, selected, width, onToggle }: ChipProps) {
+function CategoryChip({ label, description, id, selected, width, onToggle }: ChipProps) {
+  // Drives the inner dot appearing / disappearing (native thread only)
   const dotScale  = useRef(new Animated.Value(selected ? 1 : 0)).current;
+  // Subtle card press-in/out feedback
   const cardScale = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -47,7 +46,7 @@ function CategoryChip({ id, label, hint, description, catColor, selected, width,
       toValue:         selected ? 1 : 0,
       useNativeDriver: true,
       tension:         220,
-      friction:        22,
+      friction:        22,   // overdamped — no bounce
     }).start();
   }, [selected]);
 
@@ -63,6 +62,8 @@ function CategoryChip({ id, label, hint, description, catColor, selected, width,
   }
 
   return (
+    // accessible={false} prevents the animated wrapper from becoming a separate
+    // accessibility element on Android before the inner Pressable can claim focus.
     <Animated.View
       style={{ width, transform: [{ scale: cardScale }] }}
       accessible={false}
@@ -72,31 +73,27 @@ function CategoryChip({ id, label, hint, description, catColor, selected, width,
         onPress={() => onToggle(id)}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        style={[
-          styles.chip,
-          selected && { borderColor: catColor, backgroundColor: catColor + '1A' },
-        ]}
+        style={[styles.chip, selected && styles.chipOn]}
         accessible={true}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: selected }}
+        // Merge label + description so VoiceOver reads both on a single swipe
+        // (hints require an extra gesture and are often skipped by users).
         accessibilityLabel={`${label}. ${description}`}
       >
-        {/* Decorative check — state conveyed via accessibilityState */}
+        {/* Purely decorative — state is already conveyed via accessibilityState.
+            Hidden from both iOS VoiceOver and Android TalkBack so the ✓ glyph
+            isn't announced as a separate "check mark" element. */}
         <View
-          style={[
-            styles.circle,
-            selected && { borderColor: catColor, backgroundColor: catColor },
-          ]}
+          style={[styles.circle, selected && styles.circleOn]}
           accessibilityElementsHidden={true}
           importantForAccessibility="no-hide-descendants"
         >
           <Animated.Text style={[styles.circleDot, { transform: [{ scale: dotScale }] }]}>✓</Animated.Text>
         </View>
 
-        <CategoryBadge id={id} size={44} />
-
-        <Text style={[styles.chipLabel, selected && { color: catColor }]}>{label}</Text>
-        <Text style={styles.chipDesc} numberOfLines={2}>{hint}</Text>
+        <Text style={[styles.chipLabel, selected && styles.chipLabelOn]}>{label}</Text>
+        <Text style={styles.chipDesc} numberOfLines={3}>{description}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -109,9 +106,10 @@ export default function CategoriesScreen() {
   const params                 = useLocalSearchParams<{ mode?: string }>();
   const isEdit                 = params.mode === 'edit';
 
+  // Two columns, 10px gap, 20px side padding each side
   const cardWidth = (screenWidth - spacing.screenPadding * 2 - 10) / 2;
 
-  const [selected,     setSelected]     = useState<Set<CategoryId>>(new Set());
+  const [selected,     setSelected]     = useState<Set<string>>(new Set());
   const [saving,       setSaving]       = useState(false);
   const [loadingPrefs, setLoadingPrefs] = useState(isEdit);
 
@@ -119,13 +117,13 @@ export default function CategoriesScreen() {
     if (!isEdit) return;
     getReaderPreferences()
       .then(prefs => {
-        if (prefs) setSelected(new Set(prefs.categories as CategoryId[]));
+        if (prefs) setSelected(new Set(prefs.categories));
       })
       .catch(() => {})
       .finally(() => setLoadingPrefs(false));
   }, []);
 
-  function toggle(id: CategoryId) {
+  function toggle(id: string) {
     setSelected(prev => {
       const next = new Set(prev);
       if (next.has(id)) { next.delete(id); } else { next.add(id); }
@@ -135,7 +133,7 @@ export default function CategoriesScreen() {
 
   async function handleSave() {
     if (selected.size === 0) {
-      Alert.alert('Choose at least one', 'Pick at least one kind of confession to read.');
+      showDialog('Choose at least one', 'Pick at least one kind of confession to read.');
       return;
     }
     setSaving(true);
@@ -163,16 +161,15 @@ export default function CategoriesScreen() {
       showsVerticalScrollIndicator={false}
     >
       {isEdit && (
-        <View style={styles.closeRow}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-          >
-            <Text style={styles.closeLabel}>Done</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          style={styles.backBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.backLabel}>← back</Text>
+        </Pressable>
       )}
 
       <Text style={styles.heading} accessibilityRole="header">
@@ -181,9 +178,11 @@ export default function CategoriesScreen() {
       <Text style={styles.sub}>
         {isEdit
           ? 'Change what kinds of confessions appear in Explore.'
-          : "Choose what you'd like to carry with you. You can change this anytime."}
+          : 'Choose what you\'d like to carry with you. You can change this anytime.'}
       </Text>
 
+      {/* 2-column grid — exact widths from useWindowDimensions.
+          Last card gets full row width when total count is odd. */}
       <View style={styles.grid}>
         {CATEGORIES.map((cat, idx) => {
           const isLastAlone = CATEGORIES.length % 2 !== 0 && idx === CATEGORIES.length - 1;
@@ -193,9 +192,7 @@ export default function CategoriesScreen() {
               key={cat.id}
               id={cat.id}
               label={cat.label}
-              hint={cat.hint}
               description={cat.description}
-              catColor={cat.color}
               selected={selected.has(cat.id)}
               width={w}
               onToggle={toggle}
@@ -219,6 +216,8 @@ export default function CategoriesScreen() {
 
 // ─── styles ──────────────────────────────────────────────────────────────────
 
+const ACCENT = '#C4AEDE';
+
 const styles = StyleSheet.create({
   root: {
     flex:            1,
@@ -226,14 +225,12 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    20,
+    paddingTop:    64,
     paddingBottom: 60,
     gap:           20,
   },
-  closeRow: {
-    alignItems: 'flex-end',
-  },
-  closeLabel: { fontFamily: fontFamily.sans, fontSize: 16, color: color.dim },
+  backBtn:   { marginBottom: 0 },
+  backLabel: { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim },
 
   heading: {
     fontFamily: fontFamily.serifItalic,
@@ -261,11 +258,15 @@ const styles = StyleSheet.create({
     padding:         18,
     borderWidth:     1.5,
     borderColor:     'transparent',
-    minHeight:       140,
+    minHeight:       120,
     gap:             8,
   },
+  chipOn: {
+    borderColor:     ACCENT,
+    backgroundColor: 'rgba(196,174,222,0.10)',
+  },
 
-  // Check circle
+  // circle
   circle: {
     position:       'absolute',
     top:            14,
@@ -277,6 +278,10 @@ const styles = StyleSheet.create({
     borderColor:    color.dim,
     alignItems:     'center',
     justifyContent: 'center',
+  },
+  circleOn: {
+    borderColor:     ACCENT,
+    backgroundColor: ACCENT,
   },
   circleDot: {
     color:      color.paper,
@@ -293,6 +298,7 @@ const styles = StyleSheet.create({
     color:         color.paper,
     paddingRight:  26,
   },
+  chipLabelOn: { color: ACCENT },
 
   chipDesc: {
     fontFamily: fontFamily.sans,

@@ -42,6 +42,7 @@ export default function CounterPill({ count, youColor, palette, style, onPress }
   const pill = (
     <Animated.View
       style={[
+        { alignSelf: 'flex-start' },
         style,
         { opacity: mount, transform: [{ scale: scaleAnim }] },
       ]}
@@ -81,6 +82,7 @@ export default function CounterPill({ count, youColor, palette, style, onPress }
         Animated.spring(press, { toValue: 0, speed: 22, bounciness: 7, useNativeDriver: true }).start()
       }
       hitSlop={8}
+      style={{ alignSelf: 'flex-start' }}
       accessibilityRole="button"
       accessibilityLabel={`${count.toLocaleString()} people felt this too`}
       accessibilityHint="Opens supporter plans"

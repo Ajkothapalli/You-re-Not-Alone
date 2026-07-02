@@ -17,7 +17,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1C1828",
+        "backgroundColor": "#0E0B18",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -43,14 +43,7 @@
           "backgroundColor": "#0E0C13"
         }
       ],
-      "expo-sharing",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Turns your spoken words into text on your device. Audio is never recorded or sent anywhere.",
-          "speechRecognitionPermission": "Turns your spoken words into text on your device. Audio is never recorded or sent anywhere."
-        }
-      ]
+      "expo-sharing"
     ],
     "extra": {
       "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",

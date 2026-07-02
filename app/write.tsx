@@ -1,20 +1,17 @@
-import { useScreenCaptureGuard } from '@/hooks';
 import ConfessionInput from '@/components/ConfessionInput';
 import ProfileButton from '@/components/ProfileButton';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
 import { improveWriting, submitConfession } from '@/lib/api';
-import { type AuthorshipPayload } from '@/lib/authorship';
 import { useDraft } from '@/lib/draftContext';
 import { getDeviceHash } from '@/lib/deviceHash';
 import { session } from '@/lib/sessionFlags';
 import { usePalette } from '@/theme/ThemeProvider';
 import { color, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -25,19 +22,18 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { showDialog } from '@/components/AppDialog';
 
 const MIN_CHARS         = 1;
 const IMPROVE_MIN_CHARS = 15;
 
 export default function WriteScreen() {
-  useScreenCaptureGuard(); // prevent screenshots while composing a confession
   const palette                        = usePalette();
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading,   setLoading]        = useState(false);
   const [improving, setImproving]      = useState(false);
   const [original,  setOriginal]       = useState<string | null>(null);
   const [rewritten, setRewritten]      = useState<string | null>(null);
-  const authorshipRef = useRef<AuthorshipPayload | null>(null);
 
   useEffect(() => {
     if (!session.readShown) router.replace('/read');
@@ -51,13 +47,13 @@ export default function WriteScreen() {
       const result = await improveWriting(trimmed);
       if (result.type === 'crisis')  { router.push('/crisis'); return; }
       if (result.type === 'blocked') {
-        Alert.alert('Couldn\'t do that', 'This text can\'t be processed. If you\'re going through something difficult, support is available.');
+        showDialog('Couldn\'t do that', 'This text can\'t be processed. If you\'re going through something difficult, support is available.');
         return;
       }
       setOriginal(trimmed);
       setRewritten(result.text);
     } catch {
-      Alert.alert('Not available', 'Couldn\'t improve the writing right now. Your words are still here.');
+      showDialog('Not available', 'Couldn\'t improve the writing right now. Your words are still here.');
     } finally {
       setImproving(false);
     }
@@ -77,7 +73,7 @@ export default function WriteScreen() {
   async function handleSubmit() {
     const trimmed = draft.trim();
     if (trimmed.length < MIN_CHARS) {
-      Alert.alert('Too short', 'Write a little more — at least a sentence or two.');
+      showDialog('Too short', 'Write a little more — at least a sentence or two.');
       return;
     }
     setLoading(true);
@@ -85,7 +81,7 @@ export default function WriteScreen() {
       const deviceHash = await getDeviceHash();
       const region = Intl.DateTimeFormat().resolvedOptions().timeZone.startsWith('Asia/Kolkata')
         ? 'IN' : 'US';
-      const result = await submitConfession(trimmed, deviceHash, region, authorshipRef.current ?? undefined);
+      const result = await submitConfession(trimmed, deviceHash, region);
 
       if (result.type === 'crisis')  { router.push('/crisis'); return; }
       if (result.type === 'blocked') { analytics.blockedByModeration(result.blockReason); return; }
@@ -102,10 +98,10 @@ export default function WriteScreen() {
       router.push({ pathname: '/match', params: { youText: trimmed, themText: result.match!.text, feltCount: String(result.match!.feltCount), confessionId: result.match!.id, noMatch: '0' } });
     } catch (err: any) {
       const msg: string = err?.message ?? '';
-      if      (msg.includes('moderation_unavailable'))                                              Alert.alert('Not available', 'The service is not ready yet. Please try again later.');
-      else if (err?.status === 429 || msg.includes('429') || msg.toLowerCase().includes('rate'))    Alert.alert('Slow down', "You've shared a lot today. Come back tomorrow.");
-      else if (err?.status === 403 || msg.includes('403') || msg.toLowerCase().includes('banned'))  Alert.alert('Account suspended', 'Your account has been suspended.');
-      else                                                                                           Alert.alert('Something went wrong', msg || 'Please try again.');
+      if      (msg.includes('moderation_unavailable'))                                              showDialog('Not available', 'The service is not ready yet. Please try again later.');
+      else if (err?.status === 429 || msg.includes('429') || msg.toLowerCase().includes('rate'))    showDialog('Slow down', "You've shared a lot today. Come back tomorrow.");
+      else if (err?.status === 403 || msg.includes('403') || msg.toLowerCase().includes('banned'))  showDialog('Account suspended', 'Your account has been suspended.');
+      else                                                                                           showDialog('Something went wrong', msg || 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -133,7 +129,6 @@ export default function WriteScreen() {
       <ConfessionInput
         value={draft}
         onChangeText={setDraft}
-        onAuthorshipChange={(p) => { authorshipRef.current = p; }}
         placeholder="Write or paste it here. It stays private."
         autoFocus
         style={styles.inputArea}

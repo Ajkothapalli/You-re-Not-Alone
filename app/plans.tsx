@@ -11,7 +11,8 @@
 
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { showDialog } from '../components/AppDialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { PrimaryButton } from '../components/Buttons';
@@ -72,7 +73,7 @@ export default function PlansScreen() {
   async function handleContinue() {
     if (busy) return;
     if (!billingAvailable()) {
-      Alert.alert(
+      showDialog(
         'Almost there',
         'Subscriptions run on a device build with the store keys set. This is the preview.',
       );
@@ -80,7 +81,7 @@ export default function PlansScreen() {
     }
     const pkg = packageForTier(packages, selected);
     if (!pkg) {
-      Alert.alert('Unavailable', "That plan isn't available right now. Please try again later.");
+      showDialog('Unavailable', "That plan isn't available right now. Please try again later.");
       return;
     }
     setBusy(true);
@@ -88,12 +89,12 @@ export default function PlansScreen() {
       const premium = await purchasePackage(pkg);
       await refresh();
       if (premium) {
-        Alert.alert('You\'re in', 'Thank you for supporting this place.');
+        showDialog('You\'re in', 'Thank you for supporting this place.');
         router.back();
       }
     } catch (err) {
       if (!isUserCancelled(err)) {
-        Alert.alert('Purchase failed', 'Something went wrong. You were not charged. Please try again.');
+        showDialog('Purchase failed', 'Something went wrong. You were not charged. Please try again.');
       }
     } finally {
       setBusy(false);
@@ -103,41 +104,40 @@ export default function PlansScreen() {
   async function handleRestore() {
     if (busy) return;
     if (!billingAvailable()) {
-      Alert.alert('Restore purchases', 'Available on a device build. Your plan is tied to your app store account and is never lost.');
+      showDialog('Restore purchases', 'Available on a device build. Your plan is tied to your app store account and is never lost.');
       return;
     }
     setBusy(true);
     try {
       const premium = await restorePurchases();
       await refresh();
-      Alert.alert(
+      showDialog(
         premium ? 'Restored' : 'Nothing to restore',
         premium ? 'Your subscription is active again.' : 'No previous subscription was found for this account.',
       );
       if (premium) router.back();
     } catch {
-      Alert.alert('Restore failed', 'Could not restore purchases. Please try again.');
+      showDialog('Restore failed', 'Could not restore purchases. Please try again.');
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <ScrollView
-      style={styles.root}
-      contentContainerStyle={styles.scroll}
-      showsVerticalScrollIndicator={false}
-    >
-        <View style={styles.closeRow}>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Close"
-          >
-            <Text style={styles.closeLabel}>Done</Text>
-          </Pressable>
-        </View>
+    <View style={styles.root}>
+      <ScrollView
+        style={styles.fill}
+        contentContainerStyle={styles.scroll}
+        showsVerticalScrollIndicator={false}
+      >
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Text style={styles.back}>← back</Text>
+        </Pressable>
 
         {/* Premium header */}
         <LinearGradient colors={GOLD} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.badge}>
@@ -213,26 +213,25 @@ export default function PlansScreen() {
           Billed through the app store. Cancel anytime. Reading never replaces
           support — crisis resources are always free and never behind a plan.
         </Text>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: color.bg },
+  fill: { flex: 1 },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    20,
+    paddingTop:    64,
     paddingBottom: 48,
     gap:           14,
   },
-  closeRow: {
-    alignItems: 'flex-end',
-    marginBottom: 4,
-  },
-  closeLabel: {
+  back: {
     fontFamily: fontFamily.sans,
-    fontSize:   16,
+    fontSize:   14,
     color:      color.dim,
+    marginBottom: 8,
   },
   badge: {
     alignSelf:         'flex-start',

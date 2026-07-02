@@ -167,7 +167,10 @@ export default function IndexScreen() {
     (async () => {
       try {
         const initialUrl = await Linking.getInitialURL();
-        if (initialUrl?.includes('access_token')) {
+        // Handle both PKCE (?code=) and implicit (#access_token=) initial URLs.
+        // On Android the process can be killed during OAuth and the deep link
+        // restarts it — without this check the code param is silently dropped.
+        if (initialUrl && (initialUrl.includes('access_token') || initialUrl.includes('code='))) {
           await handleDeepLink(initialUrl);
           return;
         }
@@ -189,17 +192,30 @@ export default function IndexScreen() {
   async function handleProvider(provider: 'google') {
     clearError();
     setBusy(true);
+    // On Android, signInWithGoogle always returns false (browser 'dismiss') because
+    // openAuthSessionAsync is a polyfill — the real code arrives via deep link
+    // (handleDeepLink below). We keep busy=true and let handleDeepLink clear it.
+    // A 15-second guard cancels the spinner if no deep link ever arrives (cancelled).
+    let waitingForDeepLink = false;
     try {
       const success = await signInWithGoogle();
-      if (!success) return; // user cancelled — no error shown
-
+      if (!success) {
+        // Android dismiss path — deep link will complete auth.
+        waitingForDeepLink = true;
+        setTimeout(() => {
+          // Fires only if user truly cancelled (no deep link arrived).
+          setBusy(false);
+        }, 15_000);
+        return;
+      }
+      // iOS / success-URL path — session is already established.
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user after sign-in');
       await routeAfterAuth(user.id);
     } catch (err: any) {
       setError('Sign-in didn\'t complete. Try again.');
     } finally {
-      setBusy(false);
+      if (!waitingForDeepLink) setBusy(false);
     }
   }
 

@@ -12,7 +12,6 @@
  * animation plays as the reveal rather than finishing hidden behind the overlay.
  * StoryCard stays mounted throughout so share capture always works.
  */
-import { useScreenCaptureGuard } from '@/hooks';
 import { Celebration } from '@/components/Celebration';
 import ConfessionCard from '@/components/ConfessionCard';
 import CounterPill from '@/components/CounterPill';
@@ -20,23 +19,21 @@ import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { reportConfession } from '@/lib/api';
 import { analytics } from '@/lib/analytics';
-import { session } from '@/lib/sessionFlags';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { usePalette } from '@/theme/ThemeProvider';
 import { color, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { showDialog } from '@/components/AppDialog';
 
 export default function MatchScreen() {
-  useScreenCaptureGuard(); // prevent screenshots of matched confession
   const palette = usePalette();
   const params = useLocalSearchParams<{
     youText:      string;
@@ -71,14 +68,14 @@ export default function MatchScreen() {
       await shareConfessionCard(storyRef);
       analytics.cardShared();
     } catch (err: any) {
-      Alert.alert('Could not share', err.message ?? 'Try again.');
+      showDialog('Could not share', err.message ?? 'Try again.');
     } finally {
       setSharing(false);
     }
   }
 
   function handleReport() {
-    Alert.alert(
+    showDialog(
       'Report this confession',
       'Are you sure you want to report this?',
       [
@@ -86,15 +83,16 @@ export default function MatchScreen() {
         {
           text:  'Report',
           style: 'destructive',
+          keepOpenWhilePending: true,
           onPress: async () => {
             setReporting(true);
             try {
               await reportConfession(confessionId, 'other');
               analytics.reportSubmitted(confessionId);
-              Alert.alert('Reported', 'Thank you. Our team will review this.');
+              showDialog('Reported', 'Thank you. Our team will review this.');
               router.replace('/write');
             } catch (err: any) {
-              Alert.alert('Error', err.message ?? 'Could not send report.');
+              showDialog('Error', err.message ?? 'Could not send report.');
             } finally {
               setReporting(false);
             }
@@ -102,11 +100,6 @@ export default function MatchScreen() {
         },
       ],
     );
-  }
-
-  function handleReadMore() {
-    session.readCredits += 2;
-    router.replace('/explore');
   }
 
   // ── No match path ────────────────────────────────────────────────────────────
@@ -127,8 +120,7 @@ export default function MatchScreen() {
               Your words are waiting. When someone else shares something similar, they'll find
               you — and know they're not alone.
             </Text>
-            <PrimaryButton label="Read 2 more confessions" onPress={handleReadMore} />
-            <GhostButton label="Write another" onPress={() => router.replace('/write')} />
+            <PrimaryButton label="Write another" onPress={() => router.replace('/write')} />
           </ScrollView>
         )}
       </View>
@@ -171,18 +163,17 @@ export default function MatchScreen() {
             palette={palette}
           />
 
+          {/* Tappable counter — opens supporter plans (owner decision 2026-06-12,
+              overriding the original "never paywall relief" rule; see CLAUDE.md) */}
           <CounterPill
             count={feltCount}
             youColor={palette.you}
             palette={palette}
+            onPress={() => router.push('/plans')}
           />
 
           <View style={styles.actions}>
             <PrimaryButton
-              label="Read 2 more confessions"
-              onPress={handleReadMore}
-            />
-            <GhostButton
               label={sharing ? 'Preparing…' : 'Share this moment'}
               onPress={handleShare}
               loading={sharing}

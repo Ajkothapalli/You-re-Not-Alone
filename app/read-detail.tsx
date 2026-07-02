@@ -3,7 +3,8 @@ import { reportConfession } from '@/lib/api';
 import { palettes } from '@/theme/palettes';
 import { color, fontFamily, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { showDialog } from '@/components/AppDialog';
 
 export default function ReadDetailScreen() {
   const { id, text, feltCount, paletteIndex } = useLocalSearchParams<{
@@ -17,7 +18,7 @@ export default function ReadDetailScreen() {
   const count   = Number(feltCount) || 0;
 
   function handleReport() {
-    Alert.alert(
+    showDialog(
       'Report this confession',
       'Are you sure you want to report this?',
       [

@@ -27,7 +27,6 @@ import { router } from 'expo-router';
 const GOLD: [string, string] = ['#FBBF24', '#FB7185'];
 import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -37,6 +36,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { showDialog } from '@/components/AppDialog';
 
 export default function ProfileScreen() {
   const { isPremium, refresh } = usePremium();
@@ -79,7 +79,7 @@ export default function ProfileScreen() {
 
   async function handleRestorePurchases() {
     if (!billingAvailable()) {
-      Alert.alert(
+      showDialog(
         'Restore purchases',
         'Available on a device build. Your plan is tied to your app store account and is never lost.',
       );
@@ -88,20 +88,20 @@ export default function ProfileScreen() {
     try {
       const premium = await restorePurchases();
       await refresh();
-      Alert.alert(
+      showDialog(
         premium ? 'Restored' : 'Nothing to restore',
         premium
           ? 'Your subscription is active again.'
           : 'No previous subscription was found for this account.',
       );
     } catch {
-      Alert.alert('Restore failed', 'Could not restore purchases. Please try again.');
+      showDialog('Restore failed', 'Could not restore purchases. Please try again.');
     }
   }
 
   function handleDeletePress() {
     if (deleting) return;
-    Alert.alert(
+    showDialog(
       'Delete your account?',
       'Everything is wiped from our servers — your account, your confessions, your history. ' +
       'Purchase records are kept by the app store as required for billing. This cannot be undone.',
@@ -111,12 +111,12 @@ export default function ProfileScreen() {
           text: 'Continue',
           style: 'destructive',
           onPress: () =>
-            Alert.alert(
+            showDialog(
               'Are you sure?',
               'This is your last chance. Your words will be gone forever.',
               [
                 { text: 'Keep my account', style: 'cancel' },
-                { text: 'Delete everything', style: 'destructive', onPress: runDelete },
+                { text: 'Delete everything', style: 'destructive', onPress: runDelete, keepOpenWhilePending: true },
               ],
             ),
         },
@@ -132,7 +132,7 @@ export default function ProfileScreen() {
       router.replace('/');
     } catch {
       setDeleting(false);
-      Alert.alert('Something went wrong', 'Deletion failed. Please try again.');
+      showDialog('Something went wrong', 'Deletion failed. Please try again.');
     }
   }
 
@@ -142,17 +142,17 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
-      <View style={styles.topBar}>
-        <Text style={styles.heading} accessibilityRole="header">your corner</Text>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        >
-          <Text style={styles.closeLabel}>Done</Text>
-        </Pressable>
-      </View>
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={12}
+        style={styles.backBtn}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+      >
+        <Text style={styles.backLabel}>← back</Text>
+      </Pressable>
+
+      <Text style={styles.heading} accessibilityRole="header">your corner</Text>
 
       {/* Current character + editable name */}
       <View style={styles.identityCard}>
@@ -340,18 +340,16 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    20,
+    paddingTop:    64,
     paddingBottom: 48,
     gap:           16,
   },
-  topBar: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
+  backBtn: {
+    marginBottom: 4,
   },
-  closeLabel: {
+  backLabel: {
     fontFamily: fontFamily.sans,
-    fontSize:   16,
+    fontSize:   14,
     color:      color.dim,
   },
   heading: {

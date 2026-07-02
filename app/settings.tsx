@@ -5,7 +5,6 @@ import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Linking,
   Pressable,
   ScrollView,
@@ -14,13 +13,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { showDialog } from '@/components/AppDialog';
 
 // [REPLACE BEFORE LAUNCH] — Apple and Google require live, publicly accessible
 // policy URLs at review time. Placeholder URLs will cause app rejection.
 const POLICY_URLS = {
-  privacy: 'https://soulyap.me/privacy.html',
-  terms:   'https://soulyap.me/terms.html',
-  content: 'https://soulyap.me/content-policy.html',
+  privacy: 'https://example.com/privacy',
+  terms:   'https://example.com/terms',
+  content: 'https://example.com/content-policy',
 } as const;
 
 export default function SettingsScreen() {
@@ -33,7 +33,7 @@ export default function SettingsScreen() {
 
   function handleDeletePress() {
     if (deleting) return;
-    Alert.alert(
+    showDialog(
       'Delete your account?',
       'This permanently removes your account and all your confessions. It cannot be undone.',
       [
@@ -44,12 +44,12 @@ export default function SettingsScreen() {
   }
 
   function handleDeleteConfirm() {
-    Alert.alert(
+    showDialog(
       'Are you sure?',
       'This is your last chance. Your account and all your confessions will be gone forever.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete everything', style: 'destructive', onPress: runDelete },
+        { text: 'Delete everything', style: 'destructive', onPress: runDelete, keepOpenWhilePending: true },
       ],
     );
   }
@@ -61,7 +61,7 @@ export default function SettingsScreen() {
       router.replace('/');
     } catch (err: any) {
       setDeleting(false);
-      Alert.alert(
+      showDialog(
         'Something went wrong',
         'Deletion failed. Please try again, or contact nani.ajay@gmail.com.',
         [{ text: 'OK' }],
@@ -72,15 +72,15 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
       <View style={styles.topBar}>
-        <Text style={styles.heading} accessibilityRole="header">about this place</Text>
         <Pressable
           onPress={() => router.back()}
           hitSlop={12}
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel="Go back"
         >
-          <Text style={styles.closeLabel}>Done</Text>
+          <Text style={styles.backLabel}>←</Text>
         </Pressable>
+        <Text style={styles.heading} accessibilityRole="header">about this place</Text>
       </View>
 
       {/* Anonymity explainer */}
@@ -165,19 +165,20 @@ const styles = StyleSheet.create({
   },
   scroll: {
     padding:        spacing.screenPadding,
-    paddingTop:     20,
+    paddingTop:     60,
     paddingBottom:  48,
     gap:            24,
   },
   topBar: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           12,
   },
-  closeLabel: {
-    fontFamily: fontFamily.sans,
-    fontSize:   16,
+  backLabel: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   18,
     color:      color.dim,
+    lineHeight: 22,
   },
   heading: {
     fontFamily: fontFamily.serifItalic,

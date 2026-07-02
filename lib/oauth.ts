@@ -3,8 +3,8 @@
  *
  * Apple uses the native Sign in with Apple sheet (expo-apple-authentication).
  * Google uses Supabase's OAuth redirect + PKCE via an in-app browser session
- * (expo-web-browser). Both return true on success, false on user cancellation,
- * and throw on unexpected errors.
+ * (expo-web-browser). Both return true on success, false on user cancellation
+ * or Android dismiss (deep link still pending), and throw on unexpected errors.
  *
  * REDIRECT_URL must be added to Supabase Auth → URL Configuration → Allowed
  * Redirect URLs before either provider will work in production.
@@ -33,10 +33,6 @@ function extractParam(url: string, key: string): string | null {
 export async function isAppleSignInAvailable(): Promise<boolean> {
   if (Platform.OS !== 'ios') return false;
   try {
-    // In Expo Go (and any binary built before expo-apple-authentication was
-    // added) the native module is absent — isAvailableAsync rejects/throws.
-    // Treat that as "unavailable" so the UI hides the button instead of
-    // rendering the native view and crashing with "Unimplemented component".
     return await AppleAuthentication.isAvailableAsync();
   } catch {
     return false;
@@ -68,6 +64,15 @@ export async function signInWithApple(): Promise<boolean> {
 
 // ── Google ────────────────────────────────────────────────────────────────────
 
+/**
+ * Returns true when the session is fully established (iOS success path or
+ * implicit token path). Returns false when the browser closes without a
+ * success URL — on Android this always happens because openAuthSessionAsync
+ * is a polyfill that returns 'dismiss' as soon as Chrome Custom Tabs closes,
+ * regardless of whether OAuth completed. In that case the PKCE code arrives
+ * via the Linking deep-link event and handleDeepLink (index.tsx) finishes
+ * the exchange. The caller must keep the loading state alive until it does.
+ */
 export async function signInWithGoogle(): Promise<boolean> {
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -76,18 +81,11 @@ export async function signInWithGoogle(): Promise<boolean> {
   if (error) throw error;
   if (!data.url) throw new Error('Supabase did not return an OAuth URL.');
 
-  // openAuthSessionAsync opens an ASWebAuthenticationSession modal sheet —
-  // no system Safari handoff, no "Open in X?" dialog. The second argument
-  // is the redirect scheme Expo should intercept to close the modal.
   const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_URL);
   if (result.type !== 'success') {
-    // On Android, the Linking listener in index.tsx may have already exchanged
-    // the PKCE code and dismissed the browser — check for an existing session
-    // before reporting failure so we don't block the caller unnecessarily.
-    const { data: { session } } = await supabase.auth.getSession().catch(
-      () => ({ data: { session: null } }),
-    );
-    if (session?.user) return true;
+    // Android: browser closed (dismiss). The deep-link handler in index.tsx
+    // will complete the exchange and clear the loading state. Signal the
+    // caller to wait instead of dismissing the spinner immediately.
     return false;
   }
 
