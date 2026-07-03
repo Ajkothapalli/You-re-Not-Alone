@@ -15,6 +15,7 @@
 import { deleteAccount } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
+import BottomSheet from '@/components/BottomSheet';
 import { PERSONAS, PersonaBadge, getPersonaById } from '@/components/Persona';
 import { clearProfile, getProfile, setProfileName, setProfilePersona } from '@/lib/profile';
 import { usePremium } from '@/lib/premiumContext';
@@ -136,23 +137,13 @@ export default function ProfileScreen() {
     }
   }
 
-  if (!personaId) return <View style={styles.root} />;
+  if (!personaId) return <BottomSheet><View style={{ height: 200 }} /></BottomSheet>;
 
   const persona = getPersonaById(personaId);
 
   return (
+    <BottomSheet title="your corner">
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
-      <Pressable
-        onPress={() => router.back()}
-        hitSlop={12}
-        style={styles.backBtn}
-        accessibilityRole="button"
-        accessibilityLabel="Go back"
-      >
-        <Text style={styles.backLabel}>← back</Text>
-      </Pressable>
-
-      <Text style={styles.heading} accessibilityRole="header">your corner</Text>
 
       {/* Current character + editable name */}
       <View style={styles.identityCard}>
@@ -330,32 +321,19 @@ export default function ProfileScreen() {
         you're not alone · v{Constants.expoConfig?.version ?? '1.0.0'}
       </Text>
     </ScrollView>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex:            1,
-    backgroundColor: color.bg,
+    flex: 1,
   },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    64,
-    paddingBottom: 48,
+    paddingTop:    16,
+    paddingBottom: 32,
     gap:           16,
-  },
-  backBtn: {
-    marginBottom: 4,
-  },
-  backLabel: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-  },
-  heading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   26,
-    color:      color.paper,
   },
   identityCard: {
     backgroundColor: color.ink,

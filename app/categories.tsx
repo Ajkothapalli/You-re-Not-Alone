@@ -10,6 +10,7 @@ import { CATEGORIES } from '@/lib/categories';
 import { getReaderPreferences, saveReaderPreferences } from '@/lib/api';
 import { announce } from '@/lib/a11y';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
+import BottomSheet from '@/components/BottomSheet';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -152,26 +153,15 @@ export default function CategoriesScreen() {
     router.replace(isEdit ? '../' : '/read');
   }
 
-  if (loadingPrefs) return <View style={styles.root} />;
+  if (loadingPrefs) return <BottomSheet><View style={{ height: 200 }} /></BottomSheet>;
 
   return (
+    <BottomSheet title={isEdit ? 'reading categories' : 'what do you want to read?'}>
     <ScrollView
       style={styles.root}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
-      {isEdit && (
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          style={styles.backBtn}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.backLabel}>← back</Text>
-        </Pressable>
-      )}
-
       <Text style={styles.heading} accessibilityRole="header">
         {isEdit ? 'reading categories' : 'what do you want to read?'}
       </Text>
@@ -211,6 +201,7 @@ export default function CategoriesScreen() {
         <GhostButton label={isEdit ? 'Cancel' : 'Skip for now'} onPress={handleSkip} />
       </View>
     </ScrollView>
+    </BottomSheet>
   );
 }
 
@@ -220,16 +211,14 @@ const ACCENT = '#C4AEDE';
 
 const styles = StyleSheet.create({
   root: {
-    flex:            1,
-    backgroundColor: color.bg,
+    flex: 1,
   },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    64,
-    paddingBottom: 60,
+    paddingTop:    8,
+    paddingBottom: 32,
     gap:           20,
   },
-  backBtn:   { marginBottom: 0 },
   backLabel: { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim },
 
   heading: {

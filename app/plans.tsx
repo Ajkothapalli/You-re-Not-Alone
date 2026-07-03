@@ -12,6 +12,7 @@
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import BottomSheet from '../components/BottomSheet';
 import { showDialog } from '../components/AppDialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { PurchasesPackage } from 'react-native-purchases';
@@ -124,20 +125,12 @@ export default function PlansScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <BottomSheet title="go premium">
       <ScrollView
         style={styles.fill}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.back}>← back</Text>
-        </Pressable>
 
         {/* Premium header */}
         <LinearGradient colors={GOLD} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.badge}>
@@ -214,16 +207,15 @@ export default function PlansScreen() {
           support — crisis resources are always free and never behind a plan.
         </Text>
       </ScrollView>
-    </View>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: color.bg },
   fill: { flex: 1 },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    64,
+    paddingTop:    16,
     paddingBottom: 48,
     gap:           14,
   },

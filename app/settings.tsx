@@ -1,12 +1,12 @@
 import { deleteAccount } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
+import BottomSheet from '@/components/BottomSheet';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Linking,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -70,18 +70,8 @@ export default function SettingsScreen() {
   }
 
   return (
+    <BottomSheet title="about this place">
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
-      <View style={styles.topBar}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <Text style={styles.backLabel}>←</Text>
-        </Pressable>
-        <Text style={styles.heading} accessibilityRole="header">about this place</Text>
-      </View>
 
       {/* Anonymity explainer */}
       <View style={styles.card}>
@@ -155,35 +145,19 @@ export default function SettingsScreen() {
       </TouchableOpacity>
 
     </ScrollView>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex:            1,
-    backgroundColor: color.bg,
+    flex: 1,
   },
   scroll: {
-    padding:        spacing.screenPadding,
-    paddingTop:     60,
-    paddingBottom:  48,
-    gap:            24,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           12,
-  },
-  backLabel: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   18,
-    color:      color.dim,
-    lineHeight: 22,
-  },
-  heading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   26,
-    color:      color.paper,
+    padding:       spacing.screenPadding,
+    paddingTop:    20,
+    paddingBottom: 24,
+    gap:           24,
   },
   card: {
     backgroundColor: '#1A1720',
