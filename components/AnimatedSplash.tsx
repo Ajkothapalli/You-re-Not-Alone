@@ -18,8 +18,8 @@
  */
 
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Modal, StyleSheet, Text } from 'react-native';
 import { color, fontFamily } from '../theme/tokens';
 import { useReducedMotion } from '../lib/a11y';
 
@@ -36,6 +36,7 @@ interface Props {
 }
 
 export default function AnimatedSplash({ onDone }: Props) {
+  const [modalVisible, setModalVisible] = useState(true);
   const spread   = useRef(new Animated.Value(0)).current; // 0 = together, 1 = apart
   const pulse    = useRef(new Animated.Value(0)).current; // meeting heartbeat
   const floatL   = useRef(new Animated.Value(0)).current; // idle bob, left
@@ -53,7 +54,7 @@ export default function AnimatedSplash({ onDone }: Props) {
       wordmark.setValue(1);
       const t = setTimeout(() => {
         Animated.timing(overlay, { toValue: 0, duration: 300, useNativeDriver: true })
-          .start(({ finished }) => { if (finished) onDone(); });
+          .start(({ finished }) => { if (finished) { setModalVisible(false); onDone(); } });
       }, 1100);
       return () => clearTimeout(t);
     }
@@ -67,7 +68,9 @@ export default function AnimatedSplash({ onDone }: Props) {
         duration:        450,
         easing:          Easing.in(Easing.quad),
         useNativeDriver: true,
-      }).start(({ finished }) => { if (finished) onDone(); });
+      }).start(({ finished }) => {
+        if (finished) { setModalVisible(false); onDone(); }
+      });
     };
 
     // 2. breathe apart → 3. spring back together (overshoot = the meeting)
@@ -165,57 +168,59 @@ export default function AnimatedSplash({ onDone }: Props) {
   };
 
   return (
-    <Animated.View
-      pointerEvents="auto"
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel="soulyap — a private place to say what you can't."
-      style={[styles.overlay, { opacity: overlay }]}
+    <Modal
+      visible={modalVisible}
+      transparent
+      animationType="none"
+      statusBarTranslucent
     >
       <Animated.View
-        style={styles.logoRow}
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
+        pointerEvents="auto"
+        accessible
+        accessibilityRole="image"
+        accessibilityLabel="soulyap — a private place to say what you can't."
+        style={[styles.overlay, { opacity: overlay }]}
       >
-        <Animated.Image
-          source={LEFT_SRC}
-          style={leftStyle}
-          resizeMode="stretch"
-        />
-        <Animated.Image
-          source={RIGHT_SRC}
-          style={rightStyle}
-          resizeMode="stretch"
-        />
-      </Animated.View>
+        <Animated.View
+          style={styles.logoRow}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+        >
+          <Animated.Image
+            source={LEFT_SRC}
+            style={leftStyle}
+            resizeMode="stretch"
+          />
+          <Animated.Image
+            source={RIGHT_SRC}
+            style={rightStyle}
+            resizeMode="stretch"
+          />
+        </Animated.View>
 
-      <Animated.View
-        style={[
-          styles.wordmarkContainer,
-          {
-            opacity:   wordmark,
-            transform: [{ translateY: wordmark.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
-          },
-        ]}
-      >
-        <Text style={styles.wordmarkText}>soulyap</Text>
-        <Text style={styles.subText}>a private place to say what you can't</Text>
+        <Animated.View
+          style={[
+            styles.wordmarkContainer,
+            {
+              opacity:   wordmark,
+              transform: [{ translateY: wordmark.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+            },
+          ]}
+        >
+          <Text style={styles.wordmarkText}>soulyap</Text>
+          <Text style={styles.subText}>a private place to say what you can't</Text>
+        </Animated.View>
       </Animated.View>
-    </Animated.View>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    position:        'absolute',
-    top:             0,
-    left:            0,
-    right:           0,
-    bottom:          0,
+    flex:            1,
     backgroundColor: color.ink,
     alignItems:      'center',
     justifyContent:  'center',
-    zIndex:          100,
   },
   logoRow: {
     flexDirection: 'row',

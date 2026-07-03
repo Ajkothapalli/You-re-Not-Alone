@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import React from 'react';
 import {
+  Dimensions,
   Pressable,
   StyleSheet,
   Text,
@@ -8,6 +9,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fontFamily } from '@/theme/tokens';
+
+const MAX_HEIGHT = Dimensions.get('window').height * 0.92;
 
 interface Props {
   children:  React.ReactNode;
@@ -28,7 +31,7 @@ export default function BottomSheet({ children, title, onClose }: Props) {
       <Pressable style={styles.scrim} onPress={close} accessibilityRole="button" accessibilityLabel="Close" />
 
       {/* Sheet card */}
-      <View style={[styles.sheet, { paddingBottom: Math.max(bottom, 20) }]}>
+      <View style={[styles.sheet, { paddingBottom: Math.max(bottom, 20), maxHeight: MAX_HEIGHT }]}>
         {/* Drag handle */}
         <View style={styles.handleRow} pointerEvents="none">
           <View style={styles.handle} />
@@ -59,14 +62,13 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
   },
   sheet: {
-    backgroundColor:    '#17131F',
+    backgroundColor:      '#17131F',
     borderTopLeftRadius:  24,
     borderTopRightRadius: 24,
-    maxHeight:          '90%',
-    borderWidth:        1,
-    borderColor:        'rgba(243,238,232,0.08)',
-    borderBottomWidth:  0,
-    overflow:           'hidden',
+    borderWidth:          1,
+    borderColor:          'rgba(243,238,232,0.08)',
+    borderBottomWidth:    0,
+    overflow:             'hidden',
   },
   handleRow: {
     alignItems:    'center',

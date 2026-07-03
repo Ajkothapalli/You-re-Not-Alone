@@ -41,10 +41,10 @@ export default function RootLayout() {
           <Stack.Screen name="blocked"     />
           <Stack.Screen name="read-detail" />
           <Stack.Screen name="explore"     />
-          <Stack.Screen name="settings"    options={{ presentation: 'transparentModal', gestureEnabled: true }} />
-          <Stack.Screen name="plans"       options={{ presentation: 'transparentModal', gestureEnabled: true }} />
-          <Stack.Screen name="profile"     options={{ presentation: 'transparentModal', gestureEnabled: true }} />
-          <Stack.Screen name="categories"  options={{ presentation: 'transparentModal', gestureEnabled: true }} />
+          <Stack.Screen name="settings"    options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
+          <Stack.Screen name="plans"       options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
+          <Stack.Screen name="profile"     options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
+          <Stack.Screen name="categories"  options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
         </Stack>
         {!splashDone && <AnimatedSplash onDone={() => setSplashDone(true)} />}
         <DialogHost />
