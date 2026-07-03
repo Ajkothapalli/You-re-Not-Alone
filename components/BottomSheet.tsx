@@ -10,7 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fontFamily } from '@/theme/tokens';
 
-const MAX_HEIGHT = Dimensions.get('window').height * 0.92;
+const MAX_HEIGHT = Dimensions.get('window').height * 0.85;
 
 interface Props {
   children:  React.ReactNode;
