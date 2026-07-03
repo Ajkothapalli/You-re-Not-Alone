@@ -12,6 +12,15 @@ import { color } from '../theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
+const SHEET_OPTIONS = {
+  presentation:                    'formSheet' as const,
+  sheetAllowedDetents:             [0.85] as number[],
+  sheetGrabberVisible:             true,
+  sheetCornerRadius:               28,
+  sheetExpandsWhenScrolledToEdge:  false,
+  gestureEnabled:                  true,
+};
+
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useAppFonts();
   const [splashDone, setSplashDone] = useState(false);
@@ -41,10 +50,10 @@ export default function RootLayout() {
           <Stack.Screen name="blocked"     />
           <Stack.Screen name="read-detail" />
           <Stack.Screen name="explore"     />
-          <Stack.Screen name="settings"    options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
-          <Stack.Screen name="plans"       options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
-          <Stack.Screen name="profile"     options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
-          <Stack.Screen name="categories"  options={{ presentation: 'transparentModal', gestureEnabled: true, contentStyle: { backgroundColor: 'transparent' } }} />
+          <Stack.Screen name="settings"    options={SHEET_OPTIONS} />
+          <Stack.Screen name="plans"       options={SHEET_OPTIONS} />
+          <Stack.Screen name="profile"     options={SHEET_OPTIONS} />
+          <Stack.Screen name="categories"  options={SHEET_OPTIONS} />
         </Stack>
         {!splashDone && <AnimatedSplash onDone={() => setSplashDone(true)} />}
         <DialogHost />

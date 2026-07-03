@@ -1,7 +1,6 @@
 import { deleteAccount } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
-import BottomSheet from '@/components/BottomSheet';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -70,7 +69,6 @@ export default function SettingsScreen() {
   }
 
   return (
-    <BottomSheet title="about this place">
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
 
       {/* Anonymity explainer */}
@@ -145,13 +143,13 @@ export default function SettingsScreen() {
       </TouchableOpacity>
 
     </ScrollView>
-    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
+    flex:            1,
+    backgroundColor: color.bg,
   },
   scroll: {
     padding:       spacing.screenPadding,

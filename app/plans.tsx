@@ -12,7 +12,6 @@
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import BottomSheet from '../components/BottomSheet';
 import { showDialog } from '../components/AppDialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { PurchasesPackage } from 'react-native-purchases';
@@ -125,12 +124,11 @@ export default function PlansScreen() {
   }
 
   return (
-    <BottomSheet title="go premium">
-      <ScrollView
-        style={styles.fill}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-      >
+    <ScrollView
+      style={styles.fill}
+      contentContainerStyle={styles.scroll}
+      showsVerticalScrollIndicator={false}
+    >
 
         {/* Premium header */}
         <LinearGradient colors={GOLD} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.badge}>
@@ -206,13 +204,12 @@ export default function PlansScreen() {
           Billed through the app store. Cancel anytime. Reading never replaces
           support — crisis resources are always free and never behind a plan.
         </Text>
-      </ScrollView>
-    </BottomSheet>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1 },
+  fill: { flex: 1, backgroundColor: color.bg },
   scroll: {
     padding:       spacing.screenPadding,
     paddingTop:    16,

@@ -15,7 +15,6 @@
 import { deleteAccount } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
-import BottomSheet from '@/components/BottomSheet';
 import { PERSONAS, PersonaBadge, getPersonaById } from '@/components/Persona';
 import { clearProfile, getProfile, setProfileName, setProfilePersona } from '@/lib/profile';
 import { usePremium } from '@/lib/premiumContext';
@@ -137,12 +136,11 @@ export default function ProfileScreen() {
     }
   }
 
-  if (!personaId) return <BottomSheet><View style={{ height: 200 }} /></BottomSheet>;
+  if (!personaId) return <View style={{ flex: 1 }} />;
 
   const persona = getPersonaById(personaId);
 
   return (
-    <BottomSheet title="your corner">
     <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
 
       {/* Current character + editable name */}
@@ -321,13 +319,13 @@ export default function ProfileScreen() {
         you're not alone · v{Constants.expoConfig?.version ?? '1.0.0'}
       </Text>
     </ScrollView>
-    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
+    flex:            1,
+    backgroundColor: color.bg,
   },
   scroll: {
     padding:       spacing.screenPadding,

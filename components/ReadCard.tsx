@@ -269,10 +269,9 @@ const styles = StyleSheet.create({
     gap:           4,
   },
   feltIcon: {
-    fontSize:            16,
-    lineHeight:          16,
-    includeFontPadding:  false,
-    textAlignVertical:   'center',
+    fontSize:           18,
+    lineHeight:         22,
+    includeFontPadding: false,
   },
   countRow: {
     flexDirection: 'row',

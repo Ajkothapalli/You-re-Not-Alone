@@ -10,7 +10,6 @@ import { CATEGORIES } from '@/lib/categories';
 import { getReaderPreferences, saveReaderPreferences } from '@/lib/api';
 import { announce } from '@/lib/a11y';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
-import BottomSheet from '@/components/BottomSheet';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
@@ -153,10 +152,9 @@ export default function CategoriesScreen() {
     router.replace(isEdit ? '../' : '/read');
   }
 
-  if (loadingPrefs) return <BottomSheet><View style={{ height: 200 }} /></BottomSheet>;
+  if (loadingPrefs) return <View style={{ flex: 1 }} />;
 
   return (
-    <BottomSheet title={isEdit ? 'reading categories' : 'what do you want to read?'}>
     <ScrollView
       style={styles.root}
       contentContainerStyle={styles.scroll}
@@ -201,7 +199,6 @@ export default function CategoriesScreen() {
         <GhostButton label={isEdit ? 'Cancel' : 'Skip for now'} onPress={handleSkip} />
       </View>
     </ScrollView>
-    </BottomSheet>
   );
 }
 
@@ -211,7 +208,8 @@ const ACCENT = '#C4AEDE';
 
 const styles = StyleSheet.create({
   root: {
-    flex: 1,
+    flex:            1,
+    backgroundColor: color.bg,
   },
   scroll: {
     padding:       spacing.screenPadding,
