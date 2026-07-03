@@ -186,9 +186,9 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
             accessibilityHint={felt ? 'Removes that you felt this too' : 'Adds that you felt this too'}
           >
             <Animated.Text
-              style={[styles.feltIcon, { color: labelColor, opacity: felt ? 1 : 0.55, transform: [{ scale: feltScale }] }]}
+              style={[styles.feltIcon, { color: labelColor, transform: [{ scale: feltScale }] }]}
             >
-              {'♥'}
+              {felt ? '♥' : '♡'}
             </Animated.Text>
 
             <View style={styles.countRow}>
@@ -269,7 +269,8 @@ const styles = StyleSheet.create({
     gap:           4,
   },
   feltIcon: {
-    fontSize: 20,
+    fontSize:           22,
+    includeFontPadding: false,
   },
   countRow: {
     flexDirection: 'row',

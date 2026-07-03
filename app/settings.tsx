@@ -70,7 +70,7 @@ export default function SettingsScreen() {
 
   return (
     <View style={styles.root}>
-    <ScrollView contentContainerStyle={styles.scroll}>
+    <ScrollView style={styles.scroller} contentContainerStyle={styles.scroll}>
 
       {/* Anonymity explainer */}
       <View style={styles.card}>
@@ -154,6 +154,7 @@ const styles = StyleSheet.create({
     flex:            1,
     backgroundColor: color.bg,
   },
+  scroller: { flex: 1 },
   scroll: {
     padding:       spacing.screenPadding,
     paddingTop:    20,

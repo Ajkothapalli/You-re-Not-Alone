@@ -157,6 +157,7 @@ export default function CategoriesScreen() {
   return (
     <View style={styles.root}>
     <ScrollView
+      style={styles.scroller}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
@@ -213,6 +214,7 @@ const styles = StyleSheet.create({
     flex:            1,
     backgroundColor: color.bg,
   },
+  scroller: { flex: 1 },
   scroll: {
     padding:       spacing.screenPadding,
     paddingTop:    8,

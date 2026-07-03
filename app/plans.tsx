@@ -126,6 +126,7 @@ export default function PlansScreen() {
   return (
     <View style={styles.fill}>
     <ScrollView
+      style={styles.scroller}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
@@ -211,7 +212,8 @@ export default function PlansScreen() {
 }
 
 const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: color.bg },
+  fill:    { flex: 1, backgroundColor: color.bg },
+  scroller: { flex: 1 },
   scroll: {
     padding:       spacing.screenPadding,
     paddingTop:    16,
