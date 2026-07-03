@@ -22,7 +22,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { showDialog, DialogHost } from '@/components/AppDialog';
+import { showDialog } from '@/components/AppDialog';
 
 // ─── chip ────────────────────────────────────────────────────────────────────
 
@@ -200,7 +200,6 @@ export default function CategoriesScreen() {
         <GhostButton label={isEdit ? 'Cancel' : 'Skip for now'} onPress={handleSkip} />
       </View>
     </ScrollView>
-    <DialogHost />
     </View>
   );
 }

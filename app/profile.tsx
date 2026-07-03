@@ -36,7 +36,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { showDialog, DialogHost } from '@/components/AppDialog';
+import { showDialog } from '@/components/AppDialog';
 
 export default function ProfileScreen() {
   const { isPremium, refresh } = usePremium();
@@ -320,7 +320,6 @@ export default function ProfileScreen() {
         you're not alone · v{Constants.expoConfig?.version ?? '1.0.0'}
       </Text>
     </ScrollView>
-    <DialogHost />
     </View>
   );
 }

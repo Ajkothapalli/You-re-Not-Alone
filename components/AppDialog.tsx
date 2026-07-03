@@ -68,9 +68,8 @@ export function DialogHost(): React.ReactElement {
   const animating = useRef(false);
 
   useEffect(() => {
-    const prev = listener;
     listener = setCurrentQueue;
-    return () => { listener = prev; };
+    return () => { listener = null; };
   }, []);
 
   const current = currentQueue[0] ?? null;

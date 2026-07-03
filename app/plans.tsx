@@ -12,7 +12,7 @@
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { showDialog, DialogHost } from '../components/AppDialog';
+import { showDialog } from '../components/AppDialog';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { PrimaryButton } from '../components/Buttons';
@@ -206,7 +206,6 @@ export default function PlansScreen() {
           support — crisis resources are always free and never behind a plan.
         </Text>
     </ScrollView>
-    <DialogHost />
     </View>
   );
 }
