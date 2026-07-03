@@ -22,7 +22,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { showDialog } from '@/components/AppDialog';
+import { showDialog, DialogHost } from '@/components/AppDialog';
 
 // ─── chip ────────────────────────────────────────────────────────────────────
 
@@ -155,8 +155,8 @@ export default function CategoriesScreen() {
   if (loadingPrefs) return <View style={{ flex: 1 }} />;
 
   return (
+    <View style={styles.root}>
     <ScrollView
-      style={styles.root}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
@@ -199,6 +199,8 @@ export default function CategoriesScreen() {
         <GhostButton label={isEdit ? 'Cancel' : 'Skip for now'} onPress={handleSkip} />
       </View>
     </ScrollView>
+    <DialogHost />
+    </View>
   );
 }
 

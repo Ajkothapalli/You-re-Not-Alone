@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { showDialog } from '@/components/AppDialog';
+import { showDialog, DialogHost } from '@/components/AppDialog';
 
 // [REPLACE BEFORE LAUNCH] — Apple and Google require live, publicly accessible
 // policy URLs at review time. Placeholder URLs will cause app rejection.
@@ -69,7 +69,8 @@ export default function SettingsScreen() {
   }
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.scroll}>
+    <View style={styles.root}>
+    <ScrollView contentContainerStyle={styles.scroll}>
 
       {/* Anonymity explainer */}
       <View style={styles.card}>
@@ -143,6 +144,8 @@ export default function SettingsScreen() {
       </TouchableOpacity>
 
     </ScrollView>
+    <DialogHost />
+    </View>
   );
 }
 
