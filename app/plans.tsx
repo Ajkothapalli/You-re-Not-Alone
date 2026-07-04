@@ -124,9 +124,8 @@ export default function PlansScreen() {
   }
 
   return (
-    <View style={styles.fill}>
     <ScrollView
-      style={styles.scroller}
+      style={styles.fill}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
@@ -206,13 +205,11 @@ export default function PlansScreen() {
           support — crisis resources are always free and never behind a plan.
         </Text>
     </ScrollView>
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  fill:    { flex: 1, backgroundColor: color.bg },
-  scroller: { flex: 1 },
+  fill: { flex: 1, backgroundColor: color.bg },
   scroll: {
     padding:       spacing.screenPadding,
     paddingTop:    16,

@@ -52,7 +52,7 @@ export default function RootLayout() {
           <Stack.Screen name="explore"     />
           <Stack.Screen name="settings"    options={SHEET_OPTIONS} />
           <Stack.Screen name="plans"       options={SHEET_OPTIONS} />
-          <Stack.Screen name="profile"     options={SHEET_OPTIONS} />
+          <Stack.Screen name="profile"     options={{ animation: 'slide_from_right', gestureEnabled: true }} />
           <Stack.Screen name="categories"  options={SHEET_OPTIONS} />
         </Stack>
         {!splashDone && <AnimatedSplash onDone={() => setSplashDone(true)} />}

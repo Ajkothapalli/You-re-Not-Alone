@@ -37,9 +37,11 @@ import {
   View,
 } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ProfileScreen() {
   const { isPremium, refresh } = usePremium();
+  const insets = useSafeAreaInsets();
   const [personaId, setPersonaId] = useState<string | null>(null);
   const [name, setName]           = useState('');
   const [deleting, setDeleting]   = useState(false);
@@ -141,7 +143,16 @@ export default function ProfileScreen() {
   const persona = getPersonaById(personaId);
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { paddingTop: insets.top }]}>
+      <Pressable
+        onPress={() => router.back()}
+        hitSlop={12}
+        style={styles.backRow}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
+      >
+        <Text style={styles.backLabel}>← back</Text>
+      </Pressable>
     <ScrollView style={styles.scroller} contentContainerStyle={styles.scroll}>
 
       {/* Current character + editable name */}
@@ -329,10 +340,19 @@ const styles = StyleSheet.create({
     flex:            1,
     backgroundColor: color.bg,
   },
+  backRow: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingVertical:   14,
+  },
+  backLabel: {
+    fontFamily: fontFamily.sans,
+    fontSize:   14,
+    color:      color.dim,
+  },
   scroller: { flex: 1 },
   scroll: {
     padding:       spacing.screenPadding,
-    paddingTop:    16,
+    paddingTop:    8,
     paddingBottom: 32,
     gap:           16,
   },
