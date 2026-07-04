@@ -1,0 +1,49 @@
+name: Android Production AAB
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android AAB (production)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Expo + EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build AAB (local — production profile, autoIncrement versionCode)
+        run: |
+          eas build --local \
+            --platform android \
+            --profile production \
+            --non-interactive \
+            --output ${{ github.workspace }}/app-production.aab
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-production-${{ github.run_number }}
+          path: ${{ github.workspace }}/app-production.aab
+          retention-days: 30
