@@ -2,6 +2,7 @@ import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
 import { WaveBackground } from './ConfessionCard';
+import { HeartIcon } from './HeartIcon';
 import { getPersona, PersonaBadge } from './Persona';
 import type { Palette } from '../theme/palettes';
 import { color, font, fontFamily } from '../theme/tokens';
@@ -185,11 +186,9 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
             accessibilityLabel={`${displayCount.toLocaleString()} people felt this too`}
             accessibilityHint={felt ? 'Removes that you felt this too' : 'Adds that you felt this too'}
           >
-            <Animated.Text
-              style={[styles.feltIcon, { color: labelColor, transform: [{ scale: feltScale }] }]}
-            >
-              {felt ? '♥' : '♡'}
-            </Animated.Text>
+            <Animated.View style={{ transform: [{ scale: feltScale }] }}>
+              <HeartIcon filled={felt} color={labelColor} size={18} />
+            </Animated.View>
 
             <View style={styles.countRow}>
               {displayStr.split('').map((ch, i) => (
@@ -267,10 +266,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems:    'center',
     gap:           4,
-  },
-  feltIcon: {
-    fontSize:           22,
-    includeFontPadding: false,
   },
   countRow: {
     flexDirection: 'row',

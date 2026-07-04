@@ -25,6 +25,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { PrimaryButton } from '@/components/Buttons';
+import { HeartIcon } from '@/components/HeartIcon';
 import { evaluateRtue, markRtueSeen, clearRtueCache, type RtueMoment, type RtueState } from '@/lib/rtue';
 import { color, fontFamily } from '@/theme/tokens';
 import { announce } from '@/lib/a11y';
@@ -179,7 +180,9 @@ function StatPill({ gained, state }: { gained: number; state: RtueState }) {
 
   return (
     <View style={st.pill}>
-      <Animated.Text style={[st.pillHeart, { transform: [{ scale }] }]}>♥</Animated.Text>
+      <Animated.View style={{ transform: [{ scale }] }}>
+        <HeartIcon filled color="#F5996E" size={11} />
+      </Animated.View>
       <Text style={st.pillText}>{label}</Text>
     </View>
   );
@@ -394,11 +397,6 @@ const st = StyleSheet.create({
     paddingVertical:   5,
     paddingHorizontal: 11,
     marginTop:         7,
-  },
-  pillHeart: {
-    fontSize:   11,
-    color:      '#F5996E',
-    lineHeight: 13,
   },
   pillText: {
     fontFamily:    fontFamily.sansBold,

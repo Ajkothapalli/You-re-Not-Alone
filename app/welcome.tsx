@@ -58,6 +58,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { CATEGORIES, type CategoryId } from '@/lib/categories';
+import { HeartIcon } from '@/components/HeartIcon';
 import { CategoryBadge } from '@/components/CategoryGlyph';
 import { markFtueDone } from '@/lib/onboarding';
 import { setProfilePersona, setProfileName } from '@/lib/profile';
@@ -201,7 +202,8 @@ function MiniCard() {
         "everyone thinks i'm fine. i'm barely holding on."
       </Text>
       <View style={mc.pill}>
-        <Text style={mc.pillText}>♥ 218 felt this too</Text>
+        <HeartIcon filled color="#3A0A14" size={10} />
+        <Text style={mc.pillText}> 218 felt this too</Text>
       </View>
     </View>
   );
