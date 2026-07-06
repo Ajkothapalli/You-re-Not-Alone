@@ -1,4 +1,4 @@
-import { deleteAccount } from '@/lib/api';
+import { deleteAccount, type DeleteMode } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -34,31 +34,48 @@ export default function SettingsScreen() {
     if (deleting) return;
     showDialog(
       'Delete your account?',
-      'This permanently removes your account and all your confessions. It cannot be undone.',
+      'Choose what happens to your confessions.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Continue', style: 'destructive', onPress: handleDeleteConfirm },
+        {
+          text:    'Erase everything',
+          style:   'destructive',
+          onPress: () => confirmDelete('erase'),
+        },
+        {
+          text:    'Leave my words anonymously',
+          style:   'default',
+          onPress: () => confirmDelete('anonymize'),
+        },
       ],
     );
   }
 
-  function handleDeleteConfirm() {
+  function confirmDelete(mode: DeleteMode) {
+    const isErase = mode === 'erase';
     showDialog(
-      'Are you sure?',
-      'This is your last chance. Your account and all your confessions will be gone forever.',
+      isErase ? 'Erase everything?' : 'Leave words anonymously?',
+      isErase
+        ? 'Your account and every confession will be permanently deleted. This cannot be undone.'
+        : 'Your account is deleted. Your confessions stay live, unlinked from any identity — forever anonymous.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete everything', style: 'destructive', onPress: runDelete, keepOpenWhilePending: true },
+        {
+          text:              isErase ? 'Yes, erase everything' : 'Yes, leave them',
+          style:             'destructive',
+          onPress:           () => runDelete(mode),
+          keepOpenWhilePending: true,
+        },
       ],
     );
   }
 
-  async function runDelete() {
+  async function runDelete(mode: DeleteMode) {
     setDeleting(true);
     try {
-      await deleteAccount();
+      await deleteAccount(mode);
       router.replace('/');
-    } catch (err: any) {
+    } catch {
       setDeleting(false);
       showDialog(
         'Something went wrong',
@@ -76,17 +93,18 @@ export default function SettingsScreen() {
       <View style={styles.card}>
         <Text style={styles.cardLabel}>how your privacy works</Text>
         <Text style={styles.cardBody}>
-          Your confessions are stored without your account attached to them. There are no
-          profiles, no replies, and no way for other users to identify who wrote what.
+          Your confessions are never shown with your identity. Other users cannot see who
+          wrote what — there are no profiles, no replies, and no way to link a confession
+          to a person.
         </Text>
         <Text style={styles.cardBody}>
           Every submission passes through automated safety checks before storage. If you
           describe a crisis, you receive support resources instead — nothing is published.
         </Text>
         <Text style={styles.cardBody}>
-          Full anonymity cannot be guaranteed. The operator can re-derive a link between an
-          account and its confessions using a private server-side secret. This is disclosed
-          in the Privacy Policy.
+          Internally, your confessions are linked to your account for ownership and moderation
+          only. This link is severed permanently when you delete your account. See the Privacy
+          Policy for full details.
         </Text>
       </View>
 
@@ -135,11 +153,11 @@ export default function SettingsScreen() {
         style={styles.deleteRow}
         accessibilityRole="button"
         accessibilityState={{ disabled: deleting, busy: deleting }}
-        accessibilityLabel="Delete my account and confessions"
-        accessibilityHint="Permanently erases everything from our servers. Cannot be undone."
+        accessibilityLabel="Delete account"
+        accessibilityHint="Choose to erase everything or leave your words anonymously."
       >
         <Text style={[styles.deleteLink, deleting && styles.deleteLinkMuted]}>
-          {deleting ? 'deleting…' : 'delete my account and confessions'}
+          {deleting ? 'deleting…' : 'delete account'}
         </Text>
       </TouchableOpacity>
 
