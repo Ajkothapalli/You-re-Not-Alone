@@ -11,7 +11,8 @@ edge and server:
 │   • request size limits, timeouts, geo/IP rules
 ├─ SERVER (Supabase / Edge Functions) ───────────── stops data theft, abuse
 │   • RLS on every table, JWT verification, the safety pipeline
-│   • HMAC author_token identity separation (no account_id in confessions)
+│   • user-facing anonymity: account_id on confessions is server-only (never
+│     in any client payload/view); legacy rows use HMAC author_token
 │   • app-layer rate limits + ban escalation (already implemented)
 │   • input validation + size caps, least-privilege service role, secrets in
 │     Edge Function env only — never in the client bundle or logs

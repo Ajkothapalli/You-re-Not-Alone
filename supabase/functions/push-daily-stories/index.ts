@@ -31,6 +31,16 @@ const CATEGORIES = [
 
 type Category = typeof CATEGORIES[number];
 
+const LANG_LABELS: Record<string, string> = {
+  en:        'English',
+  hi:        'Hindi (Devanagari script)',
+  'hi-Latn': 'romanized Hindi using Roman/Latin script (Hinglish)',
+  te:        'Telugu (Telugu script)',
+  'te-Latn': 'romanized Telugu using Roman/Latin script',
+  ta:        'Tamil (Tamil script)',
+  bn:        'Bengali (Bengali script)',
+};
+
 // ── HMAC ──────────────────────────────────────────────────────────────────────
 
 async function hmacSha256(message: string, secret: string): Promise<string> {
@@ -61,13 +71,19 @@ const HINTS: Record<Category, string> = {
   faith_meaning:  'questioning beliefs, feeling spiritually lost, searching for meaning after it collapsed, doubting everything without a word for it',
 };
 
-async function generateBatch(category: Category, n: number): Promise<string[]> {
+async function generateBatch(category: Category, n: number, lang = 'en'): Promise<string[]> {
   if (!OPENAI_API_KEY) return [];
+
+  const langLabel   = LANG_LABELS[lang] ?? 'English';
+  const isRomanized = lang.endsWith('-Latn');
+  const langLine    = lang === 'en'
+    ? ''
+    : `\nWRITE IN ${langLabel.toUpperCase()}. ${isRomanized ? 'Use Roman/Latin script (transliterated), NOT native script.' : 'Use native script.'} All ${n} confessions must be in this language.\n`;
 
   const prompt = [
     'You write raw, anonymous personal confessions for a mobile app.',
     'Each confession is one honest, specific feeling — imperfect and human.',
-    '',
+    langLine,
     `Category hints: ${HINTS[category]}`,
     '',
     'Hard rules:',
@@ -77,17 +93,22 @@ async function generateBatch(category: Category, n: number): Promise<string[]> {
     '- No names, usernames, or locations.',
     '- NEVER write crisis content: no suicide, no self-harm, no "want to die" or similar.',
     '',
-    'Voice — mix across the batch:',
-    '  • teens / early 20s (~35%): all lowercase, casual, raw. "idk", "fr", "lowkey", "ngl".',
-    '    Optional emoji: 🥲 😭 💀 🙃 😶 😮‍💨 — only if it fits. NOT every line.',
-    '  • 30s–40s (~40%): reflective, slightly longer, thoughtful but not tidy. Occasional emoji ok.',
-    '  • 50s+ (~25%): measured, full sentences, clean prose. No emoji.',
-    '',
-    'Add an emoji to roughly 1 in 3 confessions only — never more.',
+    lang === 'en' ? [
+      'Voice — mix across the batch:',
+      '  • teens / early 20s (~35%): all lowercase, casual, raw. "idk", "fr", "lowkey", "ngl".',
+      '    Optional emoji: 🥲 😭 💀 🙃 😶 😮‍💨 — only if it fits. NOT every line.',
+      '  • 30s–40s (~40%): reflective, slightly longer, thoughtful but not tidy. Occasional emoji ok.',
+      '  • 50s+ (~25%): measured, full sentences, clean prose. No emoji.',
+      '',
+      'Add an emoji to roughly 1 in 3 confessions only — never more.',
+    ].join('\n') : 'Keep the voice natural and personal for the target language.',
     '',
     `Return ONLY a JSON array of exactly ${n} strings. No markdown, no keys, no explanation.`,
-    'Example: ["i keep checking my phone hoping someone will text first 🥲", "I built a career I despise and have no idea how to undo that at 44.", "fr nobody actually knows how bad it gets at night, idk how to tell them"]',
   ].join('\n');
+
+  const userMsg = lang === 'en'
+    ? `Generate ${n} confessions for the "${category}" category.`
+    : `Generate ${n} confessions for the "${category}" category in ${langLabel}.`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method:  'POST',
@@ -98,7 +119,7 @@ async function generateBatch(category: Category, n: number): Promise<string[]> {
       max_tokens:  1400,
       messages: [
         { role: 'system', content: prompt },
-        { role: 'user',   content: `Generate ${n} confessions for the "${category}" category.` },
+        { role: 'user',   content: userMsg },
       ],
     }),
   });
@@ -214,10 +235,24 @@ serve(async (req: Request) => {
     return respond({ error: 'Unauthorized' }, 401);
   }
 
-  // 1. Check config ────────────────────────────────────────────────────────────
+  // 1. Idempotency — skip if today's run is already logged ─────────────────────
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD UTC
+
+  const { data: existingRun } = await supabase
+    .from('seed_runs')
+    .select('id')
+    .eq('run_date', today)
+    .maybeSingle();
+
+  if (existingRun) {
+    console.log('[PUSH] already ran today — skipping');
+    return respond({ skipped: true, reason: 'already_ran_today', date: today });
+  }
+
+  // 2. Load config ──────────────────────────────────────────────────────────────
   const { data: config, error: cfgErr } = await supabase
     .from('seed_config')
-    .select('enabled, per_category')
+    .select('enabled, per_category, languages')
     .eq('id', 1)
     .maybeSingle();
 
@@ -230,81 +265,90 @@ serve(async (req: Request) => {
   }
 
   const perCategory: number = config.per_category ?? 5;
+  const languages: string[] = config.languages ?? ['en'];
   const autoToken = await getAutoToken();
 
-  // 2. Per-category loop ───────────────────────────────────────────────────────
+  // 3. Per-language × per-category loop ─────────────────────────────────────────
   const summary: Record<string, { attempted: number; inserted: number }> = {};
 
-  for (const category of CATEGORIES) {
-    let inserted   = 0;
-    let attempted  = 0;
+  for (const lang of languages) {
+    for (const category of CATEGORIES) {
+      const key      = `${lang}/${category}`;
+      let inserted  = 0;
+      let attempted = 0;
 
-    // Generate a small buffer over target to absorb safety drops
-    const candidates = await generateBatch(category, perCategory + 3);
+      // Generate a small buffer over target to absorb safety drops
+      const candidates = await generateBatch(category, perCategory + 3, lang);
 
-    for (const text of candidates) {
-      if (inserted >= perCategory) break;
-      attempted++;
+      for (const text of candidates) {
+        if (inserted >= perCategory) break;
+        attempted++;
 
-      // [A] Crisis gate
-      if (hasCrisis(text)) {
-        console.log(`[SAFETY] crisis drop — ${category}`);
-        continue;
+        // [A] Crisis gate
+        if (hasCrisis(text)) {
+          console.log(`[SAFETY] crisis drop — ${key}`);
+          continue;
+        }
+
+        // [B] Moderation gate
+        if (!(await passesModeration(text))) {
+          console.log(`[SAFETY] moderation drop — ${key}`);
+          continue;
+        }
+
+        // [C] Embed
+        const embedding = await embed(text);
+        if (!embedding) {
+          console.error(`[EMBED] failed — ${key}`);
+          continue;
+        }
+
+        // [D] Dedup
+        if (await isDuplicate(embedding)) {
+          console.log(`[DEDUP] near-duplicate drop — ${key}`);
+          continue;
+        }
+
+        // [E] Insert
+        const feltCount = Math.floor(Math.random() * 271) + 30;
+
+        const { error: insertErr } = await supabase.from('confessions').insert({
+          author_token:           autoToken,
+          text,
+          embedding:              JSON.stringify(embedding),
+          categories:             [category],
+          status:                 'live',
+          amplification_eligible: true,
+          authorship_flags:       [],
+          is_seed:                true,
+          felt_count:             feltCount,
+          lang,
+        });
+
+        if (insertErr) {
+          console.error(`[INSERT] error — ${key}:`, insertErr.message);
+          continue;
+        }
+
+        inserted++;
       }
 
-      // [B] Moderation gate
-      if (!(await passesModeration(text))) {
-        console.log(`[SAFETY] moderation drop — ${category}`);
-        continue;
-      }
-
-      // [C] Embed
-      const embedding = await embed(text);
-      if (!embedding) {
-        console.error(`[EMBED] failed — ${category}`);
-        continue;
-      }
-
-      // [D] Dedup
-      if (await isDuplicate(embedding)) {
-        console.log(`[DEDUP] near-duplicate drop — ${category}`);
-        continue;
-      }
-
-      // [E] Insert
-      // - author_token: the auto token (retirement handle, never in public view)
-      // - is_seed: true (server-only recommender penalty; NOT in confessions_public)
-      // - amplification_eligible: true (operator content — no AI penalty)
-      // - felt_count: plausible starter
-      const feltCount = Math.floor(Math.random() * 271) + 30;
-
-      const { error: insertErr } = await supabase.from('confessions').insert({
-        author_token:           autoToken,
-        text,
-        embedding:              JSON.stringify(embedding),
-        categories:             [category],
-        status:                 'live',
-        amplification_eligible: true,
-        authorship_flags:       [],
-        is_seed:                true,
-        felt_count:             feltCount,
-      });
-
-      if (insertErr) {
-        console.error(`[INSERT] error — ${category}:`, insertErr.message);
-        continue;
-      }
-
-      inserted++;
+      // Log counts only — never confession text
+      summary[key] = { attempted, inserted };
+      console.log(`[PUSH] ${key}: attempted=${attempted} inserted=${inserted}`);
     }
-
-    // Log counts only — never confession text
-    summary[category] = { attempted, inserted };
-    console.log(`[PUSH] ${category}: attempted=${attempted} inserted=${inserted}`);
   }
 
   const totalInserted = Object.values(summary).reduce((s, r) => s + r.inserted, 0);
-  console.log(`[PUSH] done. total=${totalInserted}`);
+  console.log(`[PUSH] done. total=${totalInserted} languages=${languages.join(',')}`);
 
-  return respond({ ok: true, total: totalInserted, summary });
+  // 4. Log this run for idempotency ─────────────────────────────────────────────
+  const { error: runErr } = await supabase.from('seed_runs').insert({
+    run_date:    today,
+    total:       totalInserted,
+    summary,
+  });
+  if (runErr) console.error('[PUSH] seed_runs insert failed:', runErr.message);
+
+  return respond({ ok: true, total: totalInserted, summary, date: today });
 });

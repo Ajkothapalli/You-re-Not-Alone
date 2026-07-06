@@ -2,16 +2,23 @@
  * Edge Function: delete-account
  *
  * Executes a verified DSAR (Data Subject Access Request) account deletion.
- * Re-derives the author_token via HMAC (same derivation as submit-confession)
- * and calls dsar_delete_author_data() to remove all attributable data.
+ * Two modes (sent as `mode` in request body):
  *
- * EXCEPTIONS — data not deleted by this function:
- *   - crisis_events: stored without account linkage and are therefore
- *     unattributable. Cannot be found or deleted per DSAR.
- *   - Authored confessions with active reports: set to 'removed' (legal hold).
- *     Hidden immediately; purge_expired_data() hard-deletes them once the
- *     reports age out (365-day retention period).
- *   - CSAM reports filed with NCMEC: retained under legal obligation. Never deleted.
+ *   "erase" (default) — confessions without active reports are hard-deleted.
+ *     Confessions with reports are anonymized (account_id = NULL, text = '[deleted]',
+ *     status = 'removed', then aged out by purge_expired_data). The accounts row
+ *     and all device/reader data are deleted. Auth identity is deleted.
+ *
+ *   "anonymize" — all confessions stay live in the pool but account_id is NULLed
+ *     on every row, severing the identity link permanently. Reader data, devices,
+ *     and the accounts row are deleted. Confessions live on as truly anonymous posts.
+ *
+ * Either path leaves no account link on any confession row. The user's public
+ * writing lives on (anonymize) or disappears (erase).
+ *
+ * EXCEPTIONS — data never deleted:
+ *   - crisis_events: stored without account linkage; unattributable per DSAR.
+ *   - CSAM reports filed with NCMEC: retained under legal obligation.
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
@@ -69,7 +76,7 @@ serve(async (req: Request) => {
   if (authError || !user) return json({ error: 'Unauthorized' }, 401);
 
   // ── Explicit confirmation required ────────────────────────────────────────────
-  let body: { confirm?: string };
+  let body: { confirm?: string; mode?: string };
   try {
     body = await req.json();
   } catch {
@@ -83,42 +90,75 @@ serve(async (req: Request) => {
     );
   }
 
+  // mode defaults to "erase" if omitted or invalid
+  const mode: 'erase' | 'anonymize' =
+    body.mode === 'anonymize' ? 'anonymize' : 'erase';
+
   try {
-    // ── Derive author_token ────────────────────────────────────────────────────
     if (!AUTHOR_TOKEN_SECRET) throw new Error('AUTHOR_TOKEN_SECRET not set');
     const authorToken = await hmacSha256(user.id, AUTHOR_TOKEN_SECRET);
 
-    // ── Execute DSAR deletion ──────────────────────────────────────────────────
-    const { data: rows, error: rpcError } = await supabase.rpc('dsar_delete_author_data', {
-      target_token:   authorToken,
-      target_account: user.id,
-    });
+    if (mode === 'anonymize') {
+      // ── Anonymize path ──────────────────────────────────────────────────────
+      // Confessions stay live; account_id is NULLed on every authored row.
+      const { data: rows, error: rpcError } = await supabase.rpc('dsar_anonymize_author', {
+        target_token:   authorToken,
+        target_account: user.id,
+      });
 
-    if (rpcError) throw rpcError;
+      if (rpcError) throw rpcError;
 
-    // rpc() with RETURNS TABLE returns an array; our function returns one row.
-    const counts = Array.isArray(rows) ? rows[0] : rows;
+      const counts = Array.isArray(rows) ? rows[0] : rows;
 
-    // ── Delete from Supabase Auth ──────────────────────────────────────────────
-    // The accounts row is already gone (deleted inside dsar_delete_author_data).
-    // If this fails, the data deletion succeeded but the auth identity remains.
-    // Manual cleanup is required — see the console.error log below.
-    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
-    if (authDeleteError) {
-      console.error(
-        '[delete-account] Auth user deletion failed after data deletion was completed.',
-        'Manual cleanup required: auth.users id =', user.id,
-        '| Error:', authDeleteError.message,
-      );
+      // Delete Supabase Auth identity
+      const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
+      if (authDeleteError) {
+        console.error(
+          '[delete-account] Auth user deletion failed (anonymize path) after data was anonymized.',
+          'Manual cleanup required: auth.users id =', user.id,
+          '| Error:', authDeleteError.message,
+        );
+      }
+
+      return json({
+        ok:                     true,
+        mode:                   'anonymize',
+        anonymized_confessions: counts?.anonymized_confessions ?? 0,
+        deleted_devices:        counts?.deleted_devices        ?? 0,
+      });
+
+    } else {
+      // ── Erase path (default) ────────────────────────────────────────────────
+      // Hard-deletes confessions where possible; NULLs account_id + marks removed
+      // on legal-hold rows.
+      const { data: rows, error: rpcError } = await supabase.rpc('dsar_delete_author_data', {
+        target_token:   authorToken,
+        target_account: user.id,
+      });
+
+      if (rpcError) throw rpcError;
+
+      const counts = Array.isArray(rows) ? rows[0] : rows;
+
+      // Delete Supabase Auth identity
+      const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
+      if (authDeleteError) {
+        console.error(
+          '[delete-account] Auth user deletion failed (erase path) after data deletion was completed.',
+          'Manual cleanup required: auth.users id =', user.id,
+          '| Error:', authDeleteError.message,
+        );
+      }
+
+      return json({
+        ok:                  true,
+        mode:                'erase',
+        deleted_confessions: counts?.deleted_confessions ?? 0,
+        held_confessions:    counts?.held_confessions    ?? 0,
+        deleted_matches:     counts?.deleted_matches     ?? 0,
+        deleted_devices:     counts?.deleted_devices     ?? 0,
+      });
     }
-
-    return json({
-      ok:                  true,
-      deleted_confessions: counts?.deleted_confessions ?? 0,
-      held_confessions:    counts?.held_confessions    ?? 0,
-      deleted_matches:     counts?.deleted_matches     ?? 0,
-      deleted_devices:     counts?.deleted_devices     ?? 0,
-    });
 
   } catch (err) {
     console.error('[delete-account] unhandled error:', err);

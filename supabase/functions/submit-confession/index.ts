@@ -170,6 +170,240 @@ async function runModeration(
   return { pass: true, adultSignal, borderline };
 }
 
+// ─── Language detection ───────────────────────────────────────────────────────
+//
+// Detects BCP-47-ish language code from free text, including transliterated
+// scripts: "Manaki help chese vaalla..." → 'te-Latn', not 'en'.
+// Fail open: any API error or malformed response returns 'en'.
+
+const LANG_LABELS: Record<string, string> = {
+  en:       'English',
+  hi:       'Hindi',
+  'hi-Latn': 'romanized Hindi (Hinglish — Roman script)',
+  te:       'Telugu',
+  'te-Latn': 'romanized Telugu (Roman script)',
+  ta:       'Tamil',
+  bn:       'Bengali',
+  mr:       'Marathi',
+  gu:       'Gujarati',
+  kn:       'Kannada',
+  ml:       'Malayalam',
+  pa:       'Punjabi',
+};
+
+async function detectLanguage(text: string): Promise<string> {
+  if (!OPENAI_API_KEY) return 'en';
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini', temperature: 0, max_tokens: 12,
+        messages: [
+          {
+            role: 'system',
+            content: [
+              'Detect the language of the input. Return ONLY a BCP-47 language tag.',
+              'For text written in Latin/Roman script that represents a non-Latin language',
+              '(transliteration / Romanization), append "-Latn" to the base tag.',
+              'Examples: English → en | Hindi script → hi | Telugu script → te |',
+              'Romanized Hindi (Hinglish) → hi-Latn | Romanized Telugu → te-Latn |',
+              'Tamil → ta | Bengali → bn.',
+              'If genuinely uncertain return "en". Return ONLY the tag — no explanation.',
+            ].join(' '),
+          },
+          { role: 'user', content: text.slice(0, 300) },
+        ],
+      }),
+    });
+    if (!res.ok) return 'en';
+    const data = await res.json();
+    const raw  = (data.choices?.[0]?.message?.content ?? '').trim().toLowerCase();
+    // Accept any plausible BCP-47 tag (2–3 char primary + optional subtags)
+    if (raw.length >= 2 && raw.length <= 20 && /^[a-z]/.test(raw) && !/\s/.test(raw)) return raw;
+    return 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+// ─── Generative companion (cold-start + guaranteed "you're not alone") ────────
+//
+// Called when no live same-language match meets the quality threshold.
+// Generates a resonant companion confession in the seeker's language,
+// runs the full safety gate (moderation + crisis) — SAME gate as user submissions,
+// then embeds + inserts under the system author_token (never the requester's).
+//
+// Up to 3 generation attempts; falls back to a curated same-language seed line
+// if all attempts fail safety. If even the fallback fails (should not happen),
+// returns null — the caller returns the no-match path instead of showing unsafe text.
+
+const COMPANION_SEEDS: Record<string, string[]> = {
+  en: [
+    "I smile at work and cry in the parking lot on the way home.",
+    "I pretend I'm fine so often I've forgotten what not fine actually feels like.",
+    "The version of me people think they know isn't really me.",
+    "I keep waiting for someone to notice how much I'm struggling.",
+    "I've been holding this together for so long I don't remember who I was before.",
+  ],
+  'hi-Latn': [
+    "Main bahar se khush dikhta hoon lekin andar se toot raha hoon.",
+    "Kisi ko nahi pata ke main raat ko kitna rota hoon.",
+    "Log samajhte hain sab theek hai, par main khud nahi jaanta.",
+    "Muskurata rehta hoon taaki koi poochhe na.",
+  ],
+  'te-Latn': [
+    "Bayata hasyamga untaanu kani lopala chala pain ga untundi.",
+    "Andaru nenu strong ani anukuntaaru, kaani nenu pratiroduja struggle chestunnanu.",
+    "Ninnu choodataniki smile chestanu, kaani nenu bagaa ledu.",
+    "Ela chesina okkarike artham kaadu ani anipistundi.",
+  ],
+  hi: [
+    "बाहर से मुस्कुराता हूँ, लेकिन अंदर से टूट रहा हूँ।",
+    "किसी को नहीं पता रात को मैं कितना रोता हूँ।",
+    "सब सोचते हैं सब ठीक है, पर मैं खुद नहीं जानता।",
+  ],
+  te: [
+    "బయటకు నవ్వుతాను కానీ లోపల చాలా నొప్పిగా ఉంటుంది.",
+    "అందరూ నేను strong అని అనుకుంటారు కానీ నేను ప్రతిరోజూ struggle చేస్తున్నాను.",
+  ],
+  ta: [
+    "வெளியே சிரிக்கிறேன், உள்ளே உடைந்திருக்கிறேன்.",
+    "யாருக்கும் தெரியாது நான் இரவில் எவ்வளவு அழுகிறேன் என்று.",
+  ],
+  bn: [
+    "বাইরে থেকে হাসি দেখাই কিন্তু ভেতরে ভেঙে পড়ছি।",
+    "কেউ জানে না রাতে আমি কতটা কাঁদি।",
+  ],
+};
+
+function companionFallback(lang: string): string {
+  const pool = COMPANION_SEEDS[lang] ?? COMPANION_SEEDS['en'];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+async function getSystemToken(): Promise<string> {
+  if (!AUTHOR_TOKEN_SECRET) throw new Error('AUTHOR_TOKEN_SECRET not set');
+  return hmacSha256('soulyap:auto', AUTHOR_TOKEN_SECRET);
+}
+
+async function generateCompanion(
+  seekerText:   string,
+  lang:         string,
+  seekerToken:  string,
+): Promise<{ id: string; text: string; felt_count: number } | null> {
+  const langLabel = LANG_LABELS[lang] ?? 'English';
+  const isRomanized = lang.endsWith('-Latn');
+
+  const systemPrompt = [
+    `Write ONE raw, anonymous personal confession in ${langLabel}.`,
+    isRomanized
+      ? 'Use Roman/Latin script (transliterated), NOT native script — mirror the input style.'
+      : '',
+    'It should be emotionally parallel to the feeling below — resonant but from a different life.',
+    'First-person, 1–3 sentences, specific, honest, human, imperfect.',
+    'No advice. No rhetorical questions. No clichés like "life is hard" or "I feel so alone."',
+    'No PII, no names, no locations.',
+    'NEVER write crisis content: no suicide, no self-harm, no "want to die" or similar.',
+    'Return ONLY the confession text — no preamble, no quotation marks, no explanation.',
+  ].filter(Boolean).join(' ');
+
+  let text: string | null = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (!OPENAI_API_KEY) break;
+    try {
+      const res = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini', temperature: 0.85, max_tokens: 120,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: seekerText },
+          ],
+        }),
+      });
+      if (!res.ok) continue;
+      const data      = await res.json();
+      const candidate = (data.choices?.[0]?.message?.content ?? '').trim();
+      if (candidate.length < 10 || candidate.length > 500) continue;
+
+      // Full safety gate — same as user submissions (CLAUDE.md #1)
+      const { crisis } = await runCrisisCheck(candidate);
+      if (crisis) {
+        console.warn('[COMPANION] generated text failed crisis check — attempt', attempt + 1);
+        continue;
+      }
+      const mod = await runModeration(candidate);
+      if (!mod.pass) {
+        console.warn('[COMPANION] generated text failed moderation — attempt', attempt + 1);
+        continue;
+      }
+      text = candidate;
+      break;
+    } catch (err) {
+      console.error('[COMPANION] generation error attempt', attempt + 1, ':', err);
+    }
+  }
+
+  // Curated fallback — if generation exhausted or no API key
+  if (!text) {
+    const fb = companionFallback(lang);
+    const { crisis: fbCrisis } = await runCrisisCheck(fb);
+    const fbMod = await runModeration(fb);
+    if (fbCrisis || !fbMod.pass) {
+      // Should never happen with curated seeds; abort rather than show unsafe text.
+      console.error('[COMPANION] curated fallback failed safety gate — no companion inserted');
+      return null;
+    }
+    text = fb;
+    console.log('[COMPANION] using curated fallback for lang:', lang);
+  }
+
+  // Embed
+  const companionEmbedding = await embedText(text).catch(() => null);
+  if (!companionEmbedding) return null;
+
+  // Classify (fail open)
+  const companionCategories = await classifyCategories(text, false).catch(() => [] as string[]);
+
+  const systemToken = await getSystemToken();
+  const feltCount   = Math.floor(Math.random() * 30) + 5; // realistic starter: 5–34
+
+  const { data: inserted, error: insertErr } = await supabase
+    .from('confessions')
+    .insert({
+      author_token:           systemToken,
+      text,
+      embedding:              JSON.stringify(companionEmbedding),
+      categories:             companionCategories,
+      status:                 'live',
+      amplification_eligible: true,
+      authorship_flags:       [],
+      is_seed:                true,
+      felt_count:             feltCount,
+      lang,
+    })
+    .select('id, felt_count')
+    .single();
+
+  if (insertErr) {
+    console.error('[COMPANION] insert failed:', insertErr.message);
+    return null;
+  }
+
+  const { data: newCount } = await supabase.rpc('increment_felt_count', {
+    p_confession_id: inserted.id,
+  });
+
+  return {
+    id:         inserted.id,
+    text,
+    felt_count: typeof newCount === 'number' ? newCount : inserted.felt_count + 1,
+  };
+}
+
 // ─── Step 3: Crisis detection ─────────────────────────────────────────────────
 //
 // Two-layer approach:
@@ -848,6 +1082,12 @@ serve(async (req: Request) => {
       // ← STORE step is code-unreachable from this path
     }
 
+    // ── [3.5] LANGUAGE DETECTION ──────────────────────────────────────────────
+    // Runs after crisis check (no point detecting lang for crisis text).
+    // Fail open: returns 'en' on any API error — matching degrades to English-only
+    // pool rather than failing the submission.
+    const lang = await detectLanguage(rawText);
+
     // ── [4] EMBED ──────────────────────────────────────────────────────────────
     // embedText() throws on API failure or dimension mismatch (fail closed).
     const embedding = await embedText(rawText);
@@ -877,6 +1117,7 @@ serve(async (req: Request) => {
       .from('confessions')
       .insert({
         author_token:           authorToken,
+        account_id:             user.id,
         text:                   rawText,
         embedding:              JSON.stringify(embedding),
         categories,
@@ -884,6 +1125,7 @@ serve(async (req: Request) => {
         authorship_flags:       authorshipFlags,
         status:                 confessionStatus,
         auto_flagged:           modResult.borderline ?? false,
+        lang,
       })
       .select('id')
       .single();
@@ -891,10 +1133,13 @@ serve(async (req: Request) => {
     if (insertErr) throw insertErr;
 
     // ── [6] MATCH ──────────────────────────────────────────────────────────────
+    // Filters: same lang, quality threshold (sim ≥ 0.35), no near-dups (sim < 0.97)
     const { data: matchRows, error: matchErr } = await supabase.rpc('match_confession', {
-      p_embedding:    JSON.stringify(embedding),
-      p_seeker_token: authorToken,
-      p_limit:        1,
+      p_embedding:      JSON.stringify(embedding),
+      p_seeker_token:   authorToken,
+      p_seeker_lang:    lang,
+      p_limit:          1,
+      p_seeker_account: user.id,
     });
 
     if (matchErr) throw matchErr;
@@ -902,7 +1147,27 @@ serve(async (req: Request) => {
     const matchRow = matchRows?.[0];
 
     if (!matchRow) {
-      // Pool empty — first person to feel this
+      // No same-language match above quality threshold — generate a companion
+      // confession in the user's language so they always get "you're not alone".
+      // The companion is safety-gated, embedded, and inserted as a live confession
+      // (growing the pool for future users). System token ≠ requester token — identity
+      // separation holds (CLAUDE.md #3).
+      const companion = await generateCompanion(rawText, lang, authorToken);
+
+      if (companion) {
+        return json({
+          type:        'matched',
+          submittedId: newConfession.id,
+          status:      confessionStatus,
+          match: {
+            id:        companion.id,
+            text:      companion.text,
+            feltCount: companion.felt_count,
+          },
+        });
+      }
+
+      // Companion generation failed entirely (extremely rare) — honest no-match.
       return json({
         type:        'submitted',
         submittedId: newConfession.id,

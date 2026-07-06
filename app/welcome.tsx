@@ -638,7 +638,7 @@ export default function WelcomeScreen() {
                 <ShieldIcon />
                 <View style={{ flex: 1 }}>
                   <Text style={s.tickTitle}>anonymous</Text>
-                  <Text style={s.tickBody}>never tied to you — even we can't.</Text>
+                  <Text style={s.tickBody}>always a random persona — no one can tie it to you.</Text>
                 </View>
               </View>
               <View style={s.tick}>

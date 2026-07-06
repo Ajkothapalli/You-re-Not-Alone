@@ -11,12 +11,14 @@
  */
 
 import { announce } from '@/lib/a11y';
+import { getDobOrder, maskDob, dobToISO, isAdultISO } from '@/lib/dobFormat';
 import { createOrUpdateAccount, getReaderPreferences } from '@/lib/api';
 import { resetFtue } from '@/lib/onboarding';
 import { hydrateProfile } from '@/lib/profile';
 import { evaluateRtue } from '@/lib/rtue';
 import { signInWithGoogle } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
+import { withTimeout } from '@/lib/withTimeout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
 import { usePalette } from '@/theme/ThemeProvider';
@@ -24,7 +26,7 @@ import { color, fontFamily, radius, spacing } from '@/theme/tokens';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -36,13 +38,8 @@ import {
   View,
 } from 'react-native';
 
-type Step = 'loading' | 'email' | 'otp' | 'dob';
+type Step = 'loading' | 'email' | 'otp' | 'dob' | 'retry';
 
-function isAdult(dobStr: string): boolean {
-  const dob = new Date(dobStr);
-  if (isNaN(dob.getTime())) return false;
-  return Date.now() - dob.getTime() >= 18 * 365.25 * 24 * 60 * 60 * 1000;
-}
 
 function parseAuthTokens(url: string): { accessToken?: string; refreshToken?: string } {
   const hash = url.split('#')[1];
@@ -56,6 +53,7 @@ function parseAuthTokens(url: string): { accessToken?: string; refreshToken?: st
 
 export default function IndexScreen() {
   const palette = usePalette();
+  const { order: dobOrder, placeholder: dobPlaceholder } = useMemo(() => getDobOrder(), []);
 
   const [step,           setStep]           = useState<Step>('loading');
   const [email,          setEmail]          = useState('');
@@ -75,34 +73,59 @@ export default function IndexScreen() {
 
   // ── Routing helper (reused by email OTP and OAuth paths) ─────────────────────
   async function routeAfterAuth(userId: string) {
-    if (routingRef.current) return;   // guard against concurrent calls
+    if (routingRef.current) return;
     routingRef.current = true;
-    const { data: acct } = await supabase
-      .from('accounts').select('id').eq('id', userId).maybeSingle();
-    // Pull the account's character/name/release-count so they're identical
-    // on every device the user signs into (iOS ↔ Android). Non-blocking on failure.
-    await hydrateProfile().catch(() => {});
-    if (acct) {
-      // reader_preferences is a server-side signal: if missing, the user
-      // hasn't completed onboarding regardless of any stale on-device flag.
-      // Route to /welcome (FTUE) which includes category selection in beat 4.
-      const prefs = await getReaderPreferences().catch((): null => null);
-      if ((prefs?.categories.length ?? 0) === 0) {
+    const t0 = Date.now();
+
+    try {
+      // Non-blocking — failure is irrelevant to the routing decision.
+      void hydrateProfile().catch(() => {});
+
+      // Fire both queries in parallel so acct lookup doesn't gate prefs.
+      const acctP = withTimeout(
+        supabase.from('accounts').select('id').eq('id', userId).maybeSingle(),
+        5_000, 'acct',
+      );
+      const prefsP = withTimeout(getReaderPreferences(), 5_000, 'prefs')
+        .then(p  => ({ ok: true  as const, p }))
+        .catch(() => ({ ok: false as const, p: null }));
+
+      const { data: acct } = await acctP;
+      const acctMs = Date.now() - t0;
+      if (acctMs > 2_000) console.warn('[boot] acct', acctMs, 'ms');
+
+      if (!acct) {
+        await resetFtue().catch(() => {});
+        setStep('dob');
+        return;
+      }
+
+      // acct exists — wait for prefs (already in-flight).
+      const prefs = await prefsP;
+      const prefsMs = Date.now() - t0;
+      if (prefsMs > 2_000) console.warn('[boot] prefs', prefsMs, 'ms');
+
+      // Network failure / timeout — don't restart FTUE for an onboarded user.
+      if (!prefs.ok) {
+        router.replace('/read');
+        return;
+      }
+
+      if ((prefs.p?.categories.length ?? 0) === 0) {
         await resetFtue().catch(() => {});
         router.replace('/welcome');
         return;
       }
-      // Check for a meaningful return moment before landing on read.
-      const rtue = await evaluateRtue().catch((): null => null);
-      if (rtue) {
-        router.replace('/rtue');
-      } else {
-        router.replace('/read');
-      }
-    } else {
-      // New account row — clear stale on-device FTUE flag before DOB step.
-      await resetFtue().catch(() => {});
-      setStep('dob');
+
+      const rtue = await withTimeout(evaluateRtue(), 2_500, 'rtue').catch(() => null);
+      const rtueMs = Date.now() - t0;
+      if (rtueMs > 2_000) console.warn('[boot] rtue', rtueMs, 'ms');
+
+      router.replace(rtue ? '/rtue' : '/read');
+    } catch (err) {
+      // Reset so a retry attempt can call routeAfterAuth again.
+      routingRef.current = false;
+      throw err;
     }
   }
 
@@ -162,30 +185,58 @@ export default function IndexScreen() {
     }
   }
 
-  // ── Bootstrap ────────────────────────────────────────────────────────────────
-  useEffect(() => {
-    (async () => {
+  // ── Bootstrap (named so retryBoot can re-invoke it) ─────────────────────────
+  async function runBoot() {
+    routingRef.current = false;
+    let hadSession = false;
+    try {
+      const initialUrl = await Linking.getInitialURL();
+      // Handle PKCE (?code=) and implicit (#access_token=) initial URLs.
+      if (initialUrl && (initialUrl.includes('access_token') || initialUrl.includes('code='))) {
+        await handleDeepLink(initialUrl);
+        return;
+      }
+
+      // Bound getSession so a wedged Supabase client doesn't hang forever.
+      let session = null;
       try {
-        const initialUrl = await Linking.getInitialURL();
-        // Handle both PKCE (?code=) and implicit (#access_token=) initial URLs.
-        // On Android the process can be killed during OAuth and the deep link
-        // restarts it — without this check the code param is silently dropped.
-        if (initialUrl && (initialUrl.includes('access_token') || initialUrl.includes('code='))) {
-          await handleDeepLink(initialUrl);
-          return;
-        }
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user) { setStep('email'); return; }
-
-        await routeAfterAuth(session.user.id);
+        const { data } = await withTimeout(supabase.auth.getSession(), 4_000, 'session');
+        session = data.session;
       } catch {
         setStep('email');
+        return;
       }
-    })();
+
+      if (!session?.user) { setStep('email'); return; }
+      hadSession = true;
+      await routeAfterAuth(session.user.id);
+    } catch {
+      setStep(hadSession ? 'retry' : 'email');
+    }
+  }
+
+  function retryBoot() {
+    setStep('loading');
+    void runBoot();
+  }
+
+  useEffect(() => {
+    void runBoot();
+
+    // Last-resort watchdog: catches any hang not covered by the per-call timeouts
+    // (e.g. getInitialURL wedging, or an unforeseen Expo API freeze).
+    const watchdog = setTimeout(() => {
+      if (stepRef.current === 'loading') {
+        console.warn('[boot] watchdog fired after 10s');
+        setStep('retry');
+      }
+    }, 10_000);
 
     const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
-    return () => sub.remove();
+    return () => {
+      clearTimeout(watchdog);
+      sub.remove();
+    };
   }, []);
 
   // ── Provider sign-in (Google) ─────────────────────────────────────────────────
@@ -267,11 +318,12 @@ export default function IndexScreen() {
   // ── Step 3: DOB ───────────────────────────────────────────────────────────────
   async function handleDob() {
     clearError();
-    if (!dob.match(/^\d{4}-\d{2}-\d{2}$/)) {
-      setError('Enter your date of birth as YYYY-MM-DD.');
+    const iso = dobToISO(dob, dobOrder);
+    if (!iso) {
+      setError(`Enter your date of birth as ${dobPlaceholder}.`);
       return;
     }
-    if (!isAdult(dob)) {
+    if (!isAdultISO(iso)) {
       setError('You must be 18 or older to use this app.');
       return;
     }
@@ -279,7 +331,7 @@ export default function IndexScreen() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       const authProvider = (user?.app_metadata?.provider as string) ?? 'email';
-      await createOrUpdateAccount(new Date(dob), authProvider);
+      await createOrUpdateAccount(new Date(iso), authProvider);
       // New account row just created — always show FTUE regardless of any
       // stale on-device flag left over from a previous deleted account.
       await resetFtue().catch(() => {});
@@ -319,6 +371,7 @@ export default function IndexScreen() {
           {step === 'email' && 'A private place to share what you carry.'}
           {step === 'otp'   && `Check your email — we sent a code to ${email}`}
           {step === 'dob'   && 'Adults only. Your age is verified once.'}
+          {step === 'retry' && ''}
         </Text>
 
         {/* ── Email step ── */}
@@ -393,21 +446,42 @@ export default function IndexScreen() {
             <TextInput
               style={styles.input}
               value={dob}
-              onChangeText={setDob}
-              placeholder="YYYY-MM-DD"
+              onChangeText={(t) => setDob(prev => maskDob(t, prev, dobOrder))}
+              placeholder={dobPlaceholder}
               placeholderTextColor={color.dim}
-              keyboardType="numbers-and-punctuation"
+              keyboardType="number-pad"
               maxLength={10}
               autoFocus
               onSubmitEditing={handleDob}
               returnKeyType="done"
               accessibilityLabel="Date of birth"
-              accessibilityHint="Format: four digit year, dash, month, dash, day"
+              accessibilityHint={
+                dobOrder.map(p => p === 'year' ? 'four digit year' : `two digit ${p}`).join(', ') +
+                '. Dashes are added automatically.'
+              }
             />
             <Text style={styles.dobHint}>
-              This is checked once and is never linked to your confessions.
+              Checked once. Never shown with anything you write.
             </Text>
             <PrimaryButton label="Enter" onPress={handleDob} loading={busy} />
+          </View>
+        )}
+
+        {/* ── Retry step ── */}
+        {step === 'retry' && (
+          <View style={styles.form}>
+            <Text style={styles.retryHeading}>taking longer than usual</Text>
+            <Text style={styles.sub}>
+              we can't reach soulyap right now.{'\n'}check your connection and try again.
+            </Text>
+            <PrimaryButton label="Try again" onPress={retryBoot} />
+            <GhostButton
+              label="Use a different account"
+              onPress={async () => {
+                await supabase.auth.signOut().catch(() => {});
+                setStep('email');
+              }}
+            />
           </View>
         )}
 
@@ -514,6 +588,12 @@ const styles = StyleSheet.create({
     fontSize:   13,
     color:      color.dim,
     marginTop:  -4,
+  },
+  retryHeading: {
+    fontFamily: fontFamily.serifItalic,
+    fontSize:   22,
+    color:      color.paper,
+    textAlign:  'center',
   },
   errorText: {
     fontFamily: fontFamily.sans,

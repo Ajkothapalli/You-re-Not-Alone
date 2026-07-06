@@ -12,7 +12,7 @@
  * stores retain for billing/refunds.
  */
 
-import { deleteAccount } from '@/lib/api';
+import { deleteAccount, type DeleteMode } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
 import { PERSONAS, PersonaBadge, getPersonaById } from '@/components/Persona';
@@ -105,20 +105,44 @@ export default function ProfileScreen() {
     if (deleting) return;
     showDialog(
       'Delete your account?',
-      'Everything is wiped from our servers — your account, your confessions, your history. ' +
-      'Purchase records are kept by the app store as required for billing. This cannot be undone.',
+      'Choose what happens to your confessions when you leave.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Continue',
+          text:  'Erase everything',
           style: 'destructive',
           onPress: () =>
             showDialog(
-              'Are you sure?',
-              'This is your last chance. Your words will be gone forever.',
+              'Erase everything?',
+              'Your account, confessions, and history are deleted from our servers permanently. ' +
+              'Purchase records are kept by the app store for billing. This cannot be undone.',
               [
-                { text: 'Keep my account', style: 'cancel' },
-                { text: 'Delete everything', style: 'destructive', onPress: runDelete, keepOpenWhilePending: true },
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text:               'Yes, erase everything',
+                  style:              'destructive',
+                  onPress:            () => runDelete('erase'),
+                  keepOpenWhilePending: true,
+                },
+              ],
+            ),
+        },
+        {
+          text:  'Keep confessions, leave anonymously',
+          style: 'default',
+          onPress: () =>
+            showDialog(
+              'Leave anonymously?',
+              'Your account is deleted. Your confessions stay in the pool with no name attached — ' +
+              'truly anonymous. Others can still feel them. This cannot be undone.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text:               'Yes, leave anonymously',
+                  style:              'destructive',
+                  onPress:            () => runDelete('anonymize'),
+                  keepOpenWhilePending: true,
+                },
               ],
             ),
         },
@@ -126,10 +150,10 @@ export default function ProfileScreen() {
     );
   }
 
-  async function runDelete() {
+  async function runDelete(mode: DeleteMode) {
     setDeleting(true);
     try {
-      await deleteAccount();
+      await deleteAccount(mode);
       await clearProfile();
       router.replace('/');
     } catch {
@@ -239,6 +263,17 @@ export default function ProfileScreen() {
       {/* More */}
       <Text style={styles.sectionLabel}>more</Text>
       <View style={styles.moreList}>
+        <TouchableOpacity
+          style={styles.moreRow}
+          onPress={() => router.push('/my-confessions')}
+          hitSlop={4}
+          accessibilityRole="button"
+          accessibilityLabel="My confessions"
+          accessibilityHint="See and manage your own confessions"
+        >
+          <Text style={styles.moreLabel}>My confessions</Text>
+          <Text style={styles.moreHint}>what you've shared</Text>
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.moreRow}
           onPress={() => router.push('/categories?mode=edit')}

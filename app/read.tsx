@@ -21,7 +21,7 @@ import { getMatchingCount, getOnboardingConfessions, reportConfession, type Read
 import { session } from '@/lib/sessionFlags';
 import { palettes } from '@/theme/palettes';
 import { color, fontFamily, radius, spacing } from '@/theme/tokens';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -49,6 +49,7 @@ const FALLBACK_CONFESSIONS: ReadConfession[] = [
 ];
 
 export default function ReadScreen() {
+  const { from } = useLocalSearchParams<{ from?: string }>();
 
   const [items,      setItems]      = useState<ReadConfession[]>([]);
   const [loading,    setLoading]    = useState(true);
@@ -122,7 +123,9 @@ export default function ReadScreen() {
       </View>
 
       <View style={styles.header}>
-        <Text style={styles.heading} accessibilityRole="header">before you write, read</Text>
+        <Text style={styles.heading} accessibilityRole="header">
+          {from === 'match' ? '2 more, because you shared' : 'before you write, read'}
+        </Text>
         <Text style={styles.sub}>
           these people reached out into the dark.{'\n'}someone always finds them.
         </Text>

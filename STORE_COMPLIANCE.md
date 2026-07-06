@@ -85,16 +85,18 @@ Fill out the App Privacy section under your app's listing:
 |-----------|-----------|--------------------|--------------------|---------|
 | Email address | Yes | Yes | No | Authentication |
 | Date of birth | Yes | Yes | No | Age verification (not stored after account creation; only the verified status persists) |
-| User-generated content (confessions) | Yes | **No** | No | Core feature; not linkable to user (HMAC, no account_id column) |
+| User-generated content (confessions) | Yes | **Yes** (internally; never shown to other users) | No | Core feature; account-linked for ownership, edit/delete, and moderation (owner decision 2026-07-05) |
 | Purchase history | Via App Store | Via Apple | No | Subscription management |
 | Crash data | No (unless you add a crash SDK) | — | — | — |
 | Location | No | — | — | — |
 | Contacts | No | — | — | — |
 
-> Note: The "not linked to identity" claim for confessions requires careful
-> legal review. The HMAC construction means *you* cannot link them, but the
-> device that submitted them locally stores a receipt. Consult a lawyer on
-> how to represent this in the App Privacy label.
+> Note (updated 2026-07-05): confessions are now account-linked in the database
+> for ownership, editing, deletion, and moderation. Declare them as "linked to
+> identity" in the App Privacy label. Anonymity is user-facing only: the link is
+> never exposed to other users or in any client payload, and users can delete
+> their content and account at any time. Counsel should confirm the label wording
+> and the matching privacy-policy disclosure.
 
 ### Privacy policy URL: https://soulyap.me/privacy
 
@@ -105,8 +107,9 @@ Fill out the App Privacy section under your app's listing:
 ### Does your app collect or share any of the required user data types?
 
 - **Personal info (name, email, address):** Email — collected, not shared.
-- **App activity:** Confession interactions (felt_count, read events) —
-  collected, not shared, not linked to identity.
+- **App activity:** Confessions and interactions (text, felt_count, read events)
+  — collected, not shared; declare confessions as linked to identity (internal
+  ownership link; never visible to other users; user-deletable).
 - **App info and performance:** No crash reporting SDK currently.
 - **Device or other IDs:** Device hash (server-computed, not stored on device)
   — for rate limiting only.

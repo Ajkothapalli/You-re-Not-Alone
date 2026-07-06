@@ -40,12 +40,17 @@ a similar feeling. The match shows them they are not alone.
   flagged confessions are never stored or matched; users are shown crisis
   resources and a global helpline directory instead.
 
-### Identity separation (why this is not anonymous chat)
+### User-facing anonymity (why this is not anonymous chat)
 
-- Confessions are never linked to an account in the database. The author
-  token is a one-way HMAC; a database dump cannot reverse it to a user.
-- There is no join surface between accounts and confessions.
-- Users cannot find, follow, or re-identify each other.
+- Confessions are stored with an internal account link used ONLY for ownership
+  (view / edit / delete your own), moderation, and account deletion. It is never
+  exposed in any client-facing view or API response.
+- Confessions always display under a random per-confession persona. There are no
+  public profiles, no author pages, no replies, and no DMs — users cannot find,
+  follow, or re-identify each other.
+- Users can view, edit, and delete their own confessions, and deleting an
+  account erases or permanently unlinks everything they wrote (UGC deletion
+  supported, per store UGC policies).
 
 ### Test credentials
 

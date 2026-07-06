@@ -29,10 +29,16 @@
      applied BEFORE scoring and CANNOT be bypassed by the edge function.
    No other read surface may be added.
 
-3. **Identity is stored separately from confessions.**
-   `author_token = HMAC-SHA256(account_id, AUTHOR_TOKEN_SECRET)` — computed in
-   Edge Functions only, never stored in the DB, never returned to clients.
-   No `account_id` column in `confessions`. No mapping table. No join surface.
+3. **Anonymity is user-facing (owner decision 2026-07-05; supersedes the original
+   "no stored link" rule).** `confessions.account_id` exists for ownership,
+   moderation, "My confessions", and deletion ONLY. It is NEVER exposed:
+   not in `confessions_public`, not in any API response, not in match payloads,
+   not in analytics, not in share cards. Personas stay random per-confession.
+   No public profiles, no author pages, no "more from this writer" — no user can
+   ever tie a confession to a person. Legacy rows keep `author_token`
+   (`HMAC-SHA256(account_id, AUTHOR_TOKEN_SECRET)`, Edge-Function-derived) and
+   stay unlinked forever; seeds keep `account_id NULL`. Account deletion must
+   erase or permanently unlink (`account_id NULL`) the user's confessions.
 
 4. **Adults only.** Age gate (18+) enforced server-side. CSAM detection, reporting
    (NCMEC hook), and human review stay on permanently in all environments.
@@ -70,13 +76,13 @@
 | Threat | Mitigation |
 |---|---|
 | Client tampers with pipeline order | Pipeline runs 100% server-side; client cannot call steps individually |
-| Account linked to confession via traffic | HMAC token; no account_id in confessions; no join surface |
+| Another user links author→confession | account_id never in any client payload or view; random per-confession personas; no profiles, replies, or author pages |
 | Mod or crisis step bypassed | Steps 2+3 are hard early-returns; STORE is code-unreachable if either fires |
 | Dev bypass via missing key | Stub BLOCKS (never passes) when MODERATION_API_KEY is absent |
 | Leaked service-role key | Service role stays in Edge Function runtime only |
 | User targets another | Zero reply surface; no profiles; enforced at schema level |
 | Underage CSAM submission | Age gate + CSAM classifier + keyword list + human review, all pre-write |
-| DB breach leaks authorship | No account_id in confessions; HMAC without secret reveals nothing |
+| DB breach leaks authorship | ACCEPTED RISK (owner decision 2026-07-05): account_id is stored. Mitigations: column-level REVOKEs, no client join surface, service-role-only access, encryption at rest, content erased/unlinked on account deletion |
 | Confession text in logs | Analytics carry IDs only; crisis_events is the only text store (service_role) |
 | Rate-limit bypass via new accounts | Limits enforced at both server-computed device hash AND account layer |
 | JWT stolen from storage | JWTs in expo-secure-store (OS keychain), never AsyncStorage |
@@ -85,16 +91,17 @@
 
 ## Security architecture
 
-### Author token (Layer 3 — most critical invariant)
-```
-author_token = HMAC-SHA256(account_id, AUTHOR_TOKEN_SECRET)
-```
-- Computed in Edge Function only, using `AUTHOR_TOKEN_SECRET` (Edge Function secret)
-- Never stored in DB; no mapping table
-- Deterministic: same account always gets same token
-- One-way: a DB dump + token cannot reverse to account_id without the secret
-- `banned_tokens` table caches tokens at ban time (since HMAC is one-way, we cannot
-  re-derive a banned token from accounts.banned alone)
+### Ownership & anonymity (Layer 3 — most critical invariant)
+Owner decision 2026-07-05: confessions are account-linked internally; anonymity
+is a USER-FACING guarantee.
+- New rows: `confessions.account_id` set at INSERT (Edge Function, from the JWT).
+  Used only for ownership checks (My confessions / edit / delete), moderation,
+  and account deletion. NEVER exposed to clients in any view or payload.
+- Legacy rows (pre-2026-07-05): `account_id NULL`; authorship provable only via
+  `author_token = HMAC-SHA256(account_id, AUTHOR_TOKEN_SECRET)` derived in the
+  Edge Function per request. Never backfill legacy rows. Seeds: `account_id NULL`.
+- `banned_tokens` remains for legacy-row ban enforcement; new rows ban via
+  `accounts.banned` + `account_id`.
 
 ### Stub rule (hard requirement)
 If `MODERATION_API_KEY` is not set in the Edge Function environment:
@@ -120,8 +127,8 @@ Client cannot spoof by resetting app state or sending a fabricated hash.
 
 ### Database
 - `confessions` direct table: `REVOKE ALL FROM anon, authenticated`
-- `confessions_public` view (no `author_token`, `security_invoker=true`): SELECT for anon+authenticated
-- Column-level: `REVOKE SELECT (author_token) ON confessions FROM anon, authenticated`
+- `confessions_public` view (no `author_token`, no `account_id`, `security_invoker=true`): SELECT for anon+authenticated
+- Column-level: `REVOKE SELECT (author_token, account_id) ON confessions FROM anon, authenticated`
 - `crisis_events`, `devices`, `matches`: `REVOKE ALL FROM anon, authenticated`
 - RLS enabled on every table
 
@@ -155,11 +162,13 @@ POST /functions/v1/submit-confession  { text }  + JWT
     │       FLAGGED → INSERT crisis_events, return {type:"crisis"}, STOP
     ├─[4] EMBED  (EMBEDDING_API_KEY; server-side)
     ├─[5] INSERT confessions
-    │       author_token = HMAC(account_id, AUTHOR_TOKEN_SECRET)
-    │       NO account_id column; status = 'live'
+    │       account_id = auth user id (never exposed to clients)
+    │       author_token = HMAC(account_id, AUTHOR_TOKEN_SECRET)  [transition/legacy]
+    │       status = 'live'
     ├─[6] MATCH via pgvector cosine
     │       WHERE status = 'live'
-    │         AND author_token != seeker_token
+    │         AND (account_id IS NULL OR account_id != seeker_id)
+    │         AND author_token != seeker_token          [legacy rows]
     │         AND author_token NOT IN banned_tokens
     ├─[7] INCREMENT felt_count (atomic UPDATE, no read-then-write)
     └─[8] Return { match: { id, text, felt_count } }

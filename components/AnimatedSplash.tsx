@@ -15,11 +15,24 @@
  *                    slightly inward and pulsing as they "meet"
  *   4. idle      — a slow off-phase float, alive until the overlay melts
  *   5. hold & fade — wordmark visible briefly, then overlay melts to onDone()
+ *
+ * Architecture notes (not obvious from the code):
+ *   - Rendered as an in-tree absolute overlay (NOT a Modal) so the overlay
+ *     is in the same native window as the Stack. Modal attaches asynchronously
+ *     on Android/MIUI and could never be guaranteed to arrive before
+ *     SplashScreen.hideAsync() fires.
+ *   - SplashScreen.hideAsync() is deferred to onLayout + requestAnimationFrame
+ *     so the first painted frame of this overlay is pixel-identical to the
+ *     native splash before the native one disappears.
+ *   - finish() and hideSplash() are guarded by refs so they are idempotent
+ *     regardless of how many timers or callbacks fire.
+ *   - The 6 s last-resort timer calls finish() unconditionally — if every
+ *     animation is frozen the app still appears by 6 s.
  */
 
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Modal, StyleSheet, Text } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, StyleSheet, Text } from 'react-native';
 import { color, fontFamily } from '../theme/tokens';
 import { useReducedMotion } from '../lib/a11y';
 
@@ -36,31 +49,57 @@ interface Props {
 }
 
 export default function AnimatedSplash({ onDone }: Props) {
-  const [modalVisible, setModalVisible] = useState(true);
-  const spread   = useRef(new Animated.Value(0)).current; // 0 = together, 1 = apart
-  const pulse    = useRef(new Animated.Value(0)).current; // meeting heartbeat
-  const floatL   = useRef(new Animated.Value(0)).current; // idle bob, left
-  const floatR   = useRef(new Animated.Value(0)).current; // idle bob, right
-  const wordmark = useRef(new Animated.Value(0)).current;
-  const overlay  = useRef(new Animated.Value(1)).current;
+  const spread    = useRef(new Animated.Value(0)).current; // 0 = together, 1 = apart
+  const pulse     = useRef(new Animated.Value(0)).current; // meeting heartbeat
+  const floatL    = useRef(new Animated.Value(0)).current; // idle bob, left
+  const floatR    = useRef(new Animated.Value(0)).current; // idle bob, right
+  const wordmark  = useRef(new Animated.Value(0)).current;
+  const overlay   = useRef(new Animated.Value(1)).current;
   const reduceMotion = useReducedMotion();
 
+  // Idempotent: hides the native splash once — called from onLayout and 3 s fallback.
+  const hiddenRef = useRef(false);
+  function hideSplash() {
+    if (hiddenRef.current) return;
+    hiddenRef.current = true;
+    // Wait for the next paint frame so the overlay pixels are committed first.
+    requestAnimationFrame(() => SplashScreen.hideAsync().catch(() => {}));
+  }
+
+  // Idempotent: signals completion — called from animation callbacks and 6 s last-resort.
+  const finishedRef = useRef(false);
+  function finish() {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    onDone();
+  }
+
+  // Called once the overlay has laid out its first frame — safe to swap native splash.
+  function onOverlayLayout() {
+    hideSplash();
+  }
+
   useEffect(() => {
-    // First JS frame matches the native splash exactly — swap is invisible.
-    SplashScreen.hideAsync().catch(() => {});
+    // 3 s fallback: ensures the native splash is hidden even if onLayout is late.
+    const splashFallback = setTimeout(hideSplash, 3_000);
+    // 6 s absolute last-resort: finishes even if every animation is frozen.
+    const lastResort = setTimeout(finish, 6_000);
 
     if (reduceMotion) {
-      // No breathe/pulse/float — show the wordmark and hand off briefly.
       wordmark.setValue(1);
       const t = setTimeout(() => {
         Animated.timing(overlay, { toValue: 0, duration: 300, useNativeDriver: true })
-          .start(({ finished }) => { if (finished) { setModalVisible(false); onDone(); } });
-      }, 1100);
-      return () => clearTimeout(t);
+          .start(() => finish());
+      }, 1_100);
+      return () => {
+        clearTimeout(t);
+        clearTimeout(splashFallback);
+        clearTimeout(lastResort);
+      };
     }
 
     let done = false;
-    const dismissNow = () => {
+    function dismissNow() {
       if (done) return;
       done = true;
       Animated.timing(overlay, {
@@ -68,10 +107,8 @@ export default function AnimatedSplash({ onDone }: Props) {
         duration:        450,
         easing:          Easing.in(Easing.quad),
         useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) { setModalVisible(false); onDone(); }
-      });
-    };
+      }).start(() => finish());
+    }
 
     // 2. breathe apart → 3. spring back together (overshoot = the meeting)
     Animated.sequence([
@@ -115,29 +152,30 @@ export default function AnimatedSplash({ onDone }: Props) {
           Animated.timing(v, { toValue: 0, duration: down, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         ]),
       );
-    const floatLoopL = bob(floatL, 1150, 1150);
-    const floatLoopR = bob(floatR, 1350, 1350);
-    const floatStart = setTimeout(() => { floatLoopL.start(); floatLoopR.start(); }, 1500);
+    const floatLoopL = bob(floatL, 1_150, 1_150);
+    const floatLoopR = bob(floatR, 1_350, 1_350);
+    const floatStart = setTimeout(() => { floatLoopL.start(); floatLoopR.start(); }, 1_500);
 
     Animated.timing(wordmark, {
       toValue:         1,
       duration:        600,
-      delay:           1100,
+      delay:           1_100,
       easing:          Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
 
     // 5. hold briefly after wordmark is fully visible, then fade out
     // wordmark fully visible at ~1700ms; hold 800ms before dismissing
-    const dismissTimer = setTimeout(dismissNow, 2500);
-
-    // safety net — splash can never hang
-    const hardStop = setTimeout(dismissNow, 4000);
+    const dismissTimer = setTimeout(dismissNow, 2_500);
+    // hard-stop — cannot rely on the Animated callback alone
+    const hardStop     = setTimeout(dismissNow, 4_000);
 
     return () => {
       clearTimeout(dismissTimer);
       clearTimeout(hardStop);
       clearTimeout(floatStart);
+      clearTimeout(splashFallback);
+      clearTimeout(lastResort);
       floatLoopL.stop();
       floatLoopR.stop();
     };
@@ -168,59 +206,60 @@ export default function AnimatedSplash({ onDone }: Props) {
   };
 
   return (
-    <Modal
-      visible={modalVisible}
-      transparent
-      animationType="none"
-      statusBarTranslucent
+    <Animated.View
+      testID="splash-overlay"
+      onLayout={onOverlayLayout}
+      pointerEvents="auto"
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel="soulyap — a private place to say what you can't."
+      style={[styles.overlay, { opacity: overlay }]}
     >
       <Animated.View
-        pointerEvents="auto"
-        accessible
-        accessibilityRole="image"
-        accessibilityLabel="soulyap — a private place to say what you can't."
-        style={[styles.overlay, { opacity: overlay }]}
+        style={styles.logoRow}
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
       >
-        <Animated.View
-          style={styles.logoRow}
-          accessibilityElementsHidden
-          importantForAccessibility="no-hide-descendants"
-        >
-          <Animated.Image
-            source={LEFT_SRC}
-            style={leftStyle}
-            resizeMode="stretch"
-          />
-          <Animated.Image
-            source={RIGHT_SRC}
-            style={rightStyle}
-            resizeMode="stretch"
-          />
-        </Animated.View>
-
-        <Animated.View
-          style={[
-            styles.wordmarkContainer,
-            {
-              opacity:   wordmark,
-              transform: [{ translateY: wordmark.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
-            },
-          ]}
-        >
-          <Text style={styles.wordmarkText}>soulyap</Text>
-          <Text style={styles.subText}>a private place to say what you can't</Text>
-        </Animated.View>
+        <Animated.Image
+          source={LEFT_SRC}
+          style={leftStyle}
+          resizeMode="stretch"
+        />
+        <Animated.Image
+          source={RIGHT_SRC}
+          style={rightStyle}
+          resizeMode="stretch"
+        />
       </Animated.View>
-    </Modal>
+
+      <Animated.View
+        style={[
+          styles.wordmarkContainer,
+          {
+            opacity:   wordmark,
+            transform: [{ translateY: wordmark.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+          },
+        ]}
+      >
+        <Text style={styles.wordmarkText}>soulyap</Text>
+        <Text style={styles.subText}>a private place to say what you can't</Text>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    flex:            1,
+    position:        'absolute',
+    top:             0,
+    right:           0,
+    bottom:          0,
+    left:            0,
     backgroundColor: color.ink,
     alignItems:      'center',
     justifyContent:  'center',
+    zIndex:          999,
+    elevation:       999,
   },
   logoRow: {
     flexDirection: 'row',

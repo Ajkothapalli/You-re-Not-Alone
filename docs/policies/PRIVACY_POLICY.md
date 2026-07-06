@@ -51,7 +51,8 @@ mobile application ("App"). [REGISTERED ADDRESS, JURISDICTION].
 | Date of birth | 18+ age gate (server-enforced) | `accounts` table |
 | Confession text | Core service — anonymous matching | `confessions` table |
 | Sentence embedding (vector) | Semantic similarity matching | `confessions` table |
-| Author token (HMAC) | Links confession to author for deletion/banning without storing account ID | `confessions` table |
+| Account link on confessions (`account_id`) | Lets you view, edit, and delete your own confessions; moderation and banning. Never exposed to other users or in any client-facing view | `confessions` table |
+| Author token (HMAC) | Legacy rows only (pre-2026-07-05): proves authorship for deletion/banning without a stored account ID | `confessions` table |
 | Hashed device identifier | Rate limiting; abuse prevention | `devices` table |
 | Crisis-flagged text | Human review; directing users to resources | `crisis_events` table (no account link) |
 | Report reasons | Moderation; content review | `reports` table |
@@ -65,39 +66,33 @@ data, or payment information.
 
 ## 3. How anonymity actually works — and its limits
 
-### What we built
+### What we built (updated 2026-07-05)
 
-When you submit a confession, our server computes:
+Anonymity on soulyap is a **user-facing guarantee**: no other user can ever
+connect a confession to you.
 
-```
-author_token = HMAC-SHA256(your_account_id, AUTHOR_TOKEN_SECRET)
-```
-
-Only `author_token` is stored in the `confessions` table. Your `account_id`
-is never written there. There is no mapping table. The database, seen in
-isolation, cannot link a confession to an account without the secret.
-
-This means:
-- Other users cannot identify you.
-- A database breach alone does not expose authorship.
-- Our own staff cannot casually browse the database and link confessions to
-  accounts.
+- Confessions are stored with an internal link to your account (`account_id`).
+  We keep this link so that you can see, edit, and delete your own confessions,
+  so we can moderate content and enforce bans, and so account deletion can
+  remove everything you wrote.
+- That link is **never exposed**: not to other users, not in the app's public
+  views or API responses, not on share cards, not in analytics. Every
+  confession is displayed under a random per-confession persona.
+- There are no public profiles, no author pages, no replies, and no DMs —
+  there is no way for another user to find, follow, or re-identify you.
+- Confessions written before 2026-07-05 carry no account link at all (only a
+  one-way HMAC token) and are never retro-linked.
 
 ### The honest limitation
 
-The `AUTHOR_TOKEN_SECRET` is a server-side secret held only by us. Because
-the HMAC function is deterministic, we can re-derive `author_token` for any
-account at any time. **We must retain this ability to honour deletion
-requests** (we need to find and delete your confessions when you ask us to).
-
-This means your anonymity is protected from the database and from other users,
-but it is **not** protected from the operator under legal compulsion, a valid
-court order, or an authenticated deletion request.
-
-We will not use this derivation capability for any purpose other than:
-(a) honouring your deletion request;
-(b) banning an account and caching its token in our `banned_tokens` table;
-(c) compliance with a valid legal order.
+Because we store the account link, **we — the operator — can connect your
+confessions to your account.** Your anonymity is protected from other users,
+but not from the operator under legal compulsion, a valid court order, or an
+authenticated request from you. We use the link only for:
+(a) showing you, and letting you edit or delete, your own confessions;
+(b) moderation, safety review, and ban enforcement;
+(c) honouring your deletion request;
+(d) compliance with a valid legal order.
 
 [COUNSEL: confirm this is adequate disclosure under GDPR Art. 13/14 and DPDP
 Act 2023 consent requirements.]
@@ -223,9 +218,12 @@ We will verify your identity and respond within [COUNSEL: 30 days for GDPR /
 30 days for DPDP] of a verified request.
 
 **How deletion works technically:**  
-To delete your confessions, our server derives your `author_token` using the
-HMAC function (see Section 3) and deletes all rows in `confessions`, `matches`,
-and `devices` linked to that token, then deletes your `accounts` row.
+On account deletion we remove your confessions by their stored account link
+(and, for pre-2026-07-05 rows, by deriving the legacy HMAC `author_token`),
+along with associated rows in `matches` and `devices`, then delete your
+`accounts` row. You may instead choose to leave your confessions live in
+anonymised form — in that case the account link is permanently removed
+(`account_id` set to NULL) so they can never again be connected to anyone.
 
 **What cannot be deleted:**  
 Crisis events in `crisis_events` are stored without any account identifier and

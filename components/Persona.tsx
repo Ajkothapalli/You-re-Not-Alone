@@ -28,18 +28,18 @@ export interface Persona {
 }
 
 export const PERSONAS: Persona[] = [
-  { id: 'luna',    name: 'Luna',    colors: ['#9C8BF6', '#8D5524', '#2B2B33'] },
-  { id: 'ember',   name: 'Ember',   colors: ['#F5996E', '#F1C27D', '#E0533D'] },
-  { id: 'fern',    name: 'Fern',    colors: ['#9BC47E', '#C68642', '#4A3222'] },
-  { id: 'river',   name: 'River',   colors: ['#4FC8D6', '#E0AC69', '#2B2B33'] },
-  { id: 'sage',    name: 'Sage',    colors: ['#8FB996', '#FFDBAC', '#8C9BA5'] },
-  { id: 'wren',    name: 'Wren',    colors: ['#7FA0FF', '#5C3A21', '#241F2B'] },
-  { id: 'indigo',  name: 'Indigo',  colors: ['#6E7BD9', '#C68642', '#232038'] },
-  { id: 'rowan',   name: 'Rowan',   colors: ['#E9B85C', '#EFB98A', '#6B4A2F'] },
-  { id: 'juniper', name: 'Juniper', colors: ['#E98AB6', '#FFDBAC', '#F2C94C'] },
-  { id: 'ash',     name: 'Ash',     colors: ['#A29CAA', '#D9995F', '#C9CDD4'] },
-  { id: 'marlow',  name: 'Marlow',  colors: ['#B795E8', '#EAB68F', '#3A2C4A'] },
-  { id: 'cove',    name: 'Cove',    colors: ['#5FB6E8', '#6E4326', '#1F1B26'] },
+  { id: 'kai',    name: 'Kai',    colors: ['#9C8BF6', '#6B4226', '#1A1620'] },
+  { id: 'ezra',   name: 'Ezra',   colors: ['#F5996E', '#DEB887', '#6B4226'] },
+  { id: 'joel',   name: 'Joel',   colors: ['#9BC47E', '#C68642', '#2B1A0E'] },
+  { id: 'river',  name: 'River',  colors: ['#4FC8D6', '#E0AC69', '#2B2B33'] },
+  { id: 'sage',   name: 'Sage',   colors: ['#8FB996', '#FFDBAC', '#8C9BA5'] },
+  { id: 'max',    name: 'Max',    colors: ['#7FA0FF', '#FADDBC', '#3A2010'] },
+  { id: 'indigo', name: 'Indigo', colors: ['#6E7BD9', '#C68642', '#232038'] },
+  { id: 'rowan',  name: 'Rowan',  colors: ['#E9B85C', '#EFB98A', '#6B4A2F'] },
+  { id: 'miles',  name: 'Miles',  colors: ['#E98AB6', '#F5CBA7', '#2E1505'] },
+  { id: 'ash',    name: 'Ash',    colors: ['#A29CAA', '#D9995F', '#C9CDD4'] },
+  { id: 'cruz',   name: 'Cruz',   colors: ['#B795E8', '#8D5524', '#1A0E0A'] },
+  { id: 'cove',   name: 'Cove',   colors: ['#5FB6E8', '#6E4326', '#1F1B26'] },
 ];
 
 const INK = '#241F2B';
@@ -165,51 +165,49 @@ function Freckles() {
 
 function Bust({ id, skin, hair }: { id: string; skin: string; hair: string }) {
   switch (id) {
-    case 'luna': // big round afro + gold hoop
+    case 'kai': // tight buzz cut — close crop, dark skin, no frills
       return (
         <>
           <Neck skin={skin} />
-          <Circle cx="12" cy="9.8" r="7.6" fill={hair} />
-          <Circle cx="5.6" cy="12.6" r="2.1" fill={hair} />
-          <Circle cx="18.4" cy="12.6" r="2.1" fill={hair} />
-          <Path d="M6.6 6.6a7.6 7.6 0 0 1 4-3.5" stroke="#FFFFFF" strokeWidth="0.8" strokeLinecap="round" fill="none" opacity={0.18} />
+          <Circle cx="12" cy="10.8" r="6.1" fill={hair} />
           <FaceCircle skin={skin} />
-          <Path d="M6.5 10.8c0-3.4 2.3-5.4 5.5-5.4s5.5 2 5.5 5.4c-1.4-1.6-2-2.6-2.4-3.4-1.8 1-4.4 1-6.2 0-.4.8-1 1.8-2.4 3.4Z" fill={hair} />
+          {/* Even hairline — buzz sits flat and low across forehead */}
+          <Path d="M7.4 10.6c.2-2 1.9-3.4 4.6-3.4s4.4 1.4 4.6 3.4c-3-.8-6.2-.8-9.2 0Z" fill={hair} />
+          <Brows />
+          <Eyes />
+          <Smile />
+        </>
+      );
+    case 'ezra': // short textured quiff + stubble hint
+      return (
+        <>
+          <Neck skin={skin} />
+          <Circle cx="12" cy="10.8" r="6.3" fill={hair} />
+          <FaceCircle skin={skin} />
+          {/* Quiff — slight crest at center top */}
+          <Path d="M7 10.4c.3-2.6 2.2-4.2 5-4.2 2.7 0 4.7 1.6 5 4.2-3.1-.9-6.9-.9-10 0Z" fill={hair} />
+          <Path d="M10.2 7.1q1.8-2.2 3.6-.3" stroke={hair} strokeWidth="1.4" strokeLinecap="round" fill="none" />
+          {/* Light stubble along jaw */}
+          <Path d="M9 15.2q3 1 6 0" stroke={hair} strokeWidth="1.8" strokeLinecap="round" fill="none" opacity={0.38} />
           <Brows />
           <Eyes />
           <Blush />
           <Smile />
-          <Circle cx="17.7" cy="14.7" r="1" stroke={GOLD} strokeWidth="0.7" fill="none" />
         </>
       );
-    case 'ember': // red side-swept bob + freckles + open grin
+    case 'joel': // undercut + short full beard
       return (
         <>
           <Neck skin={skin} />
-          <Circle cx="12" cy="10.8" r="6.7" fill={hair} />
-          <Path d="M5.3 11v4.6q1.8 1 3 .6V11Z" fill={hair} />
+          <Circle cx="12" cy="10.4" r="6" fill={hair} />
           <FaceCircle skin={skin} />
-          <Path d="M6.6 10.4C7 7.2 9.2 5.6 12.2 5.6c2.7 0 4.7 1.3 5.3 3.4-4 1.4-8.2.4-10.9 1.4Z" fill={hair} />
+          {/* Clean short top, clipped sides implied by tight cap */}
+          <Path d="M7.6 10.2c.2-1.8 1.9-3.2 4.4-3.2s4.2 1.4 4.4 3.2c-3-.7-5.8-.7-8.8 0Z" fill={hair} />
+          {/* Full short beard — fills in jaw and chin */}
+          <Path d="M7.6 12.8c-.5 4 1.9 6.2 4.4 6.2s4.9-2.2 4.4-6.2c-1.1 1.2-2.7 1.8-4.4 1.8s-3.3-.6-4.4-1.8Z" fill={hair} />
+          <Path d="M9.9 14.5q2.1 1 4.2 0" stroke={hair} strokeWidth="1.6" strokeLinecap="round" fill="none" />
           <Brows />
           <Eyes />
-          <Blush />
-          <Freckles />
-          <OpenSmile />
-        </>
-      );
-    case 'fern': // loose top bun + gold pin + straight fringe
-      return (
-        <>
-          <Neck skin={skin} />
-          <Circle cx="12" cy="4.2" r="2.8" fill={hair} />
-          <Circle cx="13.4" cy="3.2" r="0.55" fill={GOLD} />
-          <Circle cx="12" cy="10.8" r="6.5" fill={hair} />
-          <FaceCircle skin={skin} />
-          <Path d="M6.9 10c.4-2.9 2.4-4.4 5.1-4.4s4.7 1.5 5.1 4.4c-3.3-1.1-6.9-1.1-10.2 0Z" fill={hair} />
-          <Brows />
-          <Eyes />
-          <Blush />
-          <Smile />
         </>
       );
     case 'river': // sleek dark swoop + stud earring
@@ -241,16 +239,15 @@ function Bust({ id, skin, hair }: { id: string; skin: string; hair: string }) {
           <Blush />
         </>
       );
-    case 'wren': // top-knot + gold frames + open smile
+    case 'max': // short crew cut + dark frames + open grin
       return (
         <>
           <Neck skin={skin} />
-          <Circle cx="12" cy="3.8" r="2.2" fill={hair} />
-          <Rect x="11.1" y="5.2" width="1.8" height="1.8" rx="0.9" fill={hair} />
-          <Circle cx="12" cy="10.8" r="6.4" fill={hair} />
+          <Circle cx="12" cy="10.6" r="6.2" fill={hair} />
           <FaceCircle skin={skin} />
-          <Path d="M7 10c.4-2.8 2.3-4.3 5-4.3s4.6 1.5 5 4.3c-3.2-1.1-6.8-1.1-10 0Z" fill={hair} />
-          <Eyes frames={GOLD} />
+          {/* Crew cut — even, close-cropped around the head */}
+          <Path d="M7.2 10.4c.3-2.1 2-3.6 4.8-3.6s4.5 1.5 4.8 3.6c-3.1-1-6.5-1-9.6 0Z" fill={hair} />
+          <Eyes frames={INK} />
           <Blush />
           <OpenSmile />
         </>
@@ -285,18 +282,21 @@ function Bust({ id, skin, hair }: { id: string; skin: string; hair: string }) {
           <OpenSmile />
         </>
       );
-    case 'juniper': // blonde bun + dark frames + open smile
+    case 'miles': // clean side part — classic, swept left from right-of-centre
       return (
         <>
           <Neck skin={skin} />
-          <Circle cx="12" cy="3.9" r="2.6" fill={hair} />
-          <Path d="M10.2 2.6q1.8-.9 3.6 0" stroke="#FFFFFF" strokeWidth="0.7" strokeLinecap="round" fill="none" opacity={0.35} />
-          <Circle cx="12" cy="10.8" r="6.4" fill={hair} />
+          <Circle cx="12" cy="10.9" r="6.3" fill={hair} />
           <FaceCircle skin={skin} />
-          <Path d="M7 10.2c.5-2.7 2.4-4.2 5-4.2s4.5 1.5 5 4.2c-3.2-1.1-6.8-1.1-10 0Z" fill={hair} />
-          <Eyes frames={INK} />
+          {/* Hair mass sweeps left; right side starts at the part */}
+          <Path d="M17 10.8c-.3-3.2-2.2-5.1-5-5.1-2.6 0-4.5 1.5-5.2 4 1.8-1.8 5.2-2.4 7.8-1.4 1 .4 1.8.9 2.4 1.5Z" fill={hair} />
+          <Path d="M6.8 10.5c.3-2.9 2.2-4.8 5.2-4.8.7 0 1.4.1 2 .3" stroke={hair} strokeWidth="0.8" strokeLinecap="round" fill="none" />
+          {/* Part line — thin strip where skin shows through */}
+          <Path d="M14.6 5.8 14 10.4" stroke={skin} strokeWidth="0.7" strokeLinecap="round" fill="none" opacity={0.35} />
+          <Brows />
+          <Eyes />
           <Blush />
-          <OpenSmile />
+          <Smile />
         </>
       );
     case 'ash': // silver spikes + confident angled brows
@@ -313,18 +313,20 @@ function Bust({ id, skin, hair }: { id: string; skin: string; hair: string }) {
           <Smile />
         </>
       );
-    case 'marlow': // plum middle-part curtains, soft coral smile
+    case 'cruz': // short wavy + scruff, open grin
       return (
         <>
           <Neck skin={skin} />
-          <Circle cx="12" cy="10.8" r="6.7" fill={hair} />
-          <Path d="M5.3 10.5v5.4q1.7 1 3 .5v-5.9Zm13.4 0v5.4q-1.7 1-3 .5v-5.9Z" fill={hair} />
+          <Circle cx="12" cy="10.8" r="6.4" fill={hair} />
           <FaceCircle skin={skin} />
-          <Path d="M6.7 10.6c0-3.2 2.2-5 5.3-5s5.3 1.8 5.3 5c-1.6-1.7-2.4-2.8-2.8-3.7-.7.5-1.6.8-2.5.8s-1.8-.3-2.5-.8c-.4.9-1.2 2-2.8 3.7Z" fill={hair} />
+          {/* Wavy fringe — a gentle S-wave across the forehead */}
+          <Path d="M6.9 10.4c.3-2.8 2.1-4.5 5.1-4.5 2.9 0 4.8 1.7 5.1 4.5-3.2-1.1-7-.9-10.2 0Z" fill={hair} />
+          <Path d="M7.8 7.8q2.2-1.4 4.2 0 2 1.4 4.2 0" stroke={hair} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+          {/* Scruff — light beard shadow below the jaw */}
+          <Path d="M8.2 13.6c-.3 3.6 1.7 5.8 3.8 5.8s4.1-2.2 3.8-5.8c-.9 1-2.3 1.5-3.8 1.5s-2.9-.5-3.8-1.5Z" fill={hair} opacity={0.55} />
           <Brows />
           <Eyes />
-          <Blush />
-          <Path d="M10.7 14.2q1.3 1.1 2.6 0" stroke="#D85A65" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+          <OpenSmile />
         </>
       );
     case 'cove': // tight dark curls + earring + open grin

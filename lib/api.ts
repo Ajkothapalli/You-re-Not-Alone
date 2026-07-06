@@ -124,12 +124,12 @@ export async function reportConfession(
  * Calls supabase.auth.signOut() on success.
  * No UI is wired to this function yet — wrapper only.
  */
-export async function deleteAccount(): Promise<void> {
+export async function deleteAccount(mode: DeleteMode = 'erase'): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
   const { error } = await supabase.functions.invoke('delete-account', {
-    body: { confirm: 'DELETE' },
+    body: { confirm: 'DELETE', mode },
   });
   if (error) throw error;
 
@@ -149,6 +149,41 @@ export interface ReadConfession {
   text:       string;
   felt_count: number;
 }
+
+// ─── My Confessions ───────────────────────────────────────────────────────────
+
+export interface OwnConfession {
+  id:         string;
+  text:       string;
+  felt_count: number;
+  status:     'live' | 'approved' | 'under_review' | 'removed';
+  created_at: string;
+}
+
+export async function getMyConfessions(): Promise<OwnConfession[]> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase.functions.invoke<{ confessions: OwnConfession[] }>(
+    'get-my-confessions',
+  );
+  if (error) throw error;
+  return data?.confessions ?? [];
+}
+
+export async function removeConfession(confessionId: string): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const { error } = await supabase.functions.invoke('manage-confession', {
+    body: { confessionId, action: 'remove' },
+  });
+  if (error) throw error;
+}
+
+// ─── Delete account — two-path ────────────────────────────────────────────────
+
+export type DeleteMode = 'erase' | 'anonymize';
 
 export async function getOnboardingConfessions(): Promise<ReadConfession[]> {
   const { data, error } = await supabase.rpc('get_onboarding_confessions', { max_count: 2 });
@@ -239,48 +274,6 @@ export async function getRecommendations(): Promise<RecommendationsResult> {
 export async function getMatchingCount(): Promise<number> {
   const prefs = await getReaderPreferences();
   return getDummyMatchCount(prefs?.categories ?? []);
-}
-
-// ─── Improve writing (drafting aid) ───────────────────────────────────────────
-
-export type ImproveResult =
-  | { type: 'improved'; text: string; preview?: boolean }
-  | { type: 'crisis' }
-  | { type: 'blocked' };
-
-// Local light tidy — used as a preview fallback when the Edge Function isn't
-// deployed. Whitespace/capitalization only; never changes meaning. The real
-// safety pipeline still runs on submit, so this is safe as a drafting aid.
-function localPolish(text: string): string {
-  return text
-    .replace(/[ \t]+/g, ' ')                              // collapse runs of spaces
-    .replace(/\n{3,}/g, '\n\n')                           // cap blank lines
-    .split('\n')
-    .map((line) => line.trim().replace(/^([a-z])/, (m) => m.toUpperCase()))
-    .join('\n')
-    .trim();
-}
-
-/**
- * Improve a draft confession. Tries the server (which gates crisis/moderation
- * before rewriting); falls back to a local tidy so the feature previews
- * without a deployed backend. Never stores anything — submit still gates.
- */
-export async function improveWriting(text: string): Promise<ImproveResult> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
-
-  try {
-    const { data, error } = await supabase.functions.invoke<ImproveResult>(
-      'improve-writing',
-      { body: { text } },
-    );
-    if (error) throw error;
-    if (data?.type) return data;
-  } catch {
-    // Edge Function not deployed — fall through to local preview tidy.
-  }
-  return { type: 'improved', text: localPolish(text), preview: true };
 }
 
 export type ReadSignal = 'impression' | 'read_to_end' | 'felt' | 'share' | 'skip' | 'report';
