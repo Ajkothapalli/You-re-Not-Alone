@@ -3,18 +3,22 @@
  *
  * Opens as a formSheet from the profile screen.
  * Cross-device: loaded from the server by account_id (not local receipts).
- * Local receipts are shown as a loading fallback only.
  *
- * Cards show: confession text, felt_count, and a status badge.
- * Actions: Remove (soft-delete with destructive confirm).
+ * Actions per card:
+ *   Edit   — retires the old confession, then navigates to write.tsx pre-filled
+ *            so the user can refine and resubmit through the full pipeline.
+ *            The new submission goes through safety review and gets a fresh match;
+ *            felt_count resets. User is warned before proceeding.
+ *   Remove — soft-deletes (retire) with a destructive confirm dialog. The
+ *            confession leaves the pool immediately.
  *
- * Anonymity: account_id is never returned by the server; only the confession
- * content itself is shown. No other user can see this screen.
+ * This is the user's OWN content only — invariant #2 (no new read surface) is
+ * unaffected: no other users' confessions appear here.
  */
 
 import { GhostButton } from '@/components/Buttons';
 import { showDialog } from '@/components/AppDialog';
-import { getMyConfessions, removeConfession, type OwnConfession } from '@/lib/api';
+import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
 import { color, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -22,7 +26,6 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -34,6 +37,8 @@ const STATUS_LABEL: Record<string, string> = {
   approved:     'live',
   under_review: 'under review',
   removed:      'removed',
+  retired:      'retired',
+  deleted:      'deleted',
 };
 
 const STATUS_COLOR: Record<string, string> = {
@@ -41,21 +46,25 @@ const STATUS_COLOR: Record<string, string> = {
   approved:     '#4ADE80',
   under_review: '#FBBF24',
   removed:      '#6B7280',
+  retired:      '#6B7280',
+  deleted:      '#6B7280',
 };
 
 function ConfessionRow({
   item,
+  onEdit,
   onRemove,
 }: {
   item:     OwnConfession;
+  onEdit:   (item: OwnConfession) => void;
   onRemove: (id: string) => void;
 }) {
   const statusLabel = STATUS_LABEL[item.status] ?? item.status;
   const statusColor = STATUS_COLOR[item.status] ?? color.dim;
-  const isRemoved   = item.status === 'removed';
+  const isGone      = item.status === 'retired' || item.status === 'removed' || item.status === 'deleted';
 
   return (
-    <View style={[styles.card, isRemoved && styles.cardRemoved]}>
+    <View style={[styles.card, isGone && styles.cardGone]}>
       <View style={styles.cardHeader}>
         <View style={[styles.badge, { backgroundColor: statusColor + '22' }]}>
           <View style={[styles.badgeDot, { backgroundColor: statusColor }]} />
@@ -64,15 +73,21 @@ function ConfessionRow({
         <Text style={styles.felt}>{item.felt_count} felt this</Text>
       </View>
 
-      <Text
-        style={[styles.text, isRemoved && styles.textDim]}
-        numberOfLines={5}
-      >
+      <Text style={[styles.text, isGone && styles.textDim]} numberOfLines={5}>
         {item.text}
       </Text>
 
-      {!isRemoved && (
+      {!isGone && (
         <View style={styles.actions}>
+          <Pressable
+            onPress={() => onEdit(item)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Edit this confession"
+          >
+            <Text style={styles.editLink}>edit</Text>
+          </Pressable>
+          <Text style={styles.actionSep}>·</Text>
           <Pressable
             onPress={() => onRemove(item.id)}
             hitSlop={8}
@@ -93,9 +108,7 @@ export default function MyConfessionsScreen() {
   const [loading, setLoading]         = useState(true);
   const [error,   setError]           = useState<string | null>(null);
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   async function load() {
     setLoading(true);
@@ -103,11 +116,48 @@ export default function MyConfessionsScreen() {
     try {
       const data = await getMyConfessions();
       setConfessions(data);
-    } catch (e: any) {
+    } catch {
       setError('Could not load your confessions. Check your connection.');
     } finally {
       setLoading(false);
     }
+  }
+
+  function markRetired(confessionId: string) {
+    setConfessions((prev) =>
+      prev.map((c) =>
+        c.id === confessionId ? { ...c, status: 'retired' as const } : c,
+      ),
+    );
+  }
+
+  function handleEdit(item: OwnConfession) {
+    showDialog(
+      'Edit this confession?',
+      'Editing retires this version immediately and releases a new one. ' +
+      'Its count starts fresh and it finds a new match.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text:  'Edit',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await retireConfession(item.id);
+              markRetired(item.id);
+              router.back(); // close the sheet first
+              router.push({
+                pathname: '/write',
+                params:   { prefillText: item.text },
+              });
+            } catch {
+              showDialog('Something went wrong', 'Could not retire the confession. Please try again.');
+            }
+          },
+          keepOpenWhilePending: true,
+        },
+      ],
+    );
   }
 
   function handleRemove(confessionId: string) {
@@ -121,16 +171,13 @@ export default function MyConfessionsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await removeConfession(confessionId);
-              setConfessions((prev) =>
-                prev.map((c) =>
-                  c.id === confessionId ? { ...c, status: 'removed' as const } : c,
-                ),
-              );
+              await retireConfession(confessionId);
+              markRetired(confessionId);
             } catch {
               showDialog('Something went wrong', 'Could not remove the confession. Please try again.');
             }
           },
+          keepOpenWhilePending: true,
         },
       ],
     );
@@ -140,7 +187,6 @@ export default function MyConfessionsScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
-      {/* Header */}
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -177,7 +223,7 @@ export default function MyConfessionsScreen() {
           data={confessions}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <ConfessionRow item={item} onRemove={handleRemove} />
+            <ConfessionRow item={item} onEdit={handleEdit} onRemove={handleRemove} />
           )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -211,10 +257,10 @@ const styles = StyleSheet.create({
     color:      color.paper,
   },
   center: {
-    flex:            1,
-    alignItems:      'center',
-    justifyContent:  'center',
-    padding:         spacing.screenPadding,
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    padding:        spacing.screenPadding,
   },
   emptyText: {
     fontFamily: fontFamily.sans,
@@ -234,21 +280,19 @@ const styles = StyleSheet.create({
     padding:         16,
     gap:             10,
   },
-  cardRemoved: {
-    opacity: 0.5,
-  },
+  cardGone: { opacity: 0.5 },
   cardHeader: {
     flexDirection:  'row',
     alignItems:     'center',
     justifyContent: 'space-between',
   },
   badge: {
-    flexDirection:   'row',
-    alignItems:      'center',
-    gap:             5,
-    paddingVertical: 3,
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               5,
+    paddingVertical:   3,
     paddingHorizontal: 8,
-    borderRadius:    99,
+    borderRadius:      99,
   },
   badgeDot: {
     width:        6,
@@ -272,13 +316,24 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color:      color.paper,
   },
-  textDim: {
-    color: color.dim,
-  },
+  textDim: { color: color.dim },
   actions: {
-    flexDirection: 'row',
+    flexDirection:  'row',
+    alignItems:     'center',
     justifyContent: 'flex-end',
-    marginTop:     2,
+    gap:            8,
+    marginTop:      2,
+  },
+  actionSep: {
+    fontFamily: fontFamily.sans,
+    fontSize:   12,
+    color:      color.dim,
+  },
+  editLink: {
+    fontFamily:         fontFamily.sans,
+    fontSize:           12,
+    color:              color.dim,
+    textDecorationLine: 'underline',
   },
   removeLink: {
     fontFamily:         fontFamily.sans,

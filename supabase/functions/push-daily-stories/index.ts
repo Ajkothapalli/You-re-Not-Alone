@@ -320,7 +320,7 @@ serve(async (req: Request) => {
           status:                 'live',
           amplification_eligible: true,
           authorship_flags:       [],
-          is_seed:                true,
+          source:                 'generated',
           felt_count:             feltCount,
           lang,
         });

@@ -381,7 +381,7 @@ async function generateCompanion(
       status:                 'live',
       amplification_eligible: true,
       authorship_flags:       [],
-      is_seed:                true,
+      source:                 'generated',
       felt_count:             feltCount,
       lang,
     })
@@ -1126,6 +1126,7 @@ serve(async (req: Request) => {
         status:                 confessionStatus,
         auto_flagged:           modResult.borderline ?? false,
         lang,
+        source:                 'user',
       })
       .select('id')
       .single();
@@ -1133,18 +1134,42 @@ serve(async (req: Request) => {
     if (insertErr) throw insertErr;
 
     // ── [6] MATCH ──────────────────────────────────────────────────────────────
-    // Filters: same lang, quality threshold (sim ≥ 0.35), no near-dups (sim < 0.97)
-    const { data: matchRows, error: matchErr } = await supabase.rpc('match_confession', {
+    // Two-pass strategy to stop garbage cross-lang / low-relevance matches:
+    //   Pass 1 — same language, sim ≥ 0.78 (MATCH_MIN).
+    //   Pass 2 — any language (lang-agnostic), sim ≥ 0.88. Only runs when pass 1
+    //            is empty; the higher threshold ensures only truly resonant cross-
+    //            lang matches surface. Better to generate a companion than show
+    //            an unrelated confession.
+    const MATCH_MIN      = parseFloat(Deno.env.get('MATCH_MIN')      ?? '0.78');
+    const MATCH_ANY_LANG = parseFloat(Deno.env.get('MATCH_ANY_LANG') ?? '0.88');
+
+    const matchRpcBase = {
       p_embedding:      JSON.stringify(embedding),
       p_seeker_token:   authorToken,
-      p_seeker_lang:    lang,
-      p_limit:          1,
       p_seeker_account: user.id,
+      p_limit:          1,
+    };
+
+    const { data: matchRows1, error: matchErr1 } = await supabase.rpc('match_confession', {
+      ...matchRpcBase,
+      p_seeker_lang: lang,
+      p_min_sim:     MATCH_MIN,
+      p_any_lang:    false,
     });
+    if (matchErr1) throw matchErr1;
 
-    if (matchErr) throw matchErr;
+    let matchRow = matchRows1?.[0];
 
-    const matchRow = matchRows?.[0];
+    if (!matchRow) {
+      const { data: matchRows2, error: matchErr2 } = await supabase.rpc('match_confession', {
+        ...matchRpcBase,
+        p_seeker_lang: lang,
+        p_min_sim:     MATCH_ANY_LANG,
+        p_any_lang:    true,
+      });
+      if (matchErr2) throw matchErr2;
+      matchRow = matchRows2?.[0];
+    }
 
     if (!matchRow) {
       // No same-language match above quality threshold — generate a companion

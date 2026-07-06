@@ -8,7 +8,7 @@ import { getDeviceHash } from '@/lib/deviceHash';
 import { session } from '@/lib/sessionFlags';
 import { usePalette } from '@/theme/ThemeProvider';
 import { color, fontFamily, spacing } from '@/theme/tokens';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -26,9 +26,18 @@ export default function WriteScreen() {
   const palette                        = usePalette();
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading, setLoading]          = useState(false);
+  const { prefillText }                = useLocalSearchParams<{ prefillText?: string }>();
 
   useEffect(() => {
     if (!session.readShown) router.replace('/read');
+  }, []);
+
+  // Seed the draft when arriving from an Edit flow in My Confessions
+  useEffect(() => {
+    if (prefillText && !draft) {
+      setDraft(prefillText);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function handleSubmit() {

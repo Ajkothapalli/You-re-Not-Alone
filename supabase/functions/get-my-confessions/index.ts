@@ -95,7 +95,7 @@ serve(async (req: Request) => {
     .from('confessions')
     .select('id, text, felt_count, status, created_at')
     .eq('account_id', user.id)
-    .in('status', ['live', 'approved', 'under_review', 'removed'])
+    .in('status', ['live', 'approved', 'under_review', 'removed', 'retired'])
     .order('created_at', { ascending: false })
     .limit(100);
 

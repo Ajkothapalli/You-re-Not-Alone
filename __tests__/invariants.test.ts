@@ -329,6 +329,141 @@ describe('Language-aware matching — source invariants', () => {
   });
 });
 
+// ─── §Source column / match threshold / retire / api_call_log ────────────────
+
+describe('Source column, threshold, retire, api_call_log (Phase A–C)', () => {
+  it('migration adds source column with correct CHECK constraint', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const sql  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'migrations', '20260706000003_source_column.sql'),
+      'utf8',
+    );
+    expect(sql).toContain("ADD COLUMN IF NOT EXISTS source text");
+    expect(sql).toContain("'user'");
+    expect(sql).toContain("'seed'");
+    expect(sql).toContain("'generated'");
+    expect(sql).toContain("source IN (");
+  });
+
+  it('confessions_public in source migration does not expose source column', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const sql  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'migrations', '20260706000003_source_column.sql'),
+      'utf8',
+    );
+    const viewMatch = sql.match(/CREATE OR REPLACE VIEW confessions_public[\s\S]*?;/);
+    expect(viewMatch).not.toBeNull();
+    const viewBody = viewMatch![0];
+    expect(viewBody).not.toContain('source');
+    // REVOKE on source must be present
+    expect(sql).toContain('REVOKE SELECT (source)');
+  });
+
+  it('api_call_log is REVOKED from anon and authenticated', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const sql  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'migrations', '20260706000003_source_column.sql'),
+      'utf8',
+    );
+    expect(sql).toContain('api_call_log');
+    expect(sql).toContain('REVOKE ALL ON api_call_log FROM anon, authenticated');
+  });
+
+  it('match_confession in source migration adds p_any_lang and updates default p_min_sim to 0.78', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const sql  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'migrations', '20260706000003_source_column.sql'),
+      'utf8',
+    );
+    expect(sql).toContain('p_any_lang');
+    expect(sql).toContain('0.78');
+    expect(sql).toContain('p_min_sim');
+  });
+
+  it('submit-confession uses two-pass match strategy: MATCH_MIN=0.78, any-lang at 0.88', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'submit-confession', 'index.ts'),
+      'utf8',
+    );
+    expect(src).toContain('MATCH_MIN');
+    expect(src).toContain('0.78');
+    expect(src).toContain('MATCH_ANY_LANG');
+    expect(src).toContain('0.88');
+    // Pass 1: same lang
+    expect(src).toContain('p_any_lang:    false');
+    // Pass 2: any lang
+    expect(src).toContain('p_any_lang:    true');
+  });
+
+  it("submit-confession stores source: 'user' on confession insert", () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'submit-confession', 'index.ts'),
+      'utf8',
+    );
+    expect(src).toContain("source:                 'user'");
+  });
+
+  it("manage-confession uses action='retire' and sets status='retired'", () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'manage-confession', 'index.ts'),
+      'utf8',
+    );
+    expect(src).toContain("'retire'");
+    expect(src).toContain("'retired'");
+    // Old action name must not appear
+    expect(src).not.toContain("action === 'remove'");
+  });
+
+  it('manage-confession has rate limit using api_call_log', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'manage-confession', 'index.ts'),
+      'utf8',
+    );
+    expect(src).toContain('api_call_log');
+    expect(src).toContain('manage-confession:retire');
+  });
+
+  it('write.tsx reads prefillText param and seeds the draft', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'app', 'write.tsx'),
+      'utf8',
+    );
+    expect(src).toContain('prefillText');
+    expect(src).toContain('useLocalSearchParams');
+    expect(src).toContain('setDraft(prefillText)');
+  });
+
+  it('my-confessions.tsx imports retireConfession (not removeConfession)', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'app', 'my-confessions.tsx'),
+      'utf8',
+    );
+    expect(src).toContain('retireConfession');
+    expect(src).not.toContain('removeConfession');
+    // Edit flow
+    expect(src).toContain('prefillText');
+    expect(src).toContain('/write');
+    // retired status must be handled
+    expect(src).toContain("'retired'");
+  });
+});
+
 // ─── Manual verification checklist ───────────────────────────────────────────
 
 describe('Manual verification required (cannot unit-test)', () => {

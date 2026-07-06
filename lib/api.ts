@@ -156,7 +156,7 @@ export interface OwnConfession {
   id:         string;
   text:       string;
   felt_count: number;
-  status:     'live' | 'approved' | 'under_review' | 'removed';
+  status:     'live' | 'approved' | 'under_review' | 'removed' | 'retired' | 'deleted';
   created_at: string;
 }
 
@@ -171,12 +171,12 @@ export async function getMyConfessions(): Promise<OwnConfession[]> {
   return data?.confessions ?? [];
 }
 
-export async function removeConfession(confessionId: string): Promise<void> {
+export async function retireConfession(confessionId: string): Promise<void> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
   const { error } = await supabase.functions.invoke('manage-confession', {
-    body: { confessionId, action: 'remove' },
+    body: { confessionId, action: 'retire' },
   });
   if (error) throw error;
 }
