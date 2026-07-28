@@ -1,12 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
-import { WaveBackground } from './ConfessionCard';
 import { HeartIcon } from './HeartIcon';
 import { getPersona, PersonaBadge } from './Persona';
 import type { Palette } from '../theme/palettes';
-import { color, font, fontFamily } from '../theme/tokens';
+import { color, font, fontFamily, radius } from '../theme/tokens';
 import { announce, useReducedMotion } from '../lib/a11y';
+
+const SHADOW = 5;
 
 interface Props {
   text:        string;
@@ -14,19 +15,18 @@ interface Props {
   palette:     Palette;
   onReport:    () => void;
   onPress?:    () => void;
-  onFelt?:     () => void;  // called once when the user first taps felt (for event logging)
+  onFelt?:     () => void;
   delay?:      number;
-  personaSeed: string;   // confession id — NEVER anything author-derived
+  personaSeed: string;
 }
 
-// Single character that ticks vertically whenever `felt` flips (if isChanged).
-// Direction: felt=true → slides up (count going up); felt=false → slides down.
+// Single character that ticks vertically whenever `felt` flips.
 function TickChar({ char, isChanged, felt, reduceMotion, style }: {
-  char:        string;
-  isChanged:   boolean;
-  felt:        boolean;
+  char:         string;
+  isChanged:    boolean;
+  felt:         boolean;
   reduceMotion: boolean;
-  style:       TextStyle;
+  style:        TextStyle;
 }) {
   const hasMounted = useRef(false);
   const y          = useRef(new Animated.Value(0)).current;
@@ -85,7 +85,6 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
   const displayCount = feltCount + (felt ? 1 : 0);
   const labelColor   = felt ? palette.you : color.dim;
 
-  // Which character positions differ between feltCount and feltCount+1 (static).
   const oldStr  = feltCount.toLocaleString();
   const newStr  = (feltCount + 1).toLocaleString();
   const maxLen  = Math.max(oldStr.length, newStr.length);
@@ -96,7 +95,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
   function handleFelt() {
     const next = !felt;
     setFelt(next);
-    if (next) onFelt?.(); // notify once on first tap (not on un-felt)
+    if (next) onFelt?.();
     announce(next
       ? `Added. ${(feltCount + 1).toLocaleString()} people felt this too.`
       : 'Removed.');
@@ -109,7 +108,6 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
 
     if (next) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      // Lub-dub heartbeat
       Animated.sequence([
         Animated.timing(feltScale, { toValue: 1.4,  duration: 100, easing: Easing.out(Easing.quad), useNativeDriver: true }),
         Animated.timing(feltScale, { toValue: 0.88, duration: 80,  easing: Easing.in(Easing.quad),  useNativeDriver: true }),
@@ -118,7 +116,6 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
       ]).start();
     } else {
       Haptics.selectionAsync().catch(() => {});
-      // Deflate
       Animated.sequence([
         Animated.timing(feltScale, { toValue: 0.65, duration: 120, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
         Animated.timing(feltScale, { toValue: 1.0,  duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
@@ -139,82 +136,85 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
   const changedForDisplay = displayStr.split('').map((_, i) => changed[i + offset] ?? false);
 
   return (
-    <Animated.View
-      style={[
-        styles.card,
-        { opacity: entranceAnim, transform: [{ translateY }] },
-      ]}
-    >
-      <WaveBackground bands={palette.bands} />
-      <View style={styles.content}>
-        {/* Tappable body area — navigates to full text when truncated */}
-        <Pressable
-          onPress={onPress}
-          disabled={!onPress}
-          style={styles.bodyArea}
-          accessibilityRole={onPress ? 'button' : 'text'}
-          accessibilityLabel={`${persona.name} wrote: ${text}`}
-          accessibilityHint={onPress ? 'Opens the full confession' : undefined}
-        >
-          <View style={styles.personaRow}>
-            <PersonaBadge persona={persona} />
-          </View>
-          <Text
-            style={styles.body}
-            numberOfLines={onPress ? MAX_LINES : undefined}
-            ellipsizeMode={onPress ? 'tail' : undefined}
-            onTextLayout={onPress
-              ? (e) => setIsTruncated(e.nativeEvent.lines.length >= MAX_LINES)
-              : undefined}
-          >
-            {text}
-          </Text>
-          {isTruncated && onPress && (
-            <Text style={styles.readMore}>read more</Text>
-          )}
-        </Pressable>
+    <Animated.View style={{ opacity: entranceAnim, transform: [{ translateY }] }}>
+      {/* Neo-brutalist shadow wrapper */}
+      <View style={styles.outerShell}>
+        {/* Hard offset shadow block */}
+        <View style={[styles.shadowBlock, { backgroundColor: palette.you }]} />
 
-        <View style={styles.spacer} />
+        {/* Card */}
+        <View style={styles.card}>
+          <View style={styles.content}>
+            {/* Tappable body area */}
+            <Pressable
+              onPress={onPress}
+              disabled={!onPress}
+              style={styles.bodyArea}
+              accessibilityRole={onPress ? 'button' : 'text'}
+              accessibilityLabel={`${persona.name} wrote: ${text}`}
+              accessibilityHint={onPress ? 'Opens the full confession' : undefined}
+            >
+              <View style={styles.personaRow}>
+                <PersonaBadge persona={persona} />
+              </View>
+              <Text
+                style={styles.body}
+                numberOfLines={onPress ? MAX_LINES : undefined}
+                ellipsizeMode={onPress ? 'tail' : undefined}
+                onTextLayout={onPress
+                  ? (e) => setIsTruncated(e.nativeEvent.lines.length >= MAX_LINES)
+                  : undefined}
+              >
+                {text}
+              </Text>
+              {isTruncated && onPress && (
+                <Text style={styles.readMore}>read more</Text>
+              )}
+            </Pressable>
 
-        <View style={styles.footer}>
-          <Pressable
-            onPress={handleFelt}
-            hitSlop={12}
-            style={styles.feltRow}
-            accessibilityRole="button"
-            accessibilityState={{ selected: felt }}
-            accessibilityLabel={`${displayCount.toLocaleString()} people felt this too`}
-            accessibilityHint={felt ? 'Removes that you felt this too' : 'Adds that you felt this too'}
-          >
-            <Animated.View style={{ transform: [{ scale: feltScale }] }}>
-              <HeartIcon filled={felt} color={labelColor} size={18} />
-            </Animated.View>
+            <View style={styles.spacer} />
 
-            <View style={styles.countRow}>
-              {displayStr.split('').map((ch, i) => (
-                <TickChar
-                  key={i}
-                  char={ch}
-                  isChanged={changedForDisplay[i]}
-                  felt={felt}
-                  reduceMotion={reduceMotion}
-                  style={charStyle}
-                />
-              ))}
+            <View style={styles.footer}>
+              <Pressable
+                onPress={handleFelt}
+                hitSlop={12}
+                style={styles.feltRow}
+                accessibilityRole="button"
+                accessibilityState={{ selected: felt }}
+                accessibilityLabel={`${displayCount.toLocaleString()} people felt this too`}
+                accessibilityHint={felt ? 'Removes that you felt this too' : 'Adds that you felt this too'}
+              >
+                <Animated.View style={{ transform: [{ scale: feltScale }] }}>
+                  <HeartIcon filled={felt} color={labelColor} size={18} />
+                </Animated.View>
+
+                <View style={styles.countRow}>
+                  {displayStr.split('').map((ch, i) => (
+                    <TickChar
+                      key={i}
+                      char={ch}
+                      isChanged={changedForDisplay[i]}
+                      felt={felt}
+                      reduceMotion={reduceMotion}
+                      style={charStyle}
+                    />
+                  ))}
+                </View>
+
+                <Text style={[styles.feltSuffix, { color: labelColor }]}> felt this too</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={onReport}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Report this confession"
+                accessibilityHint="Hides it and sends it for review"
+              >
+                <Text style={styles.reportLink}>report</Text>
+              </Pressable>
             </View>
-
-            <Text style={[styles.feltSuffix, { color: labelColor }]}> felt this too</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={onReport}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Report this confession"
-            accessibilityHint="Hides it and sends it for review"
-          >
-            <Text style={styles.reportLink}>report</Text>
-          </Pressable>
+          </View>
         </View>
       </View>
     </Animated.View>
@@ -222,11 +222,26 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
 }
 
 const styles = StyleSheet.create({
+  outerShell: {
+    alignSelf:     'stretch',
+    paddingRight:  SHADOW,
+    paddingBottom: SHADOW,
+    position:      'relative',
+  },
+  shadowBlock: {
+    position:     'absolute',
+    top:          SHADOW,
+    left:         SHADOW,
+    right:        0,
+    bottom:       0,
+    borderRadius: radius.card,
+  },
   card: {
-    alignSelf:       'stretch',
     minHeight:       220,
     backgroundColor: color.ink,
-    borderRadius:    26,
+    borderRadius:    radius.card,
+    borderWidth:     2,
+    borderColor:     color.border,
     overflow:        'hidden',
   },
   content: {

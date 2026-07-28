@@ -1,5 +1,4 @@
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useRef } from 'react';
 import {
   ActivityIndicator,
@@ -14,11 +13,11 @@ import {
 import { color, fontFamily, radius } from '../theme/tokens';
 import { useReducedMotion } from '../lib/a11y';
 
-// Fixed palette — never coupled to the rotating theme palette.
-const FACE: [string, string] = ['#FBBF24', '#FB7185'];
-const EDGE: [string, string] = ['#B17B12', '#A83C50'];
-const FACE_TEXT   = '#3A0A14'; // dark maroon — reads cleanly on amber→rose
-const DEPTH       = 5;
+// Neo-brutalism: flat electric yellow face, black hard-offset edge
+const FACE_COLOR  = '#FFE500';
+const EDGE_COLOR  = '#000000';
+const FACE_TEXT   = '#0A0A0A';
+const DEPTH       = 4;
 const GHOST_DEPTH = 3;
 
 interface ButtonProps extends PressableProps {
@@ -34,7 +33,7 @@ function usePressDepth(disabled?: boolean | null, reduceMotion?: boolean) {
   const onPressIn = useCallback(() => {
     if (disabled) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    if (reduceMotion) return; // no depth travel when motion is reduced
+    if (reduceMotion) return;
     Animated.timing(press, {
       toValue:         1,
       duration:        80,
@@ -72,21 +71,14 @@ export function PrimaryButton({
 
   const tintOpacity = press.interpolate({
     inputRange:  [0, 1],
-    outputRange: [0, 0.14],
+    outputRange: [0, 0.18],
   });
 
-  // `style` is an outer container so any external padding/margin never bleeds
-  // into the mechanics wrapper (the edge fills it absolutely).
   return (
     <View style={style}>
       <View style={[styles.primaryWrapper, isDisabled && styles.disabled]}>
-        {/* Edge — static; sits below the face in z-order */}
-        <LinearGradient
-          colors={EDGE}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.primaryEdge}
-        />
+        {/* Edge — static black block below the face */}
+        <View style={styles.primaryEdge} />
 
         {/* Face — slides down on press */}
         <Pressable
@@ -99,13 +91,7 @@ export function PrimaryButton({
           onPressOut={e => { onPressOut(); extPressOut?.(e); }}
         >
           <Animated.View style={{ transform: [{ translateY: faceTranslateY }] }}>
-            <LinearGradient
-              colors={FACE}
-              start={{ x: 0, y: 0.5 }}
-              end={{ x: 1, y: 0.5 }}
-              style={styles.primaryFace}
-            >
-              {/* Press tint — ink darkens the face on press */}
+            <View style={styles.primaryFace}>
               <Animated.View
                 pointerEvents="none"
                 style={[styles.tintOverlay, { opacity: tintOpacity }]}
@@ -113,7 +99,7 @@ export function PrimaryButton({
               {loading
                 ? <ActivityIndicator color={FACE_TEXT} />
                 : <Text style={styles.primaryLabel}>{label}</Text>}
-            </LinearGradient>
+            </View>
           </Animated.View>
         </Pressable>
       </View>
@@ -160,7 +146,6 @@ export function GhostButton({
         >
           <Animated.View style={{ transform: [{ translateY: faceTranslateY }] }}>
             <View style={styles.ghostFace}>
-              {/* Press tint — subtle paper lightening */}
               <Animated.View
                 pointerEvents="none"
                 style={[styles.tintOverlay, styles.ghostTint, { opacity: tintOpacity }]}
@@ -186,17 +171,13 @@ const styles = StyleSheet.create({
     borderRadius:  radius.pill,
   },
   primaryEdge: {
-    position:      'absolute',
-    left:          0,
-    right:         0,
-    bottom:        0,
-    top:           DEPTH,
-    borderRadius:  radius.pill,
-    shadowColor:   '#000000',
-    shadowOpacity: 0.45,
-    shadowRadius:  7,
-    shadowOffset:  { width: 0, height: 4 },
-    elevation:     8,
+    position:        'absolute',
+    left:            0,
+    right:           0,
+    bottom:          0,
+    top:             DEPTH,
+    borderRadius:    radius.pill,
+    backgroundColor: EDGE_COLOR,
   },
   primaryFace: {
     borderRadius:      radius.pill,
@@ -204,6 +185,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     alignItems:        'center',
     justifyContent:    'center',
+    backgroundColor:   FACE_COLOR,
+    borderWidth:       2,
+    borderColor:       EDGE_COLOR,
     overflow:          'hidden',
   },
   primaryLabel: {
@@ -227,21 +211,16 @@ const styles = StyleSheet.create({
     bottom:          0,
     top:             GHOST_DEPTH,
     borderRadius:    radius.pill,
-    backgroundColor: '#08070B',
-    shadowColor:     '#000000',
-    shadowOpacity:   0.35,
-    shadowRadius:    5,
-    shadowOffset:    { width: 0, height: 3 },
-    elevation:       5,
+    backgroundColor: EDGE_COLOR,
   },
   ghostFace: {
     borderRadius:    radius.pill,
     paddingVertical: 14,
     alignItems:      'center',
     justifyContent:  'center',
-    backgroundColor: '#1A1720',
-    borderWidth:     1,
-    borderColor:     color.line,
+    backgroundColor: color.ink,
+    borderWidth:     2,
+    borderColor:     color.border,
     overflow:        'hidden',
   },
   ghostLabel: {
@@ -259,10 +238,10 @@ const styles = StyleSheet.create({
     left:            0,
     right:           0,
     bottom:          0,
-    backgroundColor: color.ink,
+    backgroundColor: '#000000',
   },
   ghostTint: {
-    backgroundColor: 'rgba(243,238,232,0.05)',
+    backgroundColor: 'rgba(245,245,245,0.06)',
   },
   disabled: {
     opacity: 0.32,

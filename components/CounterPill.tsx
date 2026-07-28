@@ -1,11 +1,10 @@
 /**
- * CounterPill — "{count} felt this too" in a gradient-border pill.
- * Gradient border (padding 1, inner #17131D), text and shadow in palette.you.
+ * CounterPill — "{count} felt this too" in neo-brutalist solid pill.
+ * Solid palette.you background, black border, dark text.
  * Mount pop: spring 0→1 driving opacity + scale 0.8→1 (native driver).
  * Optionally pressable (onPress) with a gentle press-scale.
  */
 
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { font, fontFamily, radius } from '../theme/tokens';
@@ -47,25 +46,11 @@ export default function CounterPill({ count, youColor, palette, style, onPress }
         { opacity: mount, transform: [{ scale: scaleAnim }] },
       ]}
     >
-      {/* Gradient border: gradient outer + ink inner */}
-      <LinearGradient
-        colors={[palette.you, palette.them]}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        style={[
-          styles.outer,
-          {
-            shadowColor:   youColor,
-            alignSelf:     'flex-start',
-          },
-        ]}
-      >
-        <View style={styles.inner}>
-          <Text style={[styles.label, { color: youColor }]}>
-            {count.toLocaleString()} felt this too
-          </Text>
-        </View>
-      </LinearGradient>
+      <View style={[styles.pill, { backgroundColor: palette.you }]}>
+        <Text style={styles.label}>
+          {count.toLocaleString()} felt this too
+        </Text>
+      </View>
     </Animated.View>
   );
 
@@ -93,17 +78,10 @@ export default function CounterPill({ count, youColor, palette, style, onPress }
 }
 
 const styles = StyleSheet.create({
-  outer: {
-    borderRadius:  radius.pill,
-    padding:       1,
-    shadowOffset:  { width: 0, height: 0 },
-    shadowOpacity: 0.45,
-    shadowRadius:  10,
-    elevation:     6,
-  },
-  inner: {
-    backgroundColor:   '#17131D',
-    borderRadius:      radius.pill - 1,
+  pill: {
+    borderRadius:      radius.pill,
+    borderWidth:       2,
+    borderColor:       '#0A0A0A',
     paddingHorizontal: 16,
     paddingVertical:   8,
   },
@@ -112,5 +90,6 @@ const styles = StyleSheet.create({
     fontSize:      font.labelSize,
     letterSpacing: font.labelLetterSpacing,
     textTransform: 'uppercase',
+    color:         '#0A0A0A',
   },
 });

@@ -1,21 +1,23 @@
 export const color = {
-  ink:           '#0E0C13',                  // card background (stays dark)
-  bg:            '#1C1828',                  // screen background (lighter than card)
-  paper:         '#F3EEE8',                  // primary text
-  dim:           '#A29CAA',                  // muted text / labels
-  line:          'rgba(243,238,232,0.10)',   // hairlines / dividers
-  feltText:      '#F4E2D5',                  // footer "X felt this too"
-  youreNotAlone: 'rgba(255,255,255,0.85)',   // footer right
+  bg:            '#0A0A0A',
+  ink:           '#141414',
+  paper:         '#F5F5F5',
+  dim:           '#666666',
+  line:          '#2A2A2A',
+  border:        '#FFFFFF',
+  accent:        '#FFE500',
+  feltText:      '#FFE500',
+  youreNotAlone: 'rgba(245,245,245,0.80)',
 } as const;
 
 export const radius = {
-  card:  26,
-  input: 16,
-  pill:  999,
+  card:  4,
+  input: 4,
+  pill:  4,
 } as const;
 
 export const spacing = {
-  cardPadding:   30,
+  cardPadding:   28,
   screenPadding: 20,
 } as const;
 
@@ -26,7 +28,6 @@ export const font = {
   labelLetterSpacing:   0.18 * 11, // 1.98
 } as const;
 
-// Font family strings (must match the keys passed to useFonts)
 export const fontFamily = {
   serif:       'Fraunces_400Regular',
   serifItalic: 'Fraunces_400Regular_Italic',

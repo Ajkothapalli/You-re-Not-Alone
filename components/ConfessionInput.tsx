@@ -63,24 +63,23 @@ export default function ConfessionInput({
     Haptics.selectionAsync().catch(() => {});
   }
 
-  // Dark theme for the picker, tied to the app palette.
   const emojiTheme = {
-    backdrop:           '#0E0C13CC',
+    backdrop:           '#0A0A0ACC',
     knob:               palette.them,
-    container:          '#1A1720',
+    container:          '#141414',
     header:             color.dim,
-    skinTonesContainer: '#241F2B',
+    skinTonesContainer: '#1E1E1E',
     category: {
       icon:            color.dim,
-      iconActive:      color.ink,
-      container:       '#241F2B',
+      iconActive:      '#0A0A0A',
+      container:       '#1E1E1E',
       containerActive: palette.them,
     },
     search: {
       text:        color.paper,
       placeholder: color.dim,
       icon:        color.dim,
-      background:  '#241F2B',
+      background:  '#1E1E1E',
     },
   };
 
@@ -138,8 +137,10 @@ const styles = StyleSheet.create({
   wrapper: {
     flex:            1,
     minHeight:       180,
-    backgroundColor: '#1A1720',
+    backgroundColor: '#141414',
     borderRadius:    radius.input,
+    borderWidth:     2,
+    borderColor:     color.border,
     padding:         16,
   },
   input: {
@@ -158,9 +159,9 @@ const styles = StyleSheet.create({
   toggle: {
     width:          30,
     height:         30,
-    borderRadius:   15,
-    borderWidth:    1,
-    borderColor:    color.line,
+    borderRadius:   radius.pill,
+    borderWidth:    2,
+    borderColor:    color.dim,
     alignItems:     'center',
     justifyContent: 'center',
   },

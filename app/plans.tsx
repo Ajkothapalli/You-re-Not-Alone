@@ -13,7 +13,6 @@ import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { showDialog } from '../components/AppDialog';
-import { LinearGradient } from 'expo-linear-gradient';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { PrimaryButton } from '../components/Buttons';
 import { getLocalPricing, type TierId } from '../lib/pricing';
@@ -23,7 +22,7 @@ import {
 import { usePremium } from '../lib/premiumContext';
 import { color, font, fontFamily, radius, spacing } from '../theme/tokens';
 
-const GOLD: [string, string] = ['#FBBF24', '#FB7185'];
+const GOLD = '#FFE500';
 
 interface Tier {
   id:      TierId;
@@ -131,9 +130,9 @@ export default function PlansScreen() {
     >
 
         {/* Premium header */}
-        <LinearGradient colors={GOLD} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.badge}>
+        <View style={styles.badge}>
           <Text style={styles.badgeText}>Premium</Text>
-        </LinearGradient>
+        </View>
         <Text style={styles.heading} accessibilityRole="header">read every voice that matches yours</Text>
         <Text style={styles.sub}>
           Your first reads are on us. Go deeper — unlimited confessions, tuned
@@ -162,12 +161,10 @@ export default function PlansScreen() {
                 accessibilityState={{ selected: isSelected }}
                 accessibilityLabel={`${t.label}, ${t.price} ${t.period}${t.note ? `, ${t.note}` : ''}${t.best ? ', best value' : ''}`}
               >
-                <LinearGradient
-                  colors={isSelected || t.best ? GOLD : [color.line, color.line]}
-                  start={{ x: 0, y: 0.5 }}
-                  end={{ x: 1, y: 0.5 }}
-                  style={[styles.tierBorder, isSelected && styles.tierBorderActive]}
-                >
+                <View style={[
+                  styles.tierBorder,
+                  (isSelected || t.best) ? styles.tierBorderActive : styles.tierBorderIdle,
+                ]}>
                   <View style={styles.tierInner}>
                     {t.best && (
                       <View style={styles.ribbon}>
@@ -188,7 +185,7 @@ export default function PlansScreen() {
                       </View>
                     </View>
                   </View>
-                </LinearGradient>
+                </View>
               </Pressable>
             );
           })}
@@ -225,6 +222,9 @@ const styles = StyleSheet.create({
   badge: {
     alignSelf:         'flex-start',
     borderRadius:      radius.pill,
+    borderWidth:       2,
+    borderColor:       '#0A0A0A',
+    backgroundColor:   GOLD,
     paddingHorizontal: 12,
     paddingVertical:   5,
   },
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     fontSize:      11,
     letterSpacing: 0.18 * 11,
     textTransform: 'uppercase',
-    color:         '#3A0A14',
+    color:         '#0A0A0A',
   },
   heading: {
     fontFamily: fontFamily.serifItalic,
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   perkCheck: {
     fontFamily: fontFamily.sansBold,
     fontSize:   14,
-    color:      '#FBBF24',
+    color:      '#FFE500',
     lineHeight: 21,
   },
   perkText: {
@@ -276,33 +276,36 @@ const styles = StyleSheet.create({
   },
   tierBorder: {
     borderRadius: radius.input,
-    padding:      1,
+    borderWidth:  2,
+  },
+  tierBorderIdle: {
+    borderColor: color.line,
   },
   tierBorderActive: {
-    padding: 2,
+    borderColor: GOLD,
   },
   tierInner: {
-    backgroundColor: color.ink,
-    borderRadius:    radius.input - 1,
+    backgroundColor:   color.ink,
+    borderRadius:      radius.input - 2,
     paddingVertical:   16,
     paddingHorizontal: 16,
   },
   ribbon: {
-    position:          'absolute',
-    top:               -1,
-    right:             14,
-    backgroundColor:   '#FBBF24',
-    borderBottomLeftRadius:  8,
-    borderBottomRightRadius: 8,
-    paddingHorizontal: 10,
-    paddingVertical:   3,
+    position:                'absolute',
+    top:                     -1,
+    right:                   14,
+    backgroundColor:         GOLD,
+    borderBottomLeftRadius:  4,
+    borderBottomRightRadius: 4,
+    paddingHorizontal:       10,
+    paddingVertical:         3,
   },
   ribbonText: {
     fontFamily:    fontFamily.sansBold,
     fontSize:      10,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
-    color:         '#3A0A14',
+    color:         '#0A0A0A',
   },
   tierMain: {
     flexDirection: 'row',
@@ -321,8 +324,8 @@ const styles = StyleSheet.create({
   radioDot: {
     width:           10,
     height:          10,
-    borderRadius:    5,
-    backgroundColor: '#FBBF24',
+    borderRadius:    2,
+    backgroundColor: GOLD,
   },
   tierTextWrap: { flex: 1, gap: 2 },
   tierLabel: {
@@ -336,7 +339,7 @@ const styles = StyleSheet.create({
     color:      color.dim,
   },
   tierNoteGold: {
-    color: '#FBBF24',
+    color: GOLD,
   },
   tierPriceWrap: {
     alignItems: 'flex-end',

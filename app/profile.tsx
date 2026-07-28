@@ -20,11 +20,8 @@ import { clearProfile, getProfile, setProfileName, setProfilePersona } from '@/l
 import { usePremium } from '@/lib/premiumContext';
 import { billingAvailable, restorePurchases } from '@/lib/purchases';
 import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
-import { LinearGradient } from 'expo-linear-gradient';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-
-const GOLD: [string, string] = ['#FBBF24', '#FB7185'];
 import { useEffect, useRef, useState } from 'react';
 import {
   Linking,
@@ -205,12 +202,7 @@ export default function ProfileScreen() {
         accessibilityLabel={isPremium ? 'Premium active' : 'Go Premium'}
         accessibilityHint={isPremium ? 'Manage your subscription' : 'Unlimited reading across your categories. Opens plans.'}
       >
-        <LinearGradient
-          colors={GOLD}
-          start={{ x: 0, y: 0.5 }}
-          end={{ x: 1, y: 0.5 }}
-          style={styles.premiumCard}
-        >
+        <View style={styles.premiumCard}>
           <View style={styles.premiumTextWrap}>
             <View style={styles.premiumTopRow}>
               <Text style={styles.premiumStar}>★</Text>
@@ -221,7 +213,7 @@ export default function ProfileScreen() {
             </Text>
           </View>
           <Text style={styles.premiumArrow}>›</Text>
-        </LinearGradient>
+        </View>
       </Pressable>
 
       {/* Character picker */}
@@ -394,6 +386,8 @@ const styles = StyleSheet.create({
   identityCard: {
     backgroundColor: color.ink,
     borderRadius:    radius.card,
+    borderWidth:     2,
+    borderColor:     color.border,
     padding:         24,
     alignItems:      'center',
     gap:             12,
@@ -406,7 +400,10 @@ const styles = StyleSheet.create({
     padding:    4,
   },
   premiumCard: {
+    backgroundColor:   '#FFE500',
     borderRadius:      radius.input,
+    borderWidth:       2,
+    borderColor:       '#0A0A0A',
     paddingVertical:   16,
     paddingHorizontal: 18,
     flexDirection:     'row',
@@ -421,24 +418,24 @@ const styles = StyleSheet.create({
   premiumStar: {
     fontFamily: fontFamily.sansBold,
     fontSize:   14,
-    color:      '#3A0A14',
+    color:      '#0A0A0A',
   },
   premiumTitle: {
     fontFamily:    fontFamily.sansBold,
     fontSize:      font.labelSize,
     letterSpacing: font.labelLetterSpacing,
     textTransform: 'uppercase',
-    color:         '#3A0A14',
+    color:         '#0A0A0A',
   },
   premiumSub: {
     fontFamily: fontFamily.sans,
     fontSize:   13,
-    color:      '#5A1426',
+    color:      '#333333',
   },
   premiumArrow: {
     fontFamily: fontFamily.serif,
     fontSize:   26,
-    color:      '#3A0A14',
+    color:      '#0A0A0A',
   },
   editHint: {
     fontFamily: fontFamily.sans,
@@ -459,14 +456,14 @@ const styles = StyleSheet.create({
     gap:           10,
   },
   gridItem: {
-    width:          '30.5%',
-    alignItems:     'center',
-    gap:            8,
-    paddingVertical: 14,
+    width:             '30.5%',
+    alignItems:        'center',
+    gap:               8,
+    paddingVertical:   14,
     paddingHorizontal: 4,
-    borderRadius:   radius.input,
-    borderWidth:    1,
-    borderColor:    color.line,
+    borderRadius:      radius.input,
+    borderWidth:       2,
+    borderColor:       color.line,
   },
   gridName: {
     fontFamily: fontFamily.sans,

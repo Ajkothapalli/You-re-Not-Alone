@@ -44,7 +44,6 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
 import Svg, {
   Circle,
   Defs,
@@ -173,16 +172,11 @@ function WarmCta({ label, onPress, disabled }: {
       disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
-      style={({ pressed }) => ({ opacity: pressed ? 0.82 : 1 })}
+      style={({ pressed }) => ({ opacity: pressed ? 0.78 : 1 })}
     >
-      <LinearGradient
-        colors={[GOLD, PINK]}
-        start={{ x: 0, y: 0.5 }}
-        end={{ x: 1, y: 0.5 }}
-        style={s.ctaWarm}
-      >
+      <View style={s.ctaWarm}>
         <Text style={s.ctaWarmTxt}>{label}</Text>
-      </LinearGradient>
+      </View>
     </Pressable>
   );
 }
@@ -1002,14 +996,19 @@ const s = StyleSheet.create({
     color:      '#9c2f17',
   },
   ctaWarm: {
-    borderRadius:    999,
+    borderRadius:    4,
+    borderWidth:     2,
+    borderColor:     '#0A0A0A',
+    backgroundColor: '#FFE500',
     paddingVertical: 13,
     alignItems:      'center',
   },
   ctaWarmTxt: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   14,
-    color:      '#3A0A14',
+    fontFamily:    fontFamily.sansBold,
+    fontSize:      14,
+    letterSpacing: 0.18 * 14,
+    textTransform: 'uppercase',
+    color:         '#0A0A0A',
   },
 
   // Dot indicator
