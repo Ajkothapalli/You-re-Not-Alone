@@ -20,7 +20,8 @@ import {
   billingAvailable, getPackages, isUserCancelled, packageForTier, purchasePackage, restorePurchases,
 } from '../lib/purchases';
 import { usePremium } from '../lib/premiumContext';
-import { color, font, fontFamily, radius, spacing } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, radius, spacing } from '../theme/tokens';
 
 const GOLD = '#FFE500';
 
@@ -47,6 +48,9 @@ const PERKS = [
 
 export default function PlansScreen() {
   const { refresh } = usePremium();
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const [selected, setSelected] = useState<TierId>('year');
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [busy,     setBusy]     = useState(false);
@@ -205,172 +209,174 @@ export default function PlansScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  fill: { flex: 1, backgroundColor: color.bg },
-  scroll: {
-    padding:       spacing.screenPadding,
-    paddingTop:    16,
-    paddingBottom: 48,
-    gap:           14,
-  },
-  back: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-    marginBottom: 8,
-  },
-  badge: {
-    alignSelf:         'flex-start',
-    borderRadius:      radius.pill,
-    borderWidth:       2,
-    borderColor:       '#0A0A0A',
-    backgroundColor:   GOLD,
-    paddingHorizontal: 12,
-    paddingVertical:   5,
-  },
-  badgeText: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      11,
-    letterSpacing: 0.18 * 11,
-    textTransform: 'uppercase',
-    color:         '#0A0A0A',
-  },
-  heading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   27,
-    color:      color.paper,
-    lineHeight: 36,
-  },
-  sub: {
-    fontFamily:   fontFamily.sans,
-    fontSize:     14,
-    lineHeight:   21,
-    color:        color.dim,
-    marginBottom: 6,
-  },
-  perks: {
-    gap:          10,
-    marginBottom: 8,
-  },
-  perkRow: {
-    flexDirection: 'row',
-    alignItems:    'flex-start',
-    gap:           10,
-  },
-  perkCheck: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   14,
-    color:      '#FFE500',
-    lineHeight: 21,
-  },
-  perkText: {
-    flex:       1,
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.paper,
-    lineHeight: 21,
-  },
-  tierList: {
-    gap:       10,
-    marginTop: 4,
-  },
-  tierBorder: {
-    borderRadius: radius.input,
-    borderWidth:  2,
-  },
-  tierBorderIdle: {
-    borderColor: color.line,
-  },
-  tierBorderActive: {
-    borderColor: GOLD,
-  },
-  tierInner: {
-    backgroundColor:   color.ink,
-    borderRadius:      radius.input - 2,
-    paddingVertical:   16,
-    paddingHorizontal: 16,
-  },
-  ribbon: {
-    position:                'absolute',
-    top:                     -1,
-    right:                   14,
-    backgroundColor:         GOLD,
-    borderBottomLeftRadius:  4,
-    borderBottomRightRadius: 4,
-    paddingHorizontal:       10,
-    paddingVertical:         3,
-  },
-  ribbonText: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      10,
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    color:         '#0A0A0A',
-  },
-  tierMain: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           12,
-  },
-  radio: {
-    width:        20,
-    height:       20,
-    borderRadius: 10,
-    borderWidth:  1.5,
-    borderColor:  color.dim,
-    alignItems:     'center',
-    justifyContent: 'center',
-  },
-  radioDot: {
-    width:           10,
-    height:          10,
-    borderRadius:    2,
-    backgroundColor: GOLD,
-  },
-  tierTextWrap: { flex: 1, gap: 2 },
-  tierLabel: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   15,
-    color:      color.paper,
-  },
-  tierNote: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12,
-    color:      color.dim,
-  },
-  tierNoteGold: {
-    color: GOLD,
-  },
-  tierPriceWrap: {
-    alignItems: 'flex-end',
-  },
-  tierPrice: {
-    fontFamily: fontFamily.serif,
-    fontSize:   19,
-    color:      color.paper,
-  },
-  tierPeriod: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11,
-    color:      color.dim,
-  },
-  cta: {
-    marginTop: 18,
-  },
-  restore: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    color:      color.dim,
-    textAlign:  'center',
-    textDecorationLine: 'underline',
-    marginTop:  14,
-  },
-  footnote: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11,
-    lineHeight: 17,
-    color:      color.dim,
-    textAlign:  'center',
-    marginTop:  10,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    fill: { flex: 1, backgroundColor: color.bg },
+    scroll: {
+      padding:       spacing.screenPadding,
+      paddingTop:    16,
+      paddingBottom: 48,
+      gap:           14,
+    },
+    back: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+      marginBottom: 8,
+    },
+    badge: {
+      alignSelf:         'flex-start',
+      borderRadius:      radius.pill,
+      borderWidth:       2,
+      borderColor:       '#0A0A0A',
+      backgroundColor:   GOLD,
+      paddingHorizontal: 12,
+      paddingVertical:   5,
+    },
+    badgeText: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      11,
+      letterSpacing: 0.18 * 11,
+      textTransform: 'uppercase',
+      color:         '#0A0A0A',
+    },
+    heading: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   27,
+      color:      color.paper,
+      lineHeight: 36,
+    },
+    sub: {
+      fontFamily:   fontFamily.sans,
+      fontSize:     14,
+      lineHeight:   21,
+      color:        color.dim,
+      marginBottom: 6,
+    },
+    perks: {
+      gap:          10,
+      marginBottom: 8,
+    },
+    perkRow: {
+      flexDirection: 'row',
+      alignItems:    'flex-start',
+      gap:           10,
+    },
+    perkCheck: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   14,
+      color:      '#FFE500',
+      lineHeight: 21,
+    },
+    perkText: {
+      flex:       1,
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.paper,
+      lineHeight: 21,
+    },
+    tierList: {
+      gap:       10,
+      marginTop: 4,
+    },
+    tierBorder: {
+      borderRadius: radius.input,
+      borderWidth:  2,
+    },
+    tierBorderIdle: {
+      borderColor: color.line,
+    },
+    tierBorderActive: {
+      borderColor: GOLD,
+    },
+    tierInner: {
+      backgroundColor:   color.ink,
+      borderRadius:      radius.input - 2,
+      paddingVertical:   16,
+      paddingHorizontal: 16,
+    },
+    ribbon: {
+      position:                'absolute',
+      top:                     -1,
+      right:                   14,
+      backgroundColor:         GOLD,
+      borderBottomLeftRadius:  4,
+      borderBottomRightRadius: 4,
+      paddingHorizontal:       10,
+      paddingVertical:         3,
+    },
+    ribbonText: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      10,
+      letterSpacing: 1.2,
+      textTransform: 'uppercase',
+      color:         '#0A0A0A',
+    },
+    tierMain: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           12,
+    },
+    radio: {
+      width:        20,
+      height:       20,
+      borderRadius: 10,
+      borderWidth:  1.5,
+      borderColor:  color.dim,
+      alignItems:     'center',
+      justifyContent: 'center',
+    },
+    radioDot: {
+      width:           10,
+      height:          10,
+      borderRadius:    2,
+      backgroundColor: GOLD,
+    },
+    tierTextWrap: { flex: 1, gap: 2 },
+    tierLabel: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   15,
+      color:      color.paper,
+    },
+    tierNote: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      color:      color.dim,
+    },
+    tierNoteGold: {
+      color: GOLD,
+    },
+    tierPriceWrap: {
+      alignItems: 'flex-end',
+    },
+    tierPrice: {
+      fontFamily: fontFamily.serif,
+      fontSize:   19,
+      color:      color.paper,
+    },
+    tierPeriod: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      color:      color.dim,
+    },
+    cta: {
+      marginTop: 18,
+    },
+    restore: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      color:      color.dim,
+      textAlign:  'center',
+      textDecorationLine: 'underline',
+      marginTop:  14,
+    },
+    footnote: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      lineHeight: 17,
+      color:      color.dim,
+      textAlign:  'center',
+      marginTop:  10,
+    },
+  });
+}

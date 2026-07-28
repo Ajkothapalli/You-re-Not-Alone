@@ -10,7 +10,7 @@
  */
 
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import EmojiPicker, { type EmojiType } from 'rn-emoji-keyboard';
 import {
   Pressable,
@@ -22,8 +22,8 @@ import {
   type TextInputSelectionChangeEventData,
   View,
 } from 'react-native';
-import { usePalette } from '../theme/ThemeProvider';
-import { color, font, fontFamily, radius } from '../theme/tokens';
+import { usePalette, useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, radius } from '../theme/tokens';
 
 const MAX_CHARS = 1000;
 
@@ -38,6 +38,8 @@ export default function ConfessionInput({
   value, onChangeText, maxChars = MAX_CHARS, style, ...rest
 }: Props) {
   const palette      = usePalette();
+  const color        = useThemeColors();
+  const styles       = useMemo(() => createStyles(color), [color]);
   const remaining    = maxChars - value.length;
   const counterColor = remaining <= 100 ? palette.you : color.dim;
 
@@ -133,44 +135,46 @@ export default function ConfessionInput({
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: {
-    flex:            1,
-    minHeight:       180,
-    backgroundColor: '#141414',
-    borderRadius:    radius.input,
-    borderWidth:     2,
-    borderColor:     color.border,
-    padding:         16,
-  },
-  input: {
-    flex:       1,
-    fontFamily: fontFamily.serif,
-    fontSize:   font.confessionSize,
-    lineHeight: font.confessionLineHeight,
-    color:      color.paper,
-  },
-  footerRow: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-    marginTop:      8,
-  },
-  toggle: {
-    width:          30,
-    height:         30,
-    borderRadius:   radius.pill,
-    borderWidth:    2,
-    borderColor:    color.dim,
-    alignItems:     'center',
-    justifyContent: 'center',
-  },
-  toggleFace: {
-    fontSize:   18,
-    lineHeight: 20,
-  },
-  counter: {
-    fontFamily: fontFamily.sans,
-    fontSize:   font.labelSize,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    wrapper: {
+      flex:            1,
+      minHeight:       180,
+      backgroundColor: '#141414',
+      borderRadius:    radius.input,
+      borderWidth:     2,
+      borderColor:     color.border,
+      padding:         16,
+    },
+    input: {
+      flex:       1,
+      fontFamily: fontFamily.serif,
+      fontSize:   font.confessionSize,
+      lineHeight: font.confessionLineHeight,
+      color:      color.paper,
+    },
+    footerRow: {
+      flexDirection:  'row',
+      alignItems:     'center',
+      justifyContent: 'space-between',
+      marginTop:      8,
+    },
+    toggle: {
+      width:          30,
+      height:         30,
+      borderRadius:   radius.pill,
+      borderWidth:    2,
+      borderColor:    color.dim,
+      alignItems:     'center',
+      justifyContent: 'center',
+    },
+    toggleFace: {
+      fontSize:   18,
+      lineHeight: 20,
+    },
+    counter: {
+      fontFamily: fontFamily.sans,
+      fontSize:   font.labelSize,
+    },
+  });
+}

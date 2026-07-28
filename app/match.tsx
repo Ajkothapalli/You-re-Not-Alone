@@ -13,10 +13,10 @@ import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
 import { shareConfessionCard } from '@/lib/shareCard';
-import { usePalette } from '@/theme/ThemeProvider';
-import { color, fontFamily, spacing } from '@/theme/tokens';
+import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -27,6 +27,8 @@ import { showDialog } from '@/components/AppDialog';
 
 export default function MatchScreen() {
   const palette = usePalette();
+  const color   = useThemeColors();
+  const styles  = useMemo(() => createStyles(color), [color]);
   const params = useLocalSearchParams<{
     youText:      string;
     themText:     string;
@@ -143,44 +145,46 @@ export default function MatchScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  fill: {
-    flex: 1,
-  },
-  scroll: {
-    flexGrow:      1,
-    padding:       spacing.screenPadding,
-    paddingTop:    24,
-    paddingBottom: 40,
-    alignItems:    'center',
-    gap:           24,
-  },
-  heading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   24,
-    color:      color.paper,
-    textAlign:  'center',
-  },
-  body: {
-    fontFamily:        fontFamily.sans,
-    fontSize:          16,
-    color:             color.dim,
-    textAlign:         'center',
-    lineHeight:        24,
-    paddingHorizontal: 8,
-  },
-  actions: {
-    width: '100%',
-    gap:   12,
-  },
-  unlockHint: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    color:      color.dim,
-    textAlign:  'center',
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    fill: {
+      flex: 1,
+    },
+    scroll: {
+      flexGrow:      1,
+      padding:       spacing.screenPadding,
+      paddingTop:    24,
+      paddingBottom: 40,
+      alignItems:    'center',
+      gap:           24,
+    },
+    heading: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   24,
+      color:      color.paper,
+      textAlign:  'center',
+    },
+    body: {
+      fontFamily:        fontFamily.sans,
+      fontSize:          16,
+      color:             color.dim,
+      textAlign:         'center',
+      lineHeight:        24,
+      paddingHorizontal: 8,
+    },
+    actions: {
+      width: '100%',
+      gap:   12,
+    },
+    unlockHint: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      color:      color.dim,
+      textAlign:  'center',
+    },
+  });
+}

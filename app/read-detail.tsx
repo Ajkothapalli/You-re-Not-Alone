@@ -1,12 +1,17 @@
 import ReadCard from '@/components/ReadCard';
 import { reportConfession } from '@/lib/api';
 import { palettes } from '@/theme/palettes';
-import { color, fontFamily, spacing } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
 
 export default function ReadDetailScreen() {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const { id, text, feltCount, paletteIndex } = useLocalSearchParams<{
     id:           string;
     text:         string;
@@ -62,24 +67,26 @@ export default function ReadDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  scroll: {
-    flexGrow:      1,
-    padding:       spacing.screenPadding,
-    paddingTop:    64,
-    paddingBottom: 64,
-    gap:           20,
-  },
-  topBar: {
-    marginBottom: 8,
-  },
-  back: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    scroll: {
+      flexGrow:      1,
+      padding:       spacing.screenPadding,
+      paddingTop:    64,
+      paddingBottom: 64,
+      gap:           20,
+    },
+    topBar: {
+      marginBottom: 8,
+    },
+    back: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+    },
+  });
+}

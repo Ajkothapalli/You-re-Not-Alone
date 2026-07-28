@@ -9,7 +9,7 @@
  * we immediately replace to /read so nothing is blocked.
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
@@ -27,7 +27,8 @@ import { router } from 'expo-router';
 import { PrimaryButton } from '@/components/Buttons';
 import { HeartIcon } from '@/components/HeartIcon';
 import { evaluateRtue, markRtueSeen, clearRtueCache, type RtueMoment, type RtueState } from '@/lib/rtue';
-import { color, fontFamily } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily } from '@/theme/tokens';
 import { announce } from '@/lib/a11y';
 
 // ─── Glow configs per state ───────────────────────────────────────────────────
@@ -124,6 +125,9 @@ function ScreenGlow({ glowColor, opacity, W, H }: {
 // Counts up from `from` to `to` with cubic ease-out over 1200ms.
 
 function AnimatedCount({ from, to, state }: { from: number; to: number; state: RtueState }) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createSt(color), [color]);
+
   const anim    = useRef(new Animated.Value(from)).current;
   const [disp, setDisp] = useState(from);
 
@@ -144,7 +148,7 @@ function AnimatedCount({ from, to, state }: { from: number; to: number; state: R
   const countColor = state === 'milestone' ? '#FBBF24' : color.paper;
 
   return (
-    <Text style={[st.count, { color: countColor }]}>
+    <Text style={[styles.count, { color: countColor }]}>
       {disp.toLocaleString()}
     </Text>
   );
@@ -179,11 +183,11 @@ function StatPill({ gained, state }: { gained: number; state: RtueState }) {
   if (!label) return null;
 
   return (
-    <View style={st.pill}>
+    <View style={staticSt.pill}>
       <Animated.View style={{ transform: [{ scale }] }}>
         <HeartIcon filled color="#F5996E" size={11} />
       </Animated.View>
-      <Text style={st.pillText}>{label}</Text>
+      <Text style={staticSt.pillText}>{label}</Text>
     </View>
   );
 }
@@ -191,10 +195,13 @@ function StatPill({ gained, state }: { gained: number; state: RtueState }) {
 // ─── YouWroteCard ─────────────────────────────────────────────────────────────
 
 function YouWroteCard({ text }: { text: string }) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createSt(color), [color]);
+
   return (
-    <View style={st.youCard}>
-      <Text style={st.youLabel}>you wrote</Text>
-      <Text style={st.youText} numberOfLines={5} ellipsizeMode="tail">{text}</Text>
+    <View style={staticSt.youCard}>
+      <Text style={staticSt.youLabel}>you wrote</Text>
+      <Text style={styles.youText} numberOfLines={5} ellipsizeMode="tail">{text}</Text>
     </View>
   );
 }
@@ -204,6 +211,9 @@ function YouWroteCard({ text }: { text: string }) {
 export default function RtueScreen() {
   const { width: W, height: H } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const color  = useThemeColors();
+  const styles = useMemo(() => createSt(color), [color]);
+
   const [moment, setMoment] = useState<RtueMoment | null | 'loading'>('loading');
 
   useEffect(() => {
@@ -234,41 +244,41 @@ export default function RtueScreen() {
   const animFrom = lastSeen ?? Math.max(0, current - Math.min(gained, 30));
 
   return (
-    <View style={[st.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <ScreenGlow glowColor={glow.color} opacity={glow.opacity} W={W} H={H} />
 
-      <View style={st.content}>
+      <View style={styles.content}>
 
         {/* Logo + kick */}
         <Image
           source={require('../assets/splash-icon.png')}
-          style={st.logo}
+          style={staticSt.logo}
           resizeMode="contain"
           accessibilityElementsHidden
         />
-        <Text style={st.kick}>welcome back</Text>
+        <Text style={staticSt.kick}>welcome back</Text>
 
         {/* Headline */}
-        <Text style={st.hi}>{copy.hi}</Text>
+        <Text style={styles.hi}>{copy.hi}</Text>
 
         {/* Your confession mini-card */}
         <YouWroteCard text={text} />
 
         {/* Moment: count or big text */}
-        <View style={st.moment}>
+        <View style={staticSt.moment}>
           {state === 'not_yet' ? (
-            <Text style={st.bigText}>out there,{'\n'}finding its person</Text>
+            <Text style={styles.bigText}>out there,{'\n'}finding its person</Text>
           ) : (
             <>
               <AnimatedCount from={animFrom} to={current} state={state} />
-              <Text style={st.feltLabel}>{copy.feltLabel}</Text>
+              <Text style={styles.feltLabel}>{copy.feltLabel}</Text>
               {gained > 0 && <StatPill gained={gained} state={state} />}
             </>
           )}
         </View>
 
         {/* Sub-text */}
-        <Text style={st.sub}>{copy.sub(gained, current)}</Text>
+        <Text style={staticSt.sub}>{copy.sub(gained, current)}</Text>
 
         {/* Push CTAs to bottom */}
         <View style={{ flex: 1 }} />
@@ -280,11 +290,11 @@ export default function RtueScreen() {
         <Pressable
           onPress={() => dismiss(copy.ghostDest)}
           hitSlop={12}
-          style={st.ghostWrap}
+          style={staticSt.ghostWrap}
           accessibilityRole="button"
           accessibilityLabel={copy.ghost}
         >
-          <Text style={st.ghost}>{copy.ghost}</Text>
+          <Text style={staticSt.ghost}>{copy.ghost}</Text>
         </Pressable>
 
       </View>
@@ -292,21 +302,9 @@ export default function RtueScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Static styles (no color tokens) ─────────────────────────────────────────
 
-const st = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.ink,
-  },
-  content: {
-    flex:              1,
-    paddingHorizontal: 28,
-    paddingTop:        16,
-    paddingBottom:     8,
-    alignItems:        'center',
-  },
-
+const staticSt = StyleSheet.create({
   logo: {
     width:     24,
     height:    24,
@@ -322,16 +320,6 @@ const st = StyleSheet.create({
     color:         'rgba(243,238,232,0.70)',
     marginTop:     8,
   },
-  hi: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   23,
-    lineHeight: 27,
-    color:      color.paper,
-    textAlign:  'center',
-    marginTop:  6,
-  },
-
-  // "you wrote" card
   youCard: {
     width:           '100%',
     backgroundColor: '#0B0910',
@@ -349,14 +337,6 @@ const st = StyleSheet.create({
     color:         '#F5996E',
     marginBottom:  4,
   },
-  youText: {
-    fontFamily: fontFamily.serif,
-    fontSize:   12,
-    lineHeight: 17,
-    color:      color.paper,
-  },
-
-  // Moment area
   moment: {
     marginTop:      14,
     alignItems:     'center',
@@ -364,28 +344,6 @@ const st = StyleSheet.create({
     justifyContent: 'center',
     gap:            4,
   },
-  count: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   44,
-    lineHeight: 48,
-  },
-  feltLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      9.5,
-    letterSpacing: 0.66,
-    textTransform: 'uppercase',
-    color:         color.dim,
-    textAlign:     'center',
-  },
-  bigText: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   20,
-    lineHeight: 24,
-    color:      color.paper,
-    textAlign:  'center',
-  },
-
-  // Stat pill
   pill: {
     flexDirection:     'row',
     alignItems:        'center',
@@ -404,8 +362,6 @@ const st = StyleSheet.create({
     color:         '#F5996E',
     letterSpacing: 0.1,
   },
-
-  // Sub text
   sub: {
     fontFamily: fontFamily.sans,
     fontSize:   11.5,
@@ -415,8 +371,6 @@ const st = StyleSheet.create({
     marginTop:  12,
     maxWidth:   240,
   },
-
-  // Ghost
   ghostWrap: {
     marginTop:  9,
     alignItems: 'center',
@@ -427,3 +381,55 @@ const st = StyleSheet.create({
     color:      'rgba(243,238,232,0.70)',
   },
 });
+
+// ─── Dynamic styles (use color tokens) ───────────────────────────────────────
+
+function createSt(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.ink,
+    },
+    content: {
+      flex:              1,
+      paddingHorizontal: 28,
+      paddingTop:        16,
+      paddingBottom:     8,
+      alignItems:        'center',
+    },
+    hi: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   23,
+      lineHeight: 27,
+      color:      color.paper,
+      textAlign:  'center',
+      marginTop:  6,
+    },
+    youText: {
+      fontFamily: fontFamily.serif,
+      fontSize:   12,
+      lineHeight: 17,
+      color:      color.paper,
+    },
+    count: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   44,
+      lineHeight: 48,
+    },
+    feltLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      9.5,
+      letterSpacing: 0.66,
+      textTransform: 'uppercase',
+      color:         color.dim,
+      textAlign:     'center',
+    },
+    bigText: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   20,
+      lineHeight: 24,
+      color:      color.paper,
+      textAlign:  'center',
+    },
+  });
+}

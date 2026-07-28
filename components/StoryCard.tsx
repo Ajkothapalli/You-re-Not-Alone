@@ -14,11 +14,12 @@
  *   await shareConfessionCard(storyRef);
  */
 
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import type { Palette } from '../theme/palettes';
-import { color, fontFamily } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, fontFamily } from '../theme/tokens';
 
 export const STORY_W = 360;
 export const STORY_H = 640;
@@ -51,6 +52,8 @@ export const StoryCard = forwardRef<View, Props>(function StoryCard(
   { youText, themText, feltCount, palette },
   ref,
 ) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
   const [back, mid, front] = palette.bands;
 
   return (
@@ -167,81 +170,83 @@ export const StoryCard = forwardRef<View, Props>(function StoryCard(
 
 const LABEL_SIZE = 9;
 
-const styles = StyleSheet.create({
-  canvas: {
-    position:        'absolute',
-    left:            -9999,
-    top:             0,
-    width:           STORY_W,
-    height:          STORY_H,
-    backgroundColor: color.ink,
-    overflow:        'hidden',
-  },
-  wordmark: {
-    fontFamily:  fontFamily.serifItalic,
-    fontSize:    18,
-    color:       color.dim,
-    textAlign:   'center',
-    marginTop:   40,
-  },
-  card: {
-    position:        'absolute',
-    left:            CARD_LEFT,
-    top:             CARD_TOP,
-    width:           CARD_W,
-    height:          CARD_H,
-    backgroundColor: color.ink,
-    borderRadius:    26,
-    overflow:        'hidden',
-  },
-  cardContent: {
-    flex:    1,
-    padding: 24,
-  },
-  label: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      LABEL_SIZE,
-    letterSpacing: LABEL_SIZE * 0.18,
-    textTransform: 'uppercase',
-    marginBottom:  4,
-  },
-  confessionText: {
-    fontFamily:   fontFamily.serif,
-    fontSize:     14,
-    lineHeight:   21,
-    color:        color.paper,
-    marginBottom: 4,
-  },
-  seamContainer: {
-    marginVertical: 14,
-    gap:            6,
-    alignItems:     'center',
-  },
-  seamLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      LABEL_SIZE,
-    letterSpacing: LABEL_SIZE * 0.18,
-    textTransform: 'uppercase',
-    color:         color.dim,
-  },
-  footer: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-    paddingTop:     10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: color.line,
-  },
-  footerFelt: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      LABEL_SIZE,
-    letterSpacing: LABEL_SIZE * 0.18,
-    textTransform: 'uppercase',
-    color:         color.feltText,
-  },
-  footerYNA: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   11,
-    color:      color.youreNotAlone,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    canvas: {
+      position:        'absolute',
+      left:            -9999,
+      top:             0,
+      width:           STORY_W,
+      height:          STORY_H,
+      backgroundColor: color.ink,
+      overflow:        'hidden',
+    },
+    wordmark: {
+      fontFamily:  fontFamily.serifItalic,
+      fontSize:    18,
+      color:       color.dim,
+      textAlign:   'center',
+      marginTop:   40,
+    },
+    card: {
+      position:        'absolute',
+      left:            CARD_LEFT,
+      top:             CARD_TOP,
+      width:           CARD_W,
+      height:          CARD_H,
+      backgroundColor: color.ink,
+      borderRadius:    26,
+      overflow:        'hidden',
+    },
+    cardContent: {
+      flex:    1,
+      padding: 24,
+    },
+    label: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      LABEL_SIZE,
+      letterSpacing: LABEL_SIZE * 0.18,
+      textTransform: 'uppercase',
+      marginBottom:  4,
+    },
+    confessionText: {
+      fontFamily:   fontFamily.serif,
+      fontSize:     14,
+      lineHeight:   21,
+      color:        color.paper,
+      marginBottom: 4,
+    },
+    seamContainer: {
+      marginVertical: 14,
+      gap:            6,
+      alignItems:     'center',
+    },
+    seamLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      LABEL_SIZE,
+      letterSpacing: LABEL_SIZE * 0.18,
+      textTransform: 'uppercase',
+      color:         color.dim,
+    },
+    footer: {
+      flexDirection:  'row',
+      justifyContent: 'space-between',
+      alignItems:     'center',
+      paddingTop:     10,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: color.line,
+    },
+    footerFelt: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      LABEL_SIZE,
+      letterSpacing: LABEL_SIZE * 0.18,
+      textTransform: 'uppercase',
+      color:         color.feltText,
+    },
+    footerYNA: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   11,
+      color:      color.youreNotAlone,
+    },
+  });
+}

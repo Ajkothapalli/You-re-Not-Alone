@@ -1,10 +1,11 @@
 import * as Haptics from 'expo-haptics';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
 import { HeartIcon } from './HeartIcon';
 import { getPersona, PersonaBadge } from './Persona';
 import type { Palette } from '../theme/palettes';
-import { color, font, fontFamily, radius } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, radius } from '../theme/tokens';
 import { announce, useReducedMotion } from '../lib/a11y';
 
 const SHADOW = 5;
@@ -61,6 +62,9 @@ function TickChar({ char, isChanged, felt, reduceMotion, style }: {
 const MAX_LINES = 6;
 
 export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed }: Props) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const [felt,        setFelt]        = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const persona = getPersona(personaSeed);
@@ -221,81 +225,83 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
   );
 }
 
-const styles = StyleSheet.create({
-  outerShell: {
-    alignSelf:     'stretch',
-    paddingRight:  SHADOW,
-    paddingBottom: SHADOW,
-    position:      'relative',
-  },
-  shadowBlock: {
-    position:     'absolute',
-    top:          SHADOW,
-    left:         SHADOW,
-    right:        0,
-    bottom:       0,
-    borderRadius: radius.card,
-  },
-  card: {
-    minHeight:       220,
-    backgroundColor: color.ink,
-    borderRadius:    radius.card,
-    borderWidth:     2,
-    borderColor:     color.border,
-    overflow:        'hidden',
-  },
-  content: {
-    flex:    1,
-    padding: 28,
-  },
-  bodyArea: {
-    flexShrink: 1,
-  },
-  personaRow: {
-    marginBottom: 14,
-  },
-  body: {
-    fontFamily: fontFamily.serif,
-    fontSize:   font.confessionSize,
-    lineHeight: font.confessionLineHeight,
-    color:      color.paper,
-  },
-  readMore: {
-    fontFamily:         fontFamily.sans,
-    fontSize:           12,
-    color:              color.dim,
-    textDecorationLine: 'underline',
-    marginTop:          6,
-  },
-  spacer: {
-    minHeight: 32,
-    flex:      1,
-  },
-  footer: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-    paddingTop:     16,
-  },
-  feltRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           4,
-  },
-  countRow: {
-    flexDirection: 'row',
-    overflow:      'hidden',
-  },
-  feltSuffix: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-  },
-  reportLink: {
-    fontFamily:         fontFamily.sans,
-    fontSize:           12,
-    color:              color.dim,
-    textDecorationLine: 'underline',
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    outerShell: {
+      alignSelf:     'stretch',
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+      position:      'relative',
+    },
+    shadowBlock: {
+      position:     'absolute',
+      top:          SHADOW,
+      left:         SHADOW,
+      right:        0,
+      bottom:       0,
+      borderRadius: radius.card,
+    },
+    card: {
+      minHeight:       220,
+      backgroundColor: color.ink,
+      borderRadius:    radius.card,
+      borderWidth:     2,
+      borderColor:     color.border,
+      overflow:        'hidden',
+    },
+    content: {
+      flex:    1,
+      padding: 28,
+    },
+    bodyArea: {
+      flexShrink: 1,
+    },
+    personaRow: {
+      marginBottom: 14,
+    },
+    body: {
+      fontFamily: fontFamily.serif,
+      fontSize:   font.confessionSize,
+      lineHeight: font.confessionLineHeight,
+      color:      color.paper,
+    },
+    readMore: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           12,
+      color:              color.dim,
+      textDecorationLine: 'underline',
+      marginTop:          6,
+    },
+    spacer: {
+      minHeight: 32,
+      flex:      1,
+    },
+    footer: {
+      flexDirection:  'row',
+      justifyContent: 'space-between',
+      alignItems:     'center',
+      paddingTop:     16,
+    },
+    feltRow: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           4,
+    },
+    countRow: {
+      flexDirection: 'row',
+      overflow:      'hidden',
+    },
+    feltSuffix: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+    },
+    reportLink: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           12,
+      color:              color.dim,
+      textDecorationLine: 'underline',
+    },
+  });
+}

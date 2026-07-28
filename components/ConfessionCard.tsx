@@ -13,10 +13,11 @@
  * Entrance: fades + rises + scales in on mount (700ms, Easing.out cubic).
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import type { Palette } from '../theme/palettes';
-import { color, font, fontFamily, radius, spacing } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, radius, spacing } from '../theme/tokens';
 import { useReducedMotion } from '../lib/a11y';
 
 const SHADOW = 5;
@@ -38,6 +39,8 @@ export function WaveBackground(_: { bands: Palette['bands'] }) {
 // Solid palette.you line with "someone, at the same moment" label below.
 
 function Seam({ you }: { you: string }) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
   return (
     <View style={styles.seamContainer}>
       <View style={[styles.seamLine, { backgroundColor: you }]} />
@@ -49,6 +52,8 @@ function Seam({ you }: { you: string }) {
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 export default function ConfessionCard({ youText, themText, feltCount, palette, style }: Props) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
   const anim = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReducedMotion();
 
@@ -120,83 +125,85 @@ export default function ConfessionCard({ youText, themText, feltCount, palette, 
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  outerShell: {
-    width:         340,
-    paddingRight:  SHADOW,
-    paddingBottom: SHADOW,
-    position:      'relative',
-  },
-  shadowBlock: {
-    position:     'absolute',
-    top:          SHADOW,
-    left:         SHADOW,
-    right:        0,
-    bottom:       0,
-    borderRadius: radius.card,
-  },
-  card: {
-    width:           340 - SHADOW,
-    minHeight:       472,
-    backgroundColor: color.ink,
-    borderRadius:    radius.card,
-    borderWidth:     2,
-    borderColor:     color.border,
-    overflow:        'hidden',
-  },
-  content: {
-    flex:    1,
-    padding: spacing.cardPadding,
-    minHeight: 472,
-  },
-  label: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    marginBottom:  6,
-  },
-  confessionText: {
-    fontFamily:   fontFamily.serif,
-    fontSize:     font.confessionSize,
-    lineHeight:   font.confessionLineHeight,
-    color:        color.paper,
-    marginBottom: 4,
-  },
-  seamContainer: {
-    marginVertical: 20,
-    gap:            8,
-    alignItems:     'center',
-  },
-  seamLine: {
-    width:  '100%',
-    height: 2,
-  },
-  seamLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         color.dim,
-  },
-  footer: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-    paddingTop:     12,
-    borderTopWidth: 2,
-    borderTopColor: color.line,
-  },
-  footerFelt: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         color.feltText,
-  },
-  footerYNA: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   13,
-    color:      color.youreNotAlone,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    outerShell: {
+      width:         340,
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+      position:      'relative',
+    },
+    shadowBlock: {
+      position:     'absolute',
+      top:          SHADOW,
+      left:         SHADOW,
+      right:        0,
+      bottom:       0,
+      borderRadius: radius.card,
+    },
+    card: {
+      width:           340 - SHADOW,
+      minHeight:       472,
+      backgroundColor: color.ink,
+      borderRadius:    radius.card,
+      borderWidth:     2,
+      borderColor:     color.border,
+      overflow:        'hidden',
+    },
+    content: {
+      flex:    1,
+      padding: spacing.cardPadding,
+      minHeight: 472,
+    },
+    label: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      marginBottom:  6,
+    },
+    confessionText: {
+      fontFamily:   fontFamily.serif,
+      fontSize:     font.confessionSize,
+      lineHeight:   font.confessionLineHeight,
+      color:        color.paper,
+      marginBottom: 4,
+    },
+    seamContainer: {
+      marginVertical: 20,
+      gap:            8,
+      alignItems:     'center',
+    },
+    seamLine: {
+      width:  '100%',
+      height: 2,
+    },
+    seamLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.dim,
+    },
+    footer: {
+      flexDirection:  'row',
+      justifyContent: 'space-between',
+      alignItems:     'center',
+      paddingTop:     12,
+      borderTopWidth: 2,
+      borderTopColor: color.line,
+    },
+    footerFelt: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.feltText,
+    },
+    footerYNA: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   13,
+      color:      color.youreNotAlone,
+    },
+  });
+}

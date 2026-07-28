@@ -31,9 +31,10 @@
  */
 
 import * as SplashScreen from 'expo-splash-screen';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text } from 'react-native';
-import { color, fontFamily } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, fontFamily } from '../theme/tokens';
 import { useReducedMotion } from '../lib/a11y';
 
 const LOGO_SIZE  = 220;            // must match app.json imageWidth
@@ -49,6 +50,9 @@ interface Props {
 }
 
 export default function AnimatedSplash({ onDone }: Props) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const spread    = useRef(new Animated.Value(0)).current; // 0 = together, 1 = apart
   const pulse     = useRef(new Animated.Value(0)).current; // meeting heartbeat
   const floatL    = useRef(new Animated.Value(0)).current; // idle bob, left
@@ -248,38 +252,40 @@ export default function AnimatedSplash({ onDone }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    position:        'absolute',
-    top:             0,
-    right:           0,
-    bottom:          0,
-    left:            0,
-    backgroundColor: color.ink,
-    alignItems:      'center',
-    justifyContent:  'center',
-    zIndex:          999,
-    elevation:       999,
-  },
-  logoRow: {
-    flexDirection: 'row',
-    width:         LOGO_SIZE,
-    height:        LOGO_SIZE,
-  },
-  wordmarkContainer: {
-    alignItems: 'center',
-    gap:        8,
-    marginTop:  28,
-  },
-  wordmarkText: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   24,
-    color:      color.paper,
-  },
-  subText: {
-    fontFamily:    fontFamily.sans,
-    fontSize:      12,
-    color:         color.dim,
-    letterSpacing: 0.3,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    overlay: {
+      position:        'absolute',
+      top:             0,
+      right:           0,
+      bottom:          0,
+      left:            0,
+      backgroundColor: color.ink,
+      alignItems:      'center',
+      justifyContent:  'center',
+      zIndex:          999,
+      elevation:       999,
+    },
+    logoRow: {
+      flexDirection: 'row',
+      width:         LOGO_SIZE,
+      height:        LOGO_SIZE,
+    },
+    wordmarkContainer: {
+      alignItems: 'center',
+      gap:        8,
+      marginTop:  28,
+    },
+    wordmarkText: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   24,
+      color:      color.paper,
+    },
+    subText: {
+      fontFamily:    fontFamily.sans,
+      fontSize:      12,
+      color:         color.dim,
+      letterSpacing: 0.3,
+    },
+  });
+}

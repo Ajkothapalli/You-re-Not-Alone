@@ -10,12 +10,16 @@
  */
 import { analytics } from '@/lib/analytics';
 import { GhostButton } from '@/components/Buttons';
-import { color, fontFamily, font, spacing } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function CrisisScreen() {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   useEffect(() => {
     analytics.crisisFlagged();
   }, []);
@@ -80,72 +84,74 @@ export default function CrisisScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  scroll: {
-    flexGrow:        1,
-    padding:         spacing.screenPadding,
-    paddingVertical: 60,
-    gap:             24,
-  },
-  heading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   26,
-    color:      color.paper,
-    lineHeight: 36,
-  },
-  body: {
-    fontFamily: fontFamily.sans,
-    fontSize:   15,
-    color:      color.dim,
-    lineHeight: 24,
-  },
-  disclaimer: {
-    borderLeftWidth: 3,
-    borderLeftColor: '#F5996E',
-    paddingLeft:     14,
-    gap:             8,
-  },
-  disclaimerText: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-    lineHeight: 21,
-  },
-  linksSection: {
-    gap: 10,
-  },
-  sectionLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         color.dim,
-    marginBottom:  4,
-  },
-  linkCard: {
-    backgroundColor: 'rgba(243,238,232,0.05)',
-    borderRadius:    12,
-    padding:         16,
-    gap:             4,
-  },
-  linkName: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   15,
-    color:      color.paper,
-  },
-  linkUrl: {
-    fontFamily:         fontFamily.sans,
-    fontSize:           15,
-    color:              '#6E96FF',
-    textDecorationLine: 'underline',
-  },
-  linkNote: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    color:      color.dim,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    scroll: {
+      flexGrow:        1,
+      padding:         spacing.screenPadding,
+      paddingVertical: 60,
+      gap:             24,
+    },
+    heading: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   26,
+      color:      color.paper,
+      lineHeight: 36,
+    },
+    body: {
+      fontFamily: fontFamily.sans,
+      fontSize:   15,
+      color:      color.dim,
+      lineHeight: 24,
+    },
+    disclaimer: {
+      borderLeftWidth: 3,
+      borderLeftColor: '#F5996E',
+      paddingLeft:     14,
+      gap:             8,
+    },
+    disclaimerText: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+      lineHeight: 21,
+    },
+    linksSection: {
+      gap: 10,
+    },
+    sectionLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.dim,
+      marginBottom:  4,
+    },
+    linkCard: {
+      backgroundColor: 'rgba(243,238,232,0.05)',
+      borderRadius:    12,
+      padding:         16,
+      gap:             4,
+    },
+    linkName: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   15,
+      color:      color.paper,
+    },
+    linkUrl: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           15,
+      color:              '#6E96FF',
+      textDecorationLine: 'underline',
+    },
+    linkNote: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      color:      color.dim,
+    },
+  });
+}

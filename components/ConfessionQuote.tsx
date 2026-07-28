@@ -1,5 +1,7 @@
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { color, fontFamily } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily } from '@/theme/tokens';
 
 const QUOTES = [
   {
@@ -67,6 +69,8 @@ function todaysQuote() {
 }
 
 export default function ConfessionQuote() {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
   const q = todaysQuote();
   return (
     <View style={styles.wrap}>
@@ -77,34 +81,36 @@ export default function ConfessionQuote() {
   );
 }
 
-const styles = StyleSheet.create({
-  wrap: {
-    alignItems:  'center',
-    paddingTop:  8,
-    paddingBottom: 8,
-    gap:         8,
-  },
-  mark: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   36,
-    color:      color.dim,
-    lineHeight: 28,
-    opacity:    0.5,
-  },
-  text: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   15,
-    color:      color.dim,
-    textAlign:  'center',
-    lineHeight: 23,
-    opacity:    0.85,
-  },
-  author: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12,
-    color:      color.dim,
-    textAlign:  'center',
-    opacity:    0.55,
-    marginTop:  2,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    wrap: {
+      alignItems:  'center',
+      paddingTop:  8,
+      paddingBottom: 8,
+      gap:         8,
+    },
+    mark: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   36,
+      color:      color.dim,
+      lineHeight: 28,
+      opacity:    0.5,
+    },
+    text: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   15,
+      color:      color.dim,
+      textAlign:  'center',
+      lineHeight: 23,
+      opacity:    0.85,
+    },
+    author: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      color:      color.dim,
+      textAlign:  'center',
+      opacity:    0.55,
+      marginTop:  2,
+    },
+  });
+}

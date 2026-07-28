@@ -10,9 +10,10 @@ import { CATEGORIES } from '@/lib/categories';
 import { getReaderPreferences, saveReaderPreferences } from '@/lib/api';
 import { announce } from '@/lib/a11y';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
-import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Pressable,
@@ -36,6 +37,9 @@ type ChipProps = {
 };
 
 function CategoryChip({ label, description, id, selected, width, onToggle }: ChipProps) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   // Drives the inner dot appearing / disappearing (native thread only)
   const dotScale  = useRef(new Animated.Value(selected ? 1 : 0)).current;
   // Subtle card press-in/out feedback
@@ -105,6 +109,9 @@ export default function CategoriesScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const params                 = useLocalSearchParams<{ mode?: string }>();
   const isEdit                 = params.mode === 'edit';
+
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
 
   // Two columns, 10px gap, 20px side padding each side
   const cardWidth = (screenWidth - spacing.screenPadding * 2 - 10) / 2;
@@ -208,94 +215,96 @@ export default function CategoriesScreen() {
 
 const ACCENT = '#C4AEDE';
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  scroller: { flex: 1 },
-  scroll: {
-    padding:       spacing.screenPadding,
-    paddingTop:    8,
-    paddingBottom: 32,
-    gap:           20,
-  },
-  backLabel: { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim },
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    scroller: { flex: 1 },
+    scroll: {
+      padding:       spacing.screenPadding,
+      paddingTop:    8,
+      paddingBottom: 32,
+      gap:           20,
+    },
+    backLabel: { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim },
 
-  heading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   26,
-    color:      color.paper,
-    lineHeight: 34,
-  },
-  sub: {
-    fontFamily:   fontFamily.sans,
-    fontSize:     14,
-    color:        color.dim,
-    lineHeight:   21,
-    marginBottom: 4,
-  },
+    heading: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   26,
+      color:      color.paper,
+      lineHeight: 34,
+    },
+    sub: {
+      fontFamily:   fontFamily.sans,
+      fontSize:     14,
+      color:        color.dim,
+      lineHeight:   21,
+      marginBottom: 4,
+    },
 
-  grid: {
-    flexDirection: 'row',
-    flexWrap:      'wrap',
-    gap:           10,
-  },
+    grid: {
+      flexDirection: 'row',
+      flexWrap:      'wrap',
+      gap:           10,
+    },
 
-  chip: {
-    backgroundColor: color.ink,
-    borderRadius:    radius.input,
-    padding:         18,
-    borderWidth:     1.5,
-    borderColor:     'transparent',
-    minHeight:       120,
-    gap:             8,
-  },
-  chipOn: {
-    borderColor:     ACCENT,
-    backgroundColor: 'rgba(196,174,222,0.10)',
-  },
+    chip: {
+      backgroundColor: color.ink,
+      borderRadius:    radius.input,
+      padding:         18,
+      borderWidth:     1.5,
+      borderColor:     'transparent',
+      minHeight:       120,
+      gap:             8,
+    },
+    chipOn: {
+      borderColor:     ACCENT,
+      backgroundColor: 'rgba(196,174,222,0.10)',
+    },
 
-  // circle
-  circle: {
-    position:       'absolute',
-    top:            14,
-    right:          14,
-    width:          20,
-    height:         20,
-    borderRadius:   10,
-    borderWidth:    1.5,
-    borderColor:    color.dim,
-    alignItems:     'center',
-    justifyContent: 'center',
-  },
-  circleOn: {
-    borderColor:     ACCENT,
-    backgroundColor: ACCENT,
-  },
-  circleDot: {
-    color:      color.paper,
-    fontSize:   11,
-    lineHeight: 13,
-    fontFamily: fontFamily.sansBold,
-  },
+    // circle
+    circle: {
+      position:       'absolute',
+      top:            14,
+      right:          14,
+      width:          20,
+      height:         20,
+      borderRadius:   10,
+      borderWidth:    1.5,
+      borderColor:    color.dim,
+      alignItems:     'center',
+      justifyContent: 'center',
+    },
+    circleOn: {
+      borderColor:     ACCENT,
+      backgroundColor: ACCENT,
+    },
+    circleDot: {
+      color:      color.paper,
+      fontSize:   11,
+      lineHeight: 13,
+      fontFamily: fontFamily.sansBold,
+    },
 
-  chipLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         color.paper,
-    paddingRight:  26,
-  },
-  chipLabelOn: { color: ACCENT },
+    chipLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.paper,
+      paddingRight:  26,
+    },
+    chipLabelOn: { color: ACCENT },
 
-  chipDesc: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12,
-    color:      color.dim,
-    lineHeight: 17,
-  },
+    chipDesc: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      color:      color.dim,
+      lineHeight: 17,
+    },
 
-  actions: { gap: 12 },
-});
+    actions: { gap: 12 },
+  });
+}

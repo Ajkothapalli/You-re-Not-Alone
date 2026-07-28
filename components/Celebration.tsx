@@ -22,7 +22,8 @@ import {
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import type { Palette } from '../theme/palettes';
-import { color, fontFamily } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, fontFamily } from '../theme/tokens';
 import { announce, useReducedMotion } from '../lib/a11y';
 import { incrementReleaseCount, ordinal } from '../lib/profile';
 
@@ -56,6 +57,8 @@ interface Piece {
 export function Celebration({ palette, onDone }: Props) {
   const { width, height } = useWindowDimensions();
   const reduceMotion = useReducedMotion();
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
 
   const headline = useMemo(
     () => AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)],
@@ -233,38 +236,40 @@ export function Celebration({ palette, onDone }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    position: 'absolute',
-    top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: color.ink,
-    zIndex: 10,
-  },
-  center: { justifyContent: 'center', alignItems: 'center' },
-  textContainer: { alignItems: 'center', gap: 10, marginTop: 90, paddingHorizontal: 32 },
-  headline: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   28,
-    color:      color.paper,
-    textAlign:  'center',
-  },
-  countLine: { textAlign: 'center' },
-  countNum: {
-    fontFamily: fontFamily.serif,
-    fontSize:   20,
-  },
-  countRest: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      12,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    color:         color.dim,
-  },
-  sub: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13.5,
-    color:      color.dim,
-    textAlign:  'center',
-    marginTop:  2,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    overlay: {
+      position: 'absolute',
+      top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: color.ink,
+      zIndex: 10,
+    },
+    center: { justifyContent: 'center', alignItems: 'center' },
+    textContainer: { alignItems: 'center', gap: 10, marginTop: 90, paddingHorizontal: 32 },
+    headline: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   28,
+      color:      color.paper,
+      textAlign:  'center',
+    },
+    countLine: { textAlign: 'center' },
+    countNum: {
+      fontFamily: fontFamily.serif,
+      fontSize:   20,
+    },
+    countRest: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      12,
+      letterSpacing: 1.5,
+      textTransform: 'uppercase',
+      color:         color.dim,
+    },
+    sub: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13.5,
+      color:      color.dim,
+      textAlign:  'center',
+      marginTop:  2,
+    },
+  });
+}

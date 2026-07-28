@@ -20,9 +20,10 @@ import { analytics } from '@/lib/analytics';
 import { getMatchingCount, getOnboardingConfessions, reportConfession, type ReadConfession } from '@/lib/api';
 import { session } from '@/lib/sessionFlags';
 import { palettes } from '@/theme/palettes';
-import { color, fontFamily, radius, spacing } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -49,6 +50,8 @@ const FALLBACK_CONFESSIONS: ReadConfession[] = [
 ];
 
 export default function ReadScreen() {
+  const color = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
   const { from } = useLocalSearchParams<{ from?: string }>();
 
   const [items,      setItems]      = useState<ReadConfession[]>([]);
@@ -190,128 +193,130 @@ export default function ReadScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  center: {
-    flex:            1,
-    backgroundColor: color.bg,
-    justifyContent:  'center',
-    alignItems:      'center',
-  },
-  scroll: {
-    flexGrow:      1,
-    padding:       spacing.screenPadding,
-    paddingTop:    64,
-    paddingBottom: 64,
-    gap:           24,
-  },
-  topBar: {
-    flexDirection: 'row',
-    marginBottom:  4,
-  },
-  header: {
-    gap: 10,
-  },
-  heading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   26,
-    color:      color.paper,
-    textAlign:  'center',
-  },
-  sub: {
-    fontFamily:   fontFamily.sans,
-    fontSize:     15,
-    color:        color.dim,
-    textAlign:    'center',
-    lineHeight:   22,
-    marginBottom: 4,
-  },
-  actions: {
-    alignItems: 'center',
-    gap:        12,
-    marginTop:  8,
-  },
-  writeHint: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    color:      color.dim,
-    textAlign:  'center',
-  },
-  orRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           12,
-  },
-  orLine: {
-    flex:            1,
-    height:          StyleSheet.hairlineWidth,
-    backgroundColor: color.line,
-  },
-  orText: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12,
-    color:      color.dim,
-  },
-  promoCard: {
-    backgroundColor: '#16131C',
-    borderRadius:    radius.input,
-    borderWidth:     1,
-    borderColor:     '#FBBF2444',
-    padding:         20,
-    gap:             12,
-  },
-  promoCardPressed: {
-    backgroundColor: '#1C1824',
-  },
-  promoTop: {
-    flexDirection:  'row',
-    justifyContent: 'space-between',
-    alignItems:     'center',
-  },
-  promoEyebrow: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      10,
-    letterSpacing: 1.6,
-    color:         '#FBBF24',
-  },
-  promoStat: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   12,
-    color:      color.dim,
-  },
-  promoTitle: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   24,
-    color:      color.paper,
-    lineHeight: 30,
-  },
-  promoBody: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-    lineHeight: 21,
-  },
-  promoCta: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    backgroundColor:   '#FBBF24',
-    borderRadius:      radius.pill,
-    paddingHorizontal: 18,
-    paddingVertical:   11,
-    alignSelf:         'flex-start',
-    marginTop:         4,
-  },
-  promoCtaText: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   14,
-    color:      '#1A0A00',
-  },
-  promoCtaArrow: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   14,
-    color:      '#1A0A00',
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    center: {
+      flex:            1,
+      backgroundColor: color.bg,
+      justifyContent:  'center',
+      alignItems:      'center',
+    },
+    scroll: {
+      flexGrow:      1,
+      padding:       spacing.screenPadding,
+      paddingTop:    64,
+      paddingBottom: 64,
+      gap:           24,
+    },
+    topBar: {
+      flexDirection: 'row',
+      marginBottom:  4,
+    },
+    header: {
+      gap: 10,
+    },
+    heading: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   26,
+      color:      color.paper,
+      textAlign:  'center',
+    },
+    sub: {
+      fontFamily:   fontFamily.sans,
+      fontSize:     15,
+      color:        color.dim,
+      textAlign:    'center',
+      lineHeight:   22,
+      marginBottom: 4,
+    },
+    actions: {
+      alignItems: 'center',
+      gap:        12,
+      marginTop:  8,
+    },
+    writeHint: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      color:      color.dim,
+      textAlign:  'center',
+    },
+    orRow: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           12,
+    },
+    orLine: {
+      flex:            1,
+      height:          StyleSheet.hairlineWidth,
+      backgroundColor: color.line,
+    },
+    orText: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      color:      color.dim,
+    },
+    promoCard: {
+      backgroundColor: '#16131C',
+      borderRadius:    radius.input,
+      borderWidth:     1,
+      borderColor:     '#FBBF2444',
+      padding:         20,
+      gap:             12,
+    },
+    promoCardPressed: {
+      backgroundColor: '#1C1824',
+    },
+    promoTop: {
+      flexDirection:  'row',
+      justifyContent: 'space-between',
+      alignItems:     'center',
+    },
+    promoEyebrow: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      10,
+      letterSpacing: 1.6,
+      color:         '#FBBF24',
+    },
+    promoStat: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   12,
+      color:      color.dim,
+    },
+    promoTitle: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   24,
+      color:      color.paper,
+      lineHeight: 30,
+    },
+    promoBody: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+      lineHeight: 21,
+    },
+    promoCta: {
+      flexDirection:     'row',
+      alignItems:        'center',
+      backgroundColor:   '#FBBF24',
+      borderRadius:      radius.pill,
+      paddingHorizontal: 18,
+      paddingVertical:   11,
+      alignSelf:         'flex-start',
+      marginTop:         4,
+    },
+    promoCtaText: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   14,
+      color:      '#1A0A00',
+    },
+    promoCtaArrow: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   14,
+      color:      '#1A0A00',
+    },
+  });
+}

@@ -6,10 +6,10 @@ import { submitConfession } from '@/lib/api';
 import { useDraft } from '@/lib/draftContext';
 import { getDeviceHash } from '@/lib/deviceHash';
 import { session } from '@/lib/sessionFlags';
-import { usePalette } from '@/theme/ThemeProvider';
-import { color, fontFamily, spacing } from '@/theme/tokens';
+import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -24,6 +24,8 @@ const MIN_CHARS = 1;
 
 export default function WriteScreen() {
   const palette                        = usePalette();
+  const color                          = useThemeColors();
+  const styles                         = useMemo(() => createStyles(color), [color]);
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading, setLoading]          = useState(false);
   const { prefillText }                = useLocalSearchParams<{ prefillText?: string }>();
@@ -123,40 +125,42 @@ export default function WriteScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:              1,
-    backgroundColor:   color.bg,
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop:        60,
-  },
-  topBar: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           12,
-    marginBottom:  14,
-  },
-  backLabel: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   18,
-    color:      color.dim,
-    lineHeight: 22,
-  },
-  header:    { marginBottom: 16 },
-  prompt: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   22,
-    color:      color.paper,
-    lineHeight: 32,
-  },
-  inputArea: { flex: 1 },
-  footer: {
-    paddingVertical: 20,
-    gap:             12,
-  },
-  privacyNote: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    textAlign:  'center',
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:              1,
+      backgroundColor:   color.bg,
+      paddingHorizontal: spacing.screenPadding,
+      paddingTop:        60,
+    },
+    topBar: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           12,
+      marginBottom:  14,
+    },
+    backLabel: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   18,
+      color:      color.dim,
+      lineHeight: 22,
+    },
+    header:    { marginBottom: 16 },
+    prompt: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   22,
+      color:      color.paper,
+      lineHeight: 32,
+    },
+    inputArea: { flex: 1 },
+    footer: {
+      paddingVertical: 20,
+      gap:             12,
+    },
+    privacyNote: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      textAlign:  'center',
+    },
+  });
+}

@@ -19,9 +19,10 @@
 import { GhostButton } from '@/components/Buttons';
 import { showDialog } from '@/components/AppDialog';
 import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
-import { color, fontFamily, radius, spacing } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -59,6 +60,9 @@ function ConfessionRow({
   onEdit:   (item: OwnConfession) => void;
   onRemove: (id: string) => void;
 }) {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const statusLabel = STATUS_LABEL[item.status] ?? item.status;
   const statusColor = STATUS_COLOR[item.status] ?? color.dim;
   const isGone      = item.status === 'retired' || item.status === 'removed' || item.status === 'deleted';
@@ -104,6 +108,9 @@ function ConfessionRow({
 
 export default function MyConfessionsScreen() {
   const insets = useSafeAreaInsets();
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const [confessions, setConfessions] = useState<OwnConfession[]>([]);
   const [loading, setLoading]         = useState(true);
   const [error,   setError]           = useState<string | null>(null);
@@ -233,112 +240,114 @@ export default function MyConfessionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  header: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    justifyContent:    'space-between',
-    paddingHorizontal: spacing.screenPadding,
-    paddingBottom:     12,
-  },
-  back: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-    width:      60,
-  },
-  title: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   17,
-    color:      color.paper,
-  },
-  center: {
-    flex:           1,
-    alignItems:     'center',
-    justifyContent: 'center',
-    padding:        spacing.screenPadding,
-  },
-  emptyText: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-    textAlign:  'center',
-    lineHeight: 22,
-  },
-  list: {
-    padding:       spacing.screenPadding,
-    paddingBottom: 32,
-    gap:           12,
-  },
-  card: {
-    backgroundColor: color.ink,
-    borderRadius:    radius.card,
-    padding:         16,
-    gap:             10,
-  },
-  cardGone: { opacity: 0.5 },
-  cardHeader: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'space-between',
-  },
-  badge: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    gap:               5,
-    paddingVertical:   3,
-    paddingHorizontal: 8,
-    borderRadius:      99,
-  },
-  badgeDot: {
-    width:        6,
-    height:       6,
-    borderRadius: 3,
-  },
-  badgeText: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  felt: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11,
-    color:      color.dim,
-  },
-  text: {
-    fontFamily: fontFamily.serif,
-    fontSize:   15,
-    lineHeight: 22,
-    color:      color.paper,
-  },
-  textDim: { color: color.dim },
-  actions: {
-    flexDirection:  'row',
-    alignItems:     'center',
-    justifyContent: 'flex-end',
-    gap:            8,
-    marginTop:      2,
-  },
-  actionSep: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12,
-    color:      color.dim,
-  },
-  editLink: {
-    fontFamily:         fontFamily.sans,
-    fontSize:           12,
-    color:              color.dim,
-    textDecorationLine: 'underline',
-  },
-  removeLink: {
-    fontFamily:         fontFamily.sans,
-    fontSize:           12,
-    color:              '#C25450',
-    textDecorationLine: 'underline',
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    header: {
+      flexDirection:     'row',
+      alignItems:        'center',
+      justifyContent:    'space-between',
+      paddingHorizontal: spacing.screenPadding,
+      paddingBottom:     12,
+    },
+    back: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+      width:      60,
+    },
+    title: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   17,
+      color:      color.paper,
+    },
+    center: {
+      flex:           1,
+      alignItems:     'center',
+      justifyContent: 'center',
+      padding:        spacing.screenPadding,
+    },
+    emptyText: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+      textAlign:  'center',
+      lineHeight: 22,
+    },
+    list: {
+      padding:       spacing.screenPadding,
+      paddingBottom: 32,
+      gap:           12,
+    },
+    card: {
+      backgroundColor: color.ink,
+      borderRadius:    radius.card,
+      padding:         16,
+      gap:             10,
+    },
+    cardGone: { opacity: 0.5 },
+    cardHeader: {
+      flexDirection:  'row',
+      alignItems:     'center',
+      justifyContent: 'space-between',
+    },
+    badge: {
+      flexDirection:     'row',
+      alignItems:        'center',
+      gap:               5,
+      paddingVertical:   3,
+      paddingHorizontal: 8,
+      borderRadius:      99,
+    },
+    badgeDot: {
+      width:        6,
+      height:       6,
+      borderRadius: 3,
+    },
+    badgeText: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      10,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    felt: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      color:      color.dim,
+    },
+    text: {
+      fontFamily: fontFamily.serif,
+      fontSize:   15,
+      lineHeight: 22,
+      color:      color.paper,
+    },
+    textDim: { color: color.dim },
+    actions: {
+      flexDirection:  'row',
+      alignItems:     'center',
+      justifyContent: 'flex-end',
+      gap:            8,
+      marginTop:      2,
+    },
+    actionSep: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      color:      color.dim,
+    },
+    editLink: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           12,
+      color:              color.dim,
+      textDecorationLine: 'underline',
+    },
+    removeLink: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           12,
+      color:              '#C25450',
+      textDecorationLine: 'underline',
+    },
+  });
+}

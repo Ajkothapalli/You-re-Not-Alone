@@ -46,7 +46,8 @@ jest.mock('@/lib/a11y', () => ({
 }));
 
 jest.mock('@/theme/ThemeProvider', () => ({
-  usePalette: () => ({ name: 'test', you: '#F5996E', them: '#FBBF24', bands: ['#4C40A4'] }),
+  usePalette:      () => ({ name: 'test', you: '#F5996E', them: '#FBBF24', bands: ['#4C40A4'] }),
+  useThemeColors:  () => ({ bg: '#0A0A0A', ink: '#141414', paper: '#F5F5F5', dim: '#888888', line: '#2A2A2A', border: '#3A3A3A', accent: '#9C8BF6', feltText: '#A3A3A3', youreNotAlone: '#606060' }),
 }));
 
 import React from 'react';

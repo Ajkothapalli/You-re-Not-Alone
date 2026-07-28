@@ -1,4 +1,28 @@
-export const color = {
+export interface ColorSet {
+  bg:            string;
+  ink:           string;
+  paper:         string;
+  dim:           string;
+  line:          string;
+  border:        string;
+  accent:        string;
+  feltText:      string;
+  youreNotAlone: string;
+}
+
+export const lightColors: ColorSet = {
+  bg:            '#F7F4EF',
+  ink:           '#FFFFFF',
+  paper:         '#1A1A1A',
+  dim:           '#888888',
+  line:          'rgba(0,0,0,0.09)',
+  border:        '#1A1A1A',
+  accent:        '#FFE500',
+  feltText:      '#1A1A1A',
+  youreNotAlone: 'rgba(26,26,26,0.65)',
+};
+
+export const darkColors: ColorSet = {
   bg:            '#0A0A0A',
   ink:           '#141414',
   paper:         '#F5F5F5',
@@ -8,12 +32,15 @@ export const color = {
   accent:        '#FFE500',
   feltText:      '#FFE500',
   youreNotAlone: 'rgba(245,245,245,0.80)',
-} as const;
+};
+
+// Static fallback — use useThemeColors() for dynamic theming
+export const color: ColorSet = lightColors;
 
 export const radius = {
-  card:  4,
-  input: 4,
-  pill:  4,
+  card:  18,
+  input: 14,
+  pill:  999,
 } as const;
 
 export const spacing = {

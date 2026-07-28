@@ -21,9 +21,10 @@ import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { announce } from '@/lib/a11y';
 import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
 import { palettes } from '@/theme/palettes';
-import { color, fontFamily, spacing } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -37,6 +38,9 @@ import { showDialog } from '@/components/AppDialog';
 const DWELL_THRESHOLD_MS = 5_000;
 
 export default function ExploreScreen() {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const [confessions,     setConfessions]     = useState<Recommendation[]>([]);
   const [index,           setIndex]           = useState(0);
   const [loading,         setLoading]         = useState(true);
@@ -223,68 +227,70 @@ export default function ExploreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  center: {
-    flex:            1,
-    backgroundColor: color.bg,
-    justifyContent:  'center',
-    alignItems:      'center',
-  },
-  topBar: {
-    flexDirection:     'row',
-    justifyContent:    'space-between',
-    alignItems:        'center',
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop:        64,
-    paddingBottom:     12,
-  },
-  backBtn: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingTop:        64,
-    paddingBottom:     12,
-  },
-  backLabel: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-  },
-  progress: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12,
-    color:      color.dim,
-  },
-  fill: {
-    flex: 1,
-  },
-  scroll: {
-    padding:       spacing.screenPadding,
-    paddingTop:    8,
-    paddingBottom: 60,
-    gap:           20,
-  },
-  navRow: {
-    gap: 12,
-  },
-  endContent: {
-    flex:              1,
-    padding:           spacing.screenPadding,
-    paddingTop:        24,
-    justifyContent:    'center',
-    gap:               16,
-  },
-  endHeading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   26,
-    color:      color.paper,
-  },
-  endBody: {
-    fontFamily: fontFamily.sans,
-    fontSize:   15,
-    color:      color.dim,
-    lineHeight: 23,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    center: {
+      flex:            1,
+      backgroundColor: color.bg,
+      justifyContent:  'center',
+      alignItems:      'center',
+    },
+    topBar: {
+      flexDirection:     'row',
+      justifyContent:    'space-between',
+      alignItems:        'center',
+      paddingHorizontal: spacing.screenPadding,
+      paddingTop:        64,
+      paddingBottom:     12,
+    },
+    backBtn: {
+      paddingHorizontal: spacing.screenPadding,
+      paddingTop:        64,
+      paddingBottom:     12,
+    },
+    backLabel: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+    },
+    progress: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      color:      color.dim,
+    },
+    fill: {
+      flex: 1,
+    },
+    scroll: {
+      padding:       spacing.screenPadding,
+      paddingTop:    8,
+      paddingBottom: 60,
+      gap:           20,
+    },
+    navRow: {
+      gap: 12,
+    },
+    endContent: {
+      flex:              1,
+      padding:           spacing.screenPadding,
+      paddingTop:        24,
+      justifyContent:    'center',
+      gap:               16,
+    },
+    endHeading: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   26,
+      color:      color.paper,
+    },
+    endBody: {
+      fontFamily: fontFamily.sans,
+      fontSize:   15,
+      color:      color.dim,
+      lineHeight: 23,
+    },
+  });
+}

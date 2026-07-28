@@ -1,9 +1,10 @@
 import { deleteAccount, type DeleteMode } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
-import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
+import { useTheme } from '@/theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Linking,
   ScrollView,
@@ -23,6 +24,8 @@ const POLICY_URLS = {
 } as const;
 
 export default function SettingsScreen() {
+  const { colors: color, setTheme, isDark } = useTheme();
+  const styles = useMemo(() => createStyles(color), [color]);
   const [deleting, setDeleting] = useState(false);
 
   async function handleSignOut() {
@@ -140,6 +143,29 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Theme */}
+      <View style={styles.themeSection}>
+        <Text style={styles.sectionLabel}>appearance</Text>
+        <View style={styles.themeRow}>
+          <TouchableOpacity
+            onPress={() => setTheme('light')}
+            style={[styles.themeChip, !isDark && styles.themeChipActive]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: !isDark }}
+          >
+            <Text style={[styles.themeChipText, !isDark && styles.themeChipTextActive]}>Light</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setTheme('dark')}
+            style={[styles.themeChip, isDark && styles.themeChipActive]}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isDark }}
+          >
+            <Text style={[styles.themeChipText, isDark && styles.themeChipTextActive]}>Dark</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Actions */}
       <View style={styles.actions}>
         <GhostButton label="Sign out" onPress={handleSignOut} />
@@ -166,70 +192,96 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  scroller: { flex: 1 },
-  scroll: {
-    padding:       spacing.screenPadding,
-    paddingTop:    20,
-    paddingBottom: 24,
-    gap:           24,
-  },
-  card: {
-    backgroundColor: '#1A1720',
-    borderRadius:    radius.input,
-    padding:         20,
-    gap:             12,
-  },
-  cardLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         color.dim,
-    marginBottom:  2,
-  },
-  cardBody: {
-    fontFamily: fontFamily.sans,
-    fontSize:   15,
-    color:      color.paper,
-    lineHeight: 23,
-  },
-  policySection: {
-    gap: 10,
-  },
-  sectionLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         color.dim,
-    marginBottom:  2,
-  },
-  policyLink: {
-    fontFamily:          fontFamily.sans,
-    fontSize:            15,
-    color:               color.paper,
-    textDecorationLine:  'underline',
-    textDecorationColor: 'rgba(243,238,232,0.35)',
-  },
-  actions: {
-    gap: 12,
-  },
-  deleteRow: {
-    alignItems: 'center',
-    paddingTop: 8,
-  },
-  deleteLink: {
-    fontFamily:         fontFamily.sans,
-    fontSize:           13,
-    color:              '#B85555',
-    textDecorationLine: 'underline',
-  },
-  deleteLinkMuted: {
-    opacity: 0.45,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    scroller: { flex: 1 },
+    scroll: {
+      padding:       spacing.screenPadding,
+      paddingTop:    20,
+      paddingBottom: 24,
+      gap:           24,
+    },
+    card: {
+      backgroundColor: '#1A1720',
+      borderRadius:    radius.input,
+      padding:         20,
+      gap:             12,
+    },
+    cardLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.dim,
+      marginBottom:  2,
+    },
+    cardBody: {
+      fontFamily: fontFamily.sans,
+      fontSize:   15,
+      color:      color.paper,
+      lineHeight: 23,
+    },
+    policySection: {
+      gap: 10,
+    },
+    sectionLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.dim,
+      marginBottom:  2,
+    },
+    policyLink: {
+      fontFamily:          fontFamily.sans,
+      fontSize:            15,
+      color:               color.paper,
+      textDecorationLine:  'underline',
+      textDecorationColor: 'rgba(243,238,232,0.35)',
+    },
+    themeSection: { gap: 10 },
+    themeRow: { flexDirection: 'row', gap: 10 },
+    themeChip: {
+      flex:            1,
+      paddingVertical: 12,
+      borderRadius:    radius.pill,
+      borderWidth:     2,
+      borderColor:     color.line,
+      alignItems:      'center',
+    },
+    themeChipActive: {
+      borderColor:     color.border,
+      backgroundColor: color.ink,
+    },
+    themeChipText: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      13,
+      letterSpacing: 0.18 * 13,
+      textTransform: 'uppercase',
+      color:         color.dim,
+    },
+    themeChipTextActive: {
+      color: color.paper,
+    },
+    actions: {
+      gap: 12,
+    },
+    deleteRow: {
+      alignItems: 'center',
+      paddingTop: 8,
+    },
+    deleteLink: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           13,
+      color:              '#B85555',
+      textDecorationLine: 'underline',
+    },
+    deleteLinkMuted: {
+      opacity: 0.45,
+    },
+  });
+}

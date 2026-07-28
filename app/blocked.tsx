@@ -2,15 +2,21 @@
  * Blocked screen — shown when the moderation gate rejects a submission.
  * Gentle, non-shaming, no details about why.
  */
-import { color as colors, font, fontFamily, radius, spacing } from '@/theme/tokens';
+import { useMemo } from 'react';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
+import { router } from 'expo-router';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
 const typography = {
   body:     { fontFamily: fontFamily.sans, fontSize: 15, lineHeight: 22 },
   footnote: { fontFamily: fontFamily.sans, fontSize: 13, lineHeight: 18 },
 };
-import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 export default function BlockedScreen() {
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   return (
     <View style={styles.root}>
       <Text style={styles.heading} accessibilityRole="header">We couldn't post that</Text>
@@ -33,34 +39,36 @@ export default function BlockedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.ink,
-    padding: spacing.screenPadding,
-    justifyContent: 'center',
-    gap: 20,
-  },
-  heading: {
-    fontFamily: 'Fraunces_400Regular',
-    fontSize: 26,
-    color: colors.paper,
-    lineHeight: 34,
-  },
-  body: {
-    ...typography.body,
-    color: colors.dim,
-  },
-  primaryBtn: {
-    backgroundColor: colors.paper,
-    borderRadius: radius.pill,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  primaryBtnText: {
-    fontFamily: 'Inter_600SemiBold',
-    fontSize: 15,
-    color: colors.ink,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: color.ink,
+      padding: spacing.screenPadding,
+      justifyContent: 'center',
+      gap: 20,
+    },
+    heading: {
+      fontFamily: 'Fraunces_400Regular',
+      fontSize: 26,
+      color: color.paper,
+      lineHeight: 34,
+    },
+    body: {
+      ...typography.body,
+      color: color.dim,
+    },
+    primaryBtn: {
+      backgroundColor: color.paper,
+      borderRadius: radius.pill,
+      paddingVertical: 16,
+      alignItems: 'center',
+      marginTop: 12,
+    },
+    primaryBtnText: {
+      fontFamily: 'Inter_600SemiBold',
+      fontSize: 15,
+      color: color.ink,
+    },
+  });
+}

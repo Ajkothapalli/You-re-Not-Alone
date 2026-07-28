@@ -21,8 +21,8 @@ import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/withTimeout';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
-import { usePalette } from '@/theme/ThemeProvider';
-import { color, fontFamily, radius, spacing } from '@/theme/tokens';
+import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { router } from 'expo-router';
@@ -53,6 +53,8 @@ function parseAuthTokens(url: string): { accessToken?: string; refreshToken?: st
 
 export default function IndexScreen() {
   const palette = usePalette();
+  const color   = useThemeColors();
+  const styles  = useMemo(() => createStyles(color), [color]);
   const { order: dobOrder, placeholder: dobPlaceholder } = useMemo(() => getDobOrder(), []);
 
   const [step,           setStep]           = useState<Step>('loading');
@@ -503,110 +505,112 @@ export default function IndexScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  center: {
-    flex:            1,
-    backgroundColor: color.bg,
-    justifyContent:  'center',
-    alignItems:      'center',
-  },
-  scroll: {
-    flexGrow:        1,
-    justifyContent:  'center',
-    padding:         spacing.screenPadding,
-    paddingVertical: 64,
-    gap:             20,
-  },
-  wordmark: {
-    fontFamily:   fontFamily.serifItalic,
-    fontSize:     30,
-    color:        color.paper,
-    textAlign:    'center',
-    marginBottom: 4,
-  },
-  sub: {
-    fontFamily:   fontFamily.sans,
-    fontSize:     15,
-    color:        color.dim,
-    textAlign:    'center',
-    marginBottom: 12,
-  },
-  form: {
-    gap: 12,
-  },
-  dividerRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           10,
-    marginVertical: 4,
-  },
-  dividerLine: {
-    flex:            1,
-    height:          StyleSheet.hairlineWidth,
-    backgroundColor: color.line,
-  },
-  dividerText: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      11,
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    color:         color.dim,
-  },
-  label: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      11,
-    letterSpacing: 0.18 * 11,
-    textTransform: 'uppercase',
-    color:         color.dim,
-  },
-  input: {
-    backgroundColor: '#1A1720',
-    borderRadius:    radius.input,
-    padding:         16,
-    fontFamily:      fontFamily.sans,
-    fontSize:        15,
-    color:           color.paper,
-  },
-  otpInput: {
-    fontSize:      28,
-    letterSpacing: 8,
-    textAlign:     'center',
-  },
-  otpHint: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    color:      color.dim,
-    textAlign:  'center',
-    marginTop:  -4,
-  },
-  dobHint: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    color:      color.dim,
-    marginTop:  -4,
-  },
-  retryHeading: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   22,
-    color:      color.paper,
-    textAlign:  'center',
-  },
-  errorText: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      '#F5996E',
-    textAlign:  'center',
-  },
-  legal: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11,
-    textAlign:  'center',
-    marginTop:  8,
-    color:      color.dim,
-    opacity:    0.45,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    center: {
+      flex:            1,
+      backgroundColor: color.bg,
+      justifyContent:  'center',
+      alignItems:      'center',
+    },
+    scroll: {
+      flexGrow:        1,
+      justifyContent:  'center',
+      padding:         spacing.screenPadding,
+      paddingVertical: 64,
+      gap:             20,
+    },
+    wordmark: {
+      fontFamily:   fontFamily.serifItalic,
+      fontSize:     30,
+      color:        color.paper,
+      textAlign:    'center',
+      marginBottom: 4,
+    },
+    sub: {
+      fontFamily:   fontFamily.sans,
+      fontSize:     15,
+      color:        color.dim,
+      textAlign:    'center',
+      marginBottom: 12,
+    },
+    form: {
+      gap: 12,
+    },
+    dividerRow: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           10,
+      marginVertical: 4,
+    },
+    dividerLine: {
+      flex:            1,
+      height:          StyleSheet.hairlineWidth,
+      backgroundColor: color.line,
+    },
+    dividerText: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      11,
+      letterSpacing: 1.5,
+      textTransform: 'uppercase',
+      color:         color.dim,
+    },
+    label: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      11,
+      letterSpacing: 0.18 * 11,
+      textTransform: 'uppercase',
+      color:         color.dim,
+    },
+    input: {
+      backgroundColor: '#1A1720',
+      borderRadius:    radius.input,
+      padding:         16,
+      fontFamily:      fontFamily.sans,
+      fontSize:        15,
+      color:           color.paper,
+    },
+    otpInput: {
+      fontSize:      28,
+      letterSpacing: 8,
+      textAlign:     'center',
+    },
+    otpHint: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      color:      color.dim,
+      textAlign:  'center',
+      marginTop:  -4,
+    },
+    dobHint: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      color:      color.dim,
+      marginTop:  -4,
+    },
+    retryHeading: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   22,
+      color:      color.paper,
+      textAlign:  'center',
+    },
+    errorText: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      '#F5996E',
+      textAlign:  'center',
+    },
+    legal: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      textAlign:  'center',
+      marginTop:  8,
+      color:      color.dim,
+      opacity:    0.45,
+    },
+  });
+}

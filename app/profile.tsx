@@ -19,10 +19,11 @@ import { PERSONAS, PersonaBadge, getPersonaById } from '@/components/Persona';
 import { clearProfile, getProfile, setProfileName, setProfilePersona } from '@/lib/profile';
 import { usePremium } from '@/lib/premiumContext';
 import { billingAvailable, restorePurchases } from '@/lib/purchases';
-import { color, font, fontFamily, radius, spacing } from '@/theme/tokens';
+import { useThemeColors } from '@/theme/ThemeProvider';
+import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import Constants from 'expo-constants';
 import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Linking,
   Pressable,
@@ -39,6 +40,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function ProfileScreen() {
   const { isPremium, refresh } = usePremium();
   const insets = useSafeAreaInsets();
+  const color  = useThemeColors();
+  const styles = useMemo(() => createStyles(color), [color]);
+
   const [personaId, setPersonaId] = useState<string | null>(null);
   const [name, setName]           = useState('');
   const [deleting, setDeleting]   = useState(false);
@@ -362,164 +366,166 @@ export default function ProfileScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: {
-    flex:            1,
-    backgroundColor: color.bg,
-  },
-  backRow: {
-    paddingHorizontal: spacing.screenPadding,
-    paddingVertical:   14,
-  },
-  backLabel: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.dim,
-  },
-  scroller: { flex: 1 },
-  scroll: {
-    padding:       spacing.screenPadding,
-    paddingTop:    8,
-    paddingBottom: 32,
-    gap:           16,
-  },
-  identityCard: {
-    backgroundColor: color.ink,
-    borderRadius:    radius.card,
-    borderWidth:     2,
-    borderColor:     color.border,
-    padding:         24,
-    alignItems:      'center',
-    gap:             12,
-  },
-  nameInput: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   22,
-    textAlign:  'center',
-    minWidth:   200,
-    padding:    4,
-  },
-  premiumCard: {
-    backgroundColor:   '#FFE500',
-    borderRadius:      radius.input,
-    borderWidth:       2,
-    borderColor:       '#0A0A0A',
-    paddingVertical:   16,
-    paddingHorizontal: 18,
-    flexDirection:     'row',
-    alignItems:        'center',
-  },
-  premiumTextWrap: { flex: 1, gap: 3 },
-  premiumTopRow: {
-    flexDirection: 'row',
-    alignItems:    'center',
-    gap:           7,
-  },
-  premiumStar: {
-    fontFamily: fontFamily.sansBold,
-    fontSize:   14,
-    color:      '#0A0A0A',
-  },
-  premiumTitle: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         '#0A0A0A',
-  },
-  premiumSub: {
-    fontFamily: fontFamily.sans,
-    fontSize:   13,
-    color:      '#333333',
-  },
-  premiumArrow: {
-    fontFamily: fontFamily.serif,
-    fontSize:   26,
-    color:      '#0A0A0A',
-  },
-  editHint: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11,
-    color:      color.dim,
-  },
-  sectionLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         color.dim,
-    marginTop:     8,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap:      'wrap',
-    gap:           10,
-  },
-  gridItem: {
-    width:             '30.5%',
-    alignItems:        'center',
-    gap:               8,
-    paddingVertical:   14,
-    paddingHorizontal: 4,
-    borderRadius:      radius.input,
-    borderWidth:       2,
-    borderColor:       color.line,
-  },
-  gridName: {
-    fontFamily: fontFamily.sans,
-    fontSize:   10,
-    textAlign:  'center',
-  },
-  privacyNote: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12,
-    lineHeight: 18,
-    color:      color.dim,
-  },
-  actions: {
-    gap:       12,
-    marginTop: 8,
-  },
-  moreList: {
-    backgroundColor: color.ink,
-    borderRadius:    radius.input,
-    overflow:        'hidden',
-  },
-  moreRow: {
-    flexDirection:     'row',
-    justifyContent:    'space-between',
-    alignItems:        'center',
-    paddingHorizontal: 16,
-    paddingVertical:   14,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: color.line,
-  },
-  moreLabel: {
-    fontFamily: fontFamily.sans,
-    fontSize:   14,
-    color:      color.paper,
-  },
-  moreHint: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11,
-    color:      color.dim,
-  },
-  deleteRow: {
-    alignItems:    'center',
-    paddingVertical: 10,
-  },
-  deleteLink: {
-    fontFamily:         fontFamily.sans,
-    fontSize:           12,
-    color:              '#C25450',
-    textDecorationLine: 'underline',
-  },
-  version: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11,
-    color:      color.dim,
-    textAlign:  'center',
-    opacity:    0.7,
-    marginTop:  4,
-  },
-});
+function createStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      flex:            1,
+      backgroundColor: color.bg,
+    },
+    backRow: {
+      paddingHorizontal: spacing.screenPadding,
+      paddingVertical:   14,
+    },
+    backLabel: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+    },
+    scroller: { flex: 1 },
+    scroll: {
+      padding:       spacing.screenPadding,
+      paddingTop:    8,
+      paddingBottom: 32,
+      gap:           16,
+    },
+    identityCard: {
+      backgroundColor: color.ink,
+      borderRadius:    radius.card,
+      borderWidth:     2,
+      borderColor:     color.border,
+      padding:         24,
+      alignItems:      'center',
+      gap:             12,
+    },
+    nameInput: {
+      fontFamily: fontFamily.serifItalic,
+      fontSize:   22,
+      textAlign:  'center',
+      minWidth:   200,
+      padding:    4,
+    },
+    premiumCard: {
+      backgroundColor:   '#FFE500',
+      borderRadius:      radius.input,
+      borderWidth:       2,
+      borderColor:       '#0A0A0A',
+      paddingVertical:   16,
+      paddingHorizontal: 18,
+      flexDirection:     'row',
+      alignItems:        'center',
+    },
+    premiumTextWrap: { flex: 1, gap: 3 },
+    premiumTopRow: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           7,
+    },
+    premiumStar: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   14,
+      color:      '#0A0A0A',
+    },
+    premiumTitle: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         '#0A0A0A',
+    },
+    premiumSub: {
+      fontFamily: fontFamily.sans,
+      fontSize:   13,
+      color:      '#333333',
+    },
+    premiumArrow: {
+      fontFamily: fontFamily.serif,
+      fontSize:   26,
+      color:      '#0A0A0A',
+    },
+    editHint: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      color:      color.dim,
+    },
+    sectionLabel: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.dim,
+      marginTop:     8,
+    },
+    grid: {
+      flexDirection: 'row',
+      flexWrap:      'wrap',
+      gap:           10,
+    },
+    gridItem: {
+      width:             '30.5%',
+      alignItems:        'center',
+      gap:               8,
+      paddingVertical:   14,
+      paddingHorizontal: 4,
+      borderRadius:      radius.input,
+      borderWidth:       2,
+      borderColor:       color.line,
+    },
+    gridName: {
+      fontFamily: fontFamily.sans,
+      fontSize:   10,
+      textAlign:  'center',
+    },
+    privacyNote: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      lineHeight: 18,
+      color:      color.dim,
+    },
+    actions: {
+      gap:       12,
+      marginTop: 8,
+    },
+    moreList: {
+      backgroundColor: color.ink,
+      borderRadius:    radius.input,
+      overflow:        'hidden',
+    },
+    moreRow: {
+      flexDirection:     'row',
+      justifyContent:    'space-between',
+      alignItems:        'center',
+      paddingHorizontal: 16,
+      paddingVertical:   14,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: color.line,
+    },
+    moreLabel: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.paper,
+    },
+    moreHint: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      color:      color.dim,
+    },
+    deleteRow: {
+      alignItems:    'center',
+      paddingVertical: 10,
+    },
+    deleteLink: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           12,
+      color:              '#C25450',
+      textDecorationLine: 'underline',
+    },
+    version: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      color:      color.dim,
+      textAlign:  'center',
+      opacity:    0.7,
+      marginTop:  4,
+    },
+  });
+}

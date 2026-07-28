@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import React, { useCallback, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   Animated,
@@ -10,7 +10,8 @@ import {
   type PressableProps,
   type ViewStyle,
 } from 'react-native';
-import { color, fontFamily, radius } from '../theme/tokens';
+import { useThemeColors } from '../theme/ThemeProvider';
+import { type ColorSet, fontFamily, radius } from '../theme/tokens';
 import { useReducedMotion } from '../lib/a11y';
 
 // Neo-brutalism: flat electric yellow face, black hard-offset edge
@@ -76,9 +77,9 @@ export function PrimaryButton({
 
   return (
     <View style={style}>
-      <View style={[styles.primaryWrapper, isDisabled && styles.disabled]}>
+      <View style={[primaryStyles.wrapper, isDisabled && primaryStyles.disabled]}>
         {/* Edge — static black block below the face */}
-        <View style={styles.primaryEdge} />
+        <View style={primaryStyles.edge} />
 
         {/* Face — slides down on press */}
         <Pressable
@@ -91,14 +92,14 @@ export function PrimaryButton({
           onPressOut={e => { onPressOut(); extPressOut?.(e); }}
         >
           <Animated.View style={{ transform: [{ translateY: faceTranslateY }] }}>
-            <View style={styles.primaryFace}>
+            <View style={primaryStyles.face}>
               <Animated.View
                 pointerEvents="none"
-                style={[styles.tintOverlay, { opacity: tintOpacity }]}
+                style={[primaryStyles.tintOverlay, { opacity: tintOpacity }]}
               />
               {loading
                 ? <ActivityIndicator color={FACE_TEXT} />
-                : <Text style={styles.primaryLabel}>{label}</Text>}
+                : <Text style={primaryStyles.label}>{label}</Text>}
             </View>
           </Animated.View>
         </Pressable>
@@ -116,6 +117,8 @@ export function GhostButton({
 }: ButtonProps) {
   const isDisabled = !!(disabled || loading);
   const reduceMotion = useReducedMotion();
+  const color  = useThemeColors();
+  const styles = useMemo(() => createGhostStyles(color), [color]);
   const { press, onPressIn, onPressOut } = usePressDepth(isDisabled, reduceMotion);
 
   const faceTranslateY = press.interpolate({
@@ -130,9 +133,9 @@ export function GhostButton({
 
   return (
     <View style={style}>
-      <View style={[styles.ghostWrapper, isDisabled && styles.disabled]}>
+      <View style={[styles.wrapper, isDisabled && styles.disabled]}>
         {/* Edge */}
-        <View style={styles.ghostEdge} />
+        <View style={styles.edge} />
 
         {/* Face — slides down on press */}
         <Pressable
@@ -145,14 +148,14 @@ export function GhostButton({
           onPressOut={e => { onPressOut(); extPressOut?.(e); }}
         >
           <Animated.View style={{ transform: [{ translateY: faceTranslateY }] }}>
-            <View style={styles.ghostFace}>
+            <View style={styles.face}>
               <Animated.View
                 pointerEvents="none"
                 style={[styles.tintOverlay, styles.ghostTint, { opacity: tintOpacity }]}
               />
               {loading
                 ? <ActivityIndicator color={color.paper} />
-                : <Text style={styles.ghostLabel}>{label}</Text>}
+                : <Text style={styles.label}>{label}</Text>}
             </View>
           </Animated.View>
         </Pressable>
@@ -161,16 +164,15 @@ export function GhostButton({
   );
 }
 
-// ── Styles ───────────────────────────────────────────────────────────────────
+// ── Static styles (PrimaryButton — intentional hardcoded colors) ─────────────
 
-const styles = StyleSheet.create({
-  // primary
-  primaryWrapper: {
+const primaryStyles = StyleSheet.create({
+  wrapper: {
     position:      'relative',
     paddingBottom: DEPTH,
     borderRadius:  radius.pill,
   },
-  primaryEdge: {
+  edge: {
     position:        'absolute',
     left:            0,
     right:           0,
@@ -179,7 +181,7 @@ const styles = StyleSheet.create({
     borderRadius:    radius.pill,
     backgroundColor: EDGE_COLOR,
   },
-  primaryFace: {
+  face: {
     borderRadius:      radius.pill,
     paddingVertical:   16,
     paddingHorizontal: 32,
@@ -190,48 +192,13 @@ const styles = StyleSheet.create({
     borderColor:       EDGE_COLOR,
     overflow:          'hidden',
   },
-  primaryLabel: {
+  label: {
     fontFamily:    fontFamily.sansBold,
     fontSize:      14,
     letterSpacing: 0.18 * 14,
     textTransform: 'uppercase',
     color:         FACE_TEXT,
   },
-
-  // ghost
-  ghostWrapper: {
-    position:      'relative',
-    paddingBottom: GHOST_DEPTH,
-    borderRadius:  radius.pill,
-  },
-  ghostEdge: {
-    position:        'absolute',
-    left:            0,
-    right:           0,
-    bottom:          0,
-    top:             GHOST_DEPTH,
-    borderRadius:    radius.pill,
-    backgroundColor: EDGE_COLOR,
-  },
-  ghostFace: {
-    borderRadius:    radius.pill,
-    paddingVertical: 14,
-    alignItems:      'center',
-    justifyContent:  'center',
-    backgroundColor: color.ink,
-    borderWidth:     2,
-    borderColor:     color.border,
-    overflow:        'hidden',
-  },
-  ghostLabel: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      14,
-    letterSpacing: 0.18 * 14,
-    textTransform: 'uppercase',
-    color:         color.paper,
-  },
-
-  // shared
   tintOverlay: {
     position:        'absolute',
     top:             0,
@@ -240,10 +207,59 @@ const styles = StyleSheet.create({
     bottom:          0,
     backgroundColor: '#000000',
   },
-  ghostTint: {
-    backgroundColor: 'rgba(245,245,245,0.06)',
-  },
   disabled: {
     opacity: 0.32,
   },
 });
+
+// ── Dynamic styles (GhostButton — theme-sensitive) ────────────────────────────
+
+function createGhostStyles(color: ColorSet) {
+  return StyleSheet.create({
+    wrapper: {
+      position:      'relative',
+      paddingBottom: GHOST_DEPTH,
+      borderRadius:  radius.pill,
+    },
+    edge: {
+      position:        'absolute',
+      left:            0,
+      right:           0,
+      bottom:          0,
+      top:             GHOST_DEPTH,
+      borderRadius:    radius.pill,
+      backgroundColor: EDGE_COLOR,
+    },
+    face: {
+      borderRadius:    radius.pill,
+      paddingVertical: 14,
+      alignItems:      'center',
+      justifyContent:  'center',
+      backgroundColor: color.ink,
+      borderWidth:     2,
+      borderColor:     color.border,
+      overflow:        'hidden',
+    },
+    label: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      14,
+      letterSpacing: 0.18 * 14,
+      textTransform: 'uppercase',
+      color:         color.paper,
+    },
+    tintOverlay: {
+      position:        'absolute',
+      top:             0,
+      left:            0,
+      right:           0,
+      bottom:          0,
+      backgroundColor: '#000000',
+    },
+    ghostTint: {
+      backgroundColor: 'rgba(245,245,245,0.06)',
+    },
+    disabled: {
+      opacity: 0.32,
+    },
+  });
+}
