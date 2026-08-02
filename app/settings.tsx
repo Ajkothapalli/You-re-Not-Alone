@@ -6,7 +6,6 @@ import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import {
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,13 +16,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SHADOW = 4;
 
-// [REPLACE BEFORE LAUNCH] — Apple and Google require live, publicly accessible
-// policy URLs at review time. Placeholder URLs will cause app rejection.
-const POLICY_URLS = {
-  privacy: 'https://example.com/privacy',
-  terms:   'https://example.com/terms',
-  content: 'https://example.com/content-policy',
-} as const;
+const POLICY_ROUTES = [
+  { label: 'Privacy Policy',   type: 'privacy'  },
+  { label: 'Terms of Service', type: 'terms'    },
+  { label: 'Content Policy',   type: 'content'  },
+] as const;
 
 const PRIVACY_POINTS = [
   'No profiles, no replies. Nobody can see who wrote what.',
@@ -68,18 +65,13 @@ export default function SettingsScreen() {
       {/* Policies */}
       <Text style={styles.sectionLabel}>Policies</Text>
       <View style={styles.policyCard}>
-        {([
-          { label: 'Privacy Policy',   url: POLICY_URLS.privacy },
-          { label: 'Terms of Service', url: POLICY_URLS.terms   },
-          { label: 'Content Policy',   url: POLICY_URLS.content },
-        ] as const).map(({ label, url }, i, arr) => (
+        {POLICY_ROUTES.map(({ label, type }, i, arr) => (
           <TouchableOpacity
             key={label}
-            onPress={() => Linking.openURL(url)}
+            onPress={() => router.push({ pathname: '/policy', params: { type } })}
             hitSlop={8}
             accessibilityRole="link"
             accessibilityLabel={label}
-            accessibilityHint="Opens in your browser"
             style={[styles.policyRow, i < arr.length - 1 && styles.policyRowBorder]}
           >
             <Text style={styles.policyLink}>{label}</Text>

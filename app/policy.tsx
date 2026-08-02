@@ -6,11 +6,10 @@ import { ScrollView, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function PolicyScreen() {
-  const { type } = useLocalSearchParams<{ type: 'terms' | 'privacy' }>();
+  const { type } = useLocalSearchParams<{ type: 'terms' | 'privacy' | 'content' }>();
   const color   = useThemeColors();
   const styles  = useMemo(() => createStyles(color), [color]);
   const insets  = useSafeAreaInsets();
-  const isTerms = type === 'terms';
 
   return (
     <ScrollView
@@ -19,10 +18,48 @@ export default function PolicyScreen() {
       showsVerticalScrollIndicator={false}
     >
       <Text style={styles.heading} accessibilityRole="header">
-        {isTerms ? 'Terms of Service' : 'Privacy Policy'}
+        {type === 'terms' ? 'Terms of Service' : type === 'content' ? 'Content Policy' : 'Privacy Policy'}
       </Text>
 
-      {isTerms ? (
+      {type === 'content' ? (
+        <>
+          <Text style={styles.section}>What you can share</Text>
+          <Text style={styles.body}>
+            soulyap is a space for honest, personal expression. You may share thoughts, feelings,
+            and experiences that you carry privately — things that are real and your own.
+          </Text>
+
+          <Text style={styles.section}>What is not allowed</Text>
+          <Text style={styles.body}>
+            {'• Content that targets, identifies, or threatens any person.\n'}
+            {'• Hate speech, slurs, or content designed to demean a group.\n'}
+            {'• Graphic violence or self-harm instructions.\n'}
+            {'• Spam, advertising, or content you did not write.\n'}
+            {'• Any content involving minors in a sexual or exploitative context.\n'}
+            {'• Illegal content of any kind.'}
+          </Text>
+
+          <Text style={styles.section}>Moderation</Text>
+          <Text style={styles.body}>
+            Every submission is reviewed by automated safety systems before it is stored or shown
+            to anyone. Content that violates this policy is blocked immediately. Repeated violations
+            may result in account suspension.
+          </Text>
+
+          <Text style={styles.section}>Crisis content</Text>
+          <Text style={styles.body}>
+            Submissions that signal a mental health crisis are never published. Instead, the app
+            returns crisis support resources. This is intentional and permanent.
+          </Text>
+
+          <Text style={styles.section}>Reporting</Text>
+          <Text style={styles.body}>
+            Every confession you read has a report control. We review all reports and act on
+            violations within 24 hours.
+          </Text>
+        </>
+      ) : type === 'terms' ? (
+
         <>
           <Text style={styles.section}>How soulyap works</Text>
           <Text style={styles.body}>
