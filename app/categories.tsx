@@ -40,6 +40,8 @@ type ChipProps = {
 function CategoryChip({ label, description, id, selected, width, onToggle }: ChipProps) {
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
+  const ON_BG  = '#FFE500';
+  const ON_FG  = '#1A1A1A';
 
   // Drives the inner dot appearing / disappearing (native thread only)
   const dotScale  = useRef(new Animated.Value(selected ? 1 : 0)).current;
@@ -77,29 +79,25 @@ function CategoryChip({ label, description, id, selected, width, onToggle }: Chi
         onPress={() => onToggle(id)}
         onPressIn={onPressIn}
         onPressOut={onPressOut}
-        style={[styles.chip, selected && styles.chipOn]}
+        style={[styles.chip, selected && { backgroundColor: ON_BG, borderColor: ON_FG }]}
         accessible={true}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: selected }}
-        // Merge label + description so VoiceOver reads both on a single swipe
-        // (hints require an extra gesture and are often skipped by users).
         accessibilityLabel={`${label}. ${description}`}
       >
-        {/* Purely decorative — state is already conveyed via accessibilityState.
-            Hidden from both iOS VoiceOver and Android TalkBack so the ✓ glyph
-            isn't announced as a separate "check mark" element. */}
+        {/* Purely decorative — state conveyed via accessibilityState. */}
         <View
-          style={[styles.circle, selected && styles.circleOn]}
+          style={[styles.circle, selected && { backgroundColor: ON_FG, borderColor: ON_FG }]}
           accessibilityElementsHidden={true}
           importantForAccessibility="no-hide-descendants"
         >
           <Animated.View style={{ transform: [{ scale: dotScale }] }}>
-            <ScrawlIcon name="checkmark" size={12} color="#1A1A1A" roughen={false} strokeWidth={3} />
+            <ScrawlIcon name="checkmark" size={12} color={selected ? ON_BG : color.border} roughen={false} strokeWidth={3} />
           </Animated.View>
         </View>
 
-        <Text style={[styles.chipLabel, selected && styles.chipLabelOn]}>{label}</Text>
-        <Text style={styles.chipDesc} numberOfLines={3}>{description}</Text>
+        <Text style={[styles.chipLabel, selected && { color: ON_FG }]}>{label}</Text>
+        <Text style={[styles.chipDesc, selected && { color: ON_FG, opacity: 0.65 }]} numberOfLines={3}>{description}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -185,8 +183,6 @@ export default function CategoriesScreen() {
           Last card gets full row width when total count is odd. */}
       <View style={styles.grid}>
         {CATEGORIES.map((cat, idx) => {
-          const isLastAlone = CATEGORIES.length % 2 !== 0 && idx === CATEGORIES.length - 1;
-          const w = isLastAlone ? screenWidth - spacing.screenPadding * 2 : cardWidth;
           return (
             <CategoryChip
               key={cat.id}
@@ -194,7 +190,7 @@ export default function CategoriesScreen() {
               label={cat.label}
               description={cat.hint}
               selected={selected.has(cat.id)}
-              width={w}
+              width={cardWidth}
               onToggle={toggle}
             />
           );
@@ -263,7 +259,7 @@ function createStyles(color: ColorSet) {
       right:           0,
       bottom:          0,
       borderRadius:    radius.input,
-      backgroundColor: color.border,
+      backgroundColor: '#1A1A1A',
     },
     chip: {
       backgroundColor: color.ink,
@@ -274,42 +270,27 @@ function createStyles(color: ColorSet) {
       minHeight:       120,
       gap:             8,
     },
-    chipOn: {
-      borderColor:     color.border,
-      backgroundColor: 'rgba(255,229,0,0.18)',
-    },
 
     // square check indicator
     circle: {
       position:       'absolute',
       top:            14,
       right:          14,
-      width:          20,
-      height:         20,
+      width:          22,
+      height:         22,
       borderRadius:   4,
       borderWidth:    2,
       borderColor:    color.border,
       alignItems:     'center',
       justifyContent: 'center',
     },
-    circleOn: {
-      borderColor:     color.border,
-      backgroundColor: '#FFE500',
-    },
-    circleDot: {
-      color:      color.paper,
-      fontSize:   11,
-      lineHeight: 13,
-      fontFamily: fontFamily.sansBold,
-    },
 
     chipLabel: {
-      fontFamily: fontFamily.sansBold,
-      fontSize:   14,
-      color:      color.paper,
-      paddingRight: 26,
+      fontFamily:  fontFamily.sansBold,
+      fontSize:    14,
+      color:       color.paper,
+      paddingRight: 28,
     },
-    chipLabelOn: { color: color.paper },
 
     chipDesc: {
       fontFamily: fontFamily.sans,
