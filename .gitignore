@@ -41,3 +41,6 @@ yarn-error.*
 /ios
 /android
 .vercel
+
+# Claude Code worktrees
+.claude/worktrees/
