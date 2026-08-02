@@ -1,10 +1,11 @@
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
+import { showToast } from '@/components/Toast';
+import { supabase } from '@/lib/supabase';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
-  Linking,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,21 +15,34 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function ContactScreen() {
-  const color  = useThemeColors();
-  const styles = useMemo(() => createStyles(color), [color]);
-  const insets = useSafeAreaInsets();
+  const color   = useThemeColors();
+  const styles  = useMemo(() => createStyles(color), [color]);
+  const insets  = useSafeAreaInsets();
 
-  const [email, setEmail] = useState('');
-  const [msg,   setMsg]   = useState('');
+  const [email,   setEmail]   = useState('');
+  const [msg,     setMsg]     = useState('');
+  const [sending, setSending] = useState(false);
 
-  function handleSend() {
-    const subject = encodeURIComponent('Support — soulyap');
-    const body    = encodeURIComponent(`From: ${email.trim()}\n\n${msg.trim()}`);
-    Linking.openURL(`mailto:nani.ajay@gmail.com?subject=${subject}&body=${body}`);
-    router.back();
+  async function handleSend() {
+    setSending(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from('support_messages').insert({
+        account_id: user?.id ?? null,
+        email:      email.trim(),
+        message:    msg.trim(),
+      });
+      if (error) throw error;
+      showToast('Message sent! We\'ll reply to your email.');
+      setTimeout(() => router.back(), 1200);
+    } catch {
+      showToast('Could not send — please try again.', 'error');
+    } finally {
+      setSending(false);
+    }
   }
 
-  const canSend = email.trim().length > 0 && msg.trim().length > 0;
+  const canSend = email.trim().length > 0 && msg.trim().length > 4;
 
   return (
     <ScrollView
@@ -64,7 +78,7 @@ export default function ContactScreen() {
         />
       </View>
 
-      <PrimaryButton label="Send" onPress={handleSend} disabled={!canSend} />
+      <PrimaryButton label="Send" onPress={handleSend} disabled={!canSend} loading={sending} />
       <GhostButton label="Cancel" onPress={() => router.back()} />
     </ScrollView>
   );

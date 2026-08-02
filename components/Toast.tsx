@@ -27,9 +27,9 @@ export type ToastType = 'success' | 'error' | 'alert';
 // ─── State config ──────────────────────────────────────────────────────────────
 
 const STATE: Record<ToastType, { icon: string; accent: string; label: string }> = {
-  success: { icon: 'checkmark', accent: '#22C55E', label: 'Success' },
-  error:   { icon: 'x_mark',   accent: '#EF4444', label: 'Error'   },
-  alert:   { icon: 'lightning', accent: '#F59E0B', label: 'Alert'   },
+  success: { icon: 'checkmark', accent: '#FFE500', label: 'Success' },
+  error:   { icon: 'x_mark',   accent: '#1A1A1A', label: 'Error'   },
+  alert:   { icon: 'lightning', accent: '#1A1A1A', label: 'Alert'   },
 };
 
 const SHOW_MS = 3000;
@@ -95,7 +95,7 @@ export function ToastHost() {
         {/* Left accent stripe — communicates state without blocking touches */}
         <View style={[styles.stripe, { backgroundColor: cfg.accent }]} />
         <View style={styles.body}>
-          <ScrawlIcon name={cfg.icon} size={18} color={cfg.accent} roughen={false} strokeWidth={2.5} />
+          <ScrawlIcon name={cfg.icon} size={18} color={color.paper} roughen={false} strokeWidth={2.5} />
           <Text style={styles.message} numberOfLines={2}>{spec.message}</Text>
         </View>
       </View>
