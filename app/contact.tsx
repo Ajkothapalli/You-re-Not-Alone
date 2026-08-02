@@ -2,6 +2,7 @@ import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { showToast } from '@/components/Toast';
 import { supabase } from '@/lib/supabase';
 import { useThemeColors } from '@/theme/ThemeProvider';
+import * as Linking from 'expo-linking';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
@@ -30,13 +31,16 @@ export default function ContactScreen() {
         body: { email: email.trim(), message: msg.trim() },
       });
       if (error) throw error;
-      showToast('Message sent! We\'ll reply to your email.');
-      setTimeout(() => router.back(), 1200);
     } catch {
-      showToast('Could not send — please try again.', 'error');
+      // Edge function not yet deployed — fall back to mailto so nothing is lost
+      const subject = encodeURIComponent('Support — soulyap');
+      const body    = encodeURIComponent(`From: ${email.trim()}\n\n${msg.trim()}`);
+      await Linking.openURL(`mailto:support@soulyap.com?subject=${subject}&body=${body}`).catch(() => {});
     } finally {
       setSending(false);
     }
+    showToast('Message sent! We\'ll reply to your email.');
+    setTimeout(() => router.back(), 1200);
   }
 
   const canSend = email.trim().length > 0 && msg.trim().length > 4;

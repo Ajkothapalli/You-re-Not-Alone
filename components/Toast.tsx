@@ -1,16 +1,13 @@
 /**
  * Toaster — non-intrusive notification system.
  *
- * States: success | error | alert
- * Design: card with a left accent stripe, no offset shadow (avoids button look),
- *         slides down from the top of the screen.
+ * Design: neo-brutal card — face + hard offset edge layer, same structure
+ * as PrimaryButton/GhostButton. No left stripe.
  *
  * Usage:
  *   showToast('Done')                     // success (default)
  *   showToast('Failed to save', 'error')
  *   showToast('Check your connection', 'alert')
- *
- * Mount <ToastHost /> once in _layout.tsx (outside the Stack, inside ThemeProvider).
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -20,21 +17,16 @@ import { useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius } from '../theme/tokens';
 import { ScrawlIcon } from './ScrawlIcon';
 
-// ─── Public types ──────────────────────────────────────────────────────────────
-
 export type ToastType = 'success' | 'error' | 'alert';
 
-// ─── State config ──────────────────────────────────────────────────────────────
-
-const STATE: Record<ToastType, { icon: string; accent: string; label: string }> = {
-  success: { icon: 'checkmark', accent: '#FFE500', label: 'Success' },
-  error:   { icon: 'x_mark',   accent: '#1A1A1A', label: 'Error'   },
-  alert:   { icon: 'lightning', accent: '#1A1A1A', label: 'Alert'   },
+const STATE: Record<ToastType, { icon: string }> = {
+  success: { icon: 'checkmark' },
+  error:   { icon: 'x_mark'   },
+  alert:   { icon: 'lightning' },
 };
 
 const SHOW_MS = 3000;
-
-// ─── Singleton emitter ─────────────────────────────────────────────────────────
+const DEPTH   = 4;
 
 interface ToastSpec { id: number; message: string; type: ToastType }
 let nextId = 0;
@@ -43,8 +35,6 @@ let emit: ((spec: ToastSpec) => void) | null = null;
 export function showToast(message: string, type: ToastType = 'success'): void {
   emit?.({ id: ++nextId, message, type });
 }
-
-// ─── ToastHost ─────────────────────────────────────────────────────────────────
 
 export function ToastHost() {
   const color  = useThemeColors();
@@ -91,46 +81,46 @@ export function ToastHost() {
       style={[styles.root, { top: insets.top + 10 }, { opacity, transform: [{ translateY }] }]}
       pointerEvents="none"
     >
-      <View style={styles.card}>
-        {/* Left accent stripe — communicates state without blocking touches */}
-        <View style={[styles.stripe, { backgroundColor: cfg.accent }]} />
-        <View style={styles.body}>
-          <ScrawlIcon name={cfg.icon} size={18} color={color.paper} roughen={false} strokeWidth={2.5} />
-          <Text style={styles.message} numberOfLines={2}>{spec.message}</Text>
-        </View>
+      {/* Neo-brutal hard offset layer (same as buttons) */}
+      <View style={styles.edge} />
+      {/* Face card */}
+      <View style={styles.face}>
+        <ScrawlIcon name={cfg.icon} size={18} color={color.paper} roughen={false} strokeWidth={2.5} />
+        <Text style={styles.message} numberOfLines={2}>{spec.message}</Text>
       </View>
     </Animated.View>
   );
 }
 
-// ─── Styles ────────────────────────────────────────────────────────────────────
-
 function makeStyles(color: ColorSet) {
   return StyleSheet.create({
     root: {
-      position: 'absolute',
-      left:     20,
-      right:    20,
-      zIndex:   200,
+      position:      'absolute',
+      left:          20,
+      right:         20,
+      zIndex:        200,
+      paddingRight:  DEPTH,
+      paddingBottom: DEPTH,
     },
-    card: {
-      flexDirection:   'row',
-      backgroundColor: color.ink,
+    edge: {
+      position:        'absolute',
+      top:             DEPTH,
+      left:            DEPTH,
+      right:           0,
+      bottom:          0,
       borderRadius:    radius.input,
-      borderWidth:     2,
-      borderColor:     color.border,
-      overflow:        'hidden',
+      backgroundColor: color.border,
     },
-    stripe: {
-      width: 5,
-    },
-    body: {
-      flex:              1,
+    face: {
       flexDirection:     'row',
       alignItems:        'center',
       gap:               10,
       paddingVertical:   14,
       paddingHorizontal: 16,
+      backgroundColor:   color.ink,
+      borderRadius:      radius.input,
+      borderWidth:       2,
+      borderColor:       color.border,
     },
     message: {
       flex:       1,
