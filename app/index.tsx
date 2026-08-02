@@ -149,6 +149,10 @@ export default function IndexScreen() {
         if (exchErr) throw exchErr;
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('No user after sign-in');
+        // Session established — show branded loading screen while routing queries run.
+        // This replaces the frozen-button-spinner the user would otherwise see.
+        setStep('loading');
+        setBusy(false);
         await routeAfterAuth(user.id);
       } catch (err: any) {
         // Code may have already been exchanged by openAuthSessionAsync path —
@@ -257,9 +261,14 @@ export default function IndexScreen() {
       if (!success) {
         if (Platform.OS === 'android') {
           // Android: openAuthSessionAsync is a polyfill; real auth arrives via deep link.
-          // Keep spinner alive and let handleDeepLink clear it (15s guard for true cancels).
+          // Show the branded loading screen immediately so the user isn't staring at a
+          // frozen button spinner for the ~5-10s it takes to exchange + route.
+          // The 15s fallback reverts to email if no deep link ever fires (user cancelled).
           waitingForDeepLink = true;
-          setTimeout(() => setBusy(false), 15_000);
+          setStep('loading');
+          setTimeout(() => {
+            if (stepRef.current === 'loading') setStep('email');
+          }, 15_000);
           return;
         }
         // iOS: false means the user dismissed the Safari sheet — stop spinner immediately.
