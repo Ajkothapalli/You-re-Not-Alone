@@ -18,7 +18,7 @@ import React, { forwardRef, useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import type { Palette } from '../theme/palettes';
-import { useThemeColors } from '../theme/ThemeProvider';
+import { useTheme } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '../theme/tokens';
 
 export const STORY_W = 360;
@@ -52,7 +52,7 @@ export const StoryCard = forwardRef<View, Props>(function StoryCard(
   { youText, themText, feltCount, palette },
   ref,
 ) {
-  const color  = useThemeColors();
+  const { colors: color, isDark } = useTheme();
   const styles = useMemo(() => createStyles(color), [color]);
   const [back, mid, front] = palette.bands;
 
@@ -128,7 +128,7 @@ export const StoryCard = forwardRef<View, Props>(function StoryCard(
         <View style={styles.cardContent}>
 
           {/* You wrote */}
-          <Text style={[styles.label, { color: palette.you }]}>you wrote</Text>
+          <Text style={[styles.label, { color: isDark ? palette.you : color.paper }]}>You wrote</Text>
           <Text style={styles.confessionText} numberOfLines={6}>{youText}</Text>
 
           {/* Seam */}
@@ -144,11 +144,11 @@ export const StoryCard = forwardRef<View, Props>(function StoryCard(
               </Defs>
               <Rect x="0" y="0" width="100%" height="1" fill="url(#sSeam)" />
             </Svg>
-            <Text style={styles.seamLabel}>someone, at the same moment</Text>
+            <Text style={styles.seamLabel}>Someone, at the same moment</Text>
           </View>
 
           {/* They wrote */}
-          <Text style={[styles.label, { color: palette.them }]}>they wrote</Text>
+          <Text style={[styles.label, { color: isDark ? palette.them : color.paper }]}>They wrote</Text>
           <Text style={styles.confessionText} numberOfLines={6}>{themText}</Text>
 
           <View style={{ flex: 1 }} />

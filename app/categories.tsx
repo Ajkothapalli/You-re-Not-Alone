@@ -10,6 +10,7 @@ import { CATEGORIES } from '@/lib/categories';
 import { getReaderPreferences, saveReaderPreferences } from '@/lib/api';
 import { announce } from '@/lib/a11y';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -66,13 +67,12 @@ function CategoryChip({ label, description, id, selected, width, onToggle }: Chi
   }
 
   return (
-    // accessible={false} prevents the animated wrapper from becoming a separate
-    // accessibility element on Android before the inner Pressable can claim focus.
     <Animated.View
-      style={{ width, transform: [{ scale: cardScale }] }}
+      style={{ width, paddingRight: SHADOW, paddingBottom: SHADOW, transform: [{ scale: cardScale }] }}
       accessible={false}
       importantForAccessibility="no"
     >
+      <View pointerEvents="none" style={styles.chipShadow} />
       <Pressable
         onPress={() => onToggle(id)}
         onPressIn={onPressIn}
@@ -93,7 +93,9 @@ function CategoryChip({ label, description, id, selected, width, onToggle }: Chi
           accessibilityElementsHidden={true}
           importantForAccessibility="no-hide-descendants"
         >
-          <Animated.Text style={[styles.circleDot, { transform: [{ scale: dotScale }] }]}>✓</Animated.Text>
+          <Animated.View style={{ transform: [{ scale: dotScale }] }}>
+            <ScrawlIcon name="checkmark" size={12} color="#1A1A1A" roughen={false} strokeWidth={3} />
+          </Animated.View>
         </View>
 
         <Text style={[styles.chipLabel, selected && styles.chipLabelOn]}>{label}</Text>
@@ -168,14 +170,16 @@ export default function CategoriesScreen() {
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.heading} accessibilityRole="header">
-        {isEdit ? 'reading categories' : 'what do you want to read?'}
-      </Text>
-      <Text style={styles.sub}>
-        {isEdit
-          ? 'Change what kinds of confessions appear in Explore.'
-          : 'Choose what you\'d like to carry with you. You can change this anytime.'}
-      </Text>
+      <View style={styles.header}>
+        <Text style={styles.heading} accessibilityRole="header">
+          {isEdit ? 'Reading categories' : 'What do you want to read?'}
+        </Text>
+        <Text style={styles.sub}>
+          {isEdit
+            ? 'Change what kinds of confessions appear in Explore.'
+            : 'Choose what you\'d like to carry with you. You can change this anytime.'}
+        </Text>
+      </View>
 
       {/* 2-column grid — exact widths from useWindowDimensions.
           Last card gets full row width when total count is odd. */}
@@ -188,7 +192,7 @@ export default function CategoriesScreen() {
               key={cat.id}
               id={cat.id}
               label={cat.label}
-              description={cat.description}
+              description={cat.hint}
               selected={selected.has(cat.id)}
               width={w}
               onToggle={toggle}
@@ -213,7 +217,7 @@ export default function CategoriesScreen() {
 
 // ─── styles ──────────────────────────────────────────────────────────────────
 
-const ACCENT = '#C4AEDE';
+const SHADOW = 4;
 
 function createStyles(color: ColorSet) {
   return StyleSheet.create({
@@ -230,18 +234,20 @@ function createStyles(color: ColorSet) {
     },
     backLabel: { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim },
 
+    header: {
+      gap: 8,
+    },
     heading: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   26,
       color:      color.paper,
       lineHeight: 34,
     },
     sub: {
-      fontFamily:   fontFamily.sans,
-      fontSize:     14,
-      color:        color.dim,
-      lineHeight:   21,
-      marginBottom: 4,
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+      lineHeight: 21,
     },
 
     grid: {
@@ -250,36 +256,45 @@ function createStyles(color: ColorSet) {
       gap:           10,
     },
 
+    chipShadow: {
+      position:        'absolute',
+      top:             SHADOW,
+      left:            SHADOW,
+      right:           0,
+      bottom:          0,
+      borderRadius:    radius.input,
+      backgroundColor: color.border,
+    },
     chip: {
       backgroundColor: color.ink,
       borderRadius:    radius.input,
       padding:         18,
-      borderWidth:     1.5,
-      borderColor:     'transparent',
+      borderWidth:     2,
+      borderColor:     color.border,
       minHeight:       120,
       gap:             8,
     },
     chipOn: {
-      borderColor:     ACCENT,
-      backgroundColor: 'rgba(196,174,222,0.10)',
+      borderColor:     color.border,
+      backgroundColor: 'rgba(255,229,0,0.18)',
     },
 
-    // circle
+    // square check indicator
     circle: {
       position:       'absolute',
       top:            14,
       right:          14,
       width:          20,
       height:         20,
-      borderRadius:   10,
-      borderWidth:    1.5,
-      borderColor:    color.dim,
+      borderRadius:   4,
+      borderWidth:    2,
+      borderColor:    color.border,
       alignItems:     'center',
       justifyContent: 'center',
     },
     circleOn: {
-      borderColor:     ACCENT,
-      backgroundColor: ACCENT,
+      borderColor:     color.border,
+      backgroundColor: '#FFE500',
     },
     circleDot: {
       color:      color.paper,
@@ -289,20 +304,18 @@ function createStyles(color: ColorSet) {
     },
 
     chipLabel: {
-      fontFamily:    fontFamily.sansBold,
-      fontSize:      font.labelSize,
-      letterSpacing: font.labelLetterSpacing,
-      textTransform: 'uppercase',
-      color:         color.paper,
-      paddingRight:  26,
+      fontFamily: fontFamily.sansBold,
+      fontSize:   14,
+      color:      color.paper,
+      paddingRight: 26,
     },
-    chipLabelOn: { color: ACCENT },
+    chipLabelOn: { color: color.paper },
 
     chipDesc: {
       fontFamily: fontFamily.sans,
-      fontSize:   12,
+      fontSize:   13,
       color:      color.dim,
-      lineHeight: 17,
+      lineHeight: 18,
     },
 
     actions: { gap: 12 },

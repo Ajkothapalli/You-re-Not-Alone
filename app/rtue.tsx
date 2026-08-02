@@ -53,7 +53,7 @@ const COPY: Record<RtueState, {
   ghostDest:   '/write' | '/read';
 }> = {
   not_yet: {
-    hi:          "it's still travelling",
+    hi:          "It's still travelling",
     feltLabel:   '',
     sub:         () => "you said the thing — that took more than most manage. someone will feel it; it just hasn't reached them yet.",
     primary:     "read someone else's",
@@ -62,7 +62,7 @@ const COPY: Record<RtueState, {
     ghostDest:   '/write',
   },
   one: {
-    hi:          'someone felt this',
+    hi:          'Someone felt this',
     feltLabel:   'person felt exactly this',
     sub:         () => "one stranger, somewhere, a little less alone because you spoke. that's the whole point.",
     primary:     'say something new',
@@ -71,7 +71,7 @@ const COPY: Record<RtueState, {
     ghostDest:   '/read',
   },
   few: {
-    hi:          'you were felt',
+    hi:          'You were felt',
     feltLabel:   'felt this too',
     sub:         (_, n) => `${n} ${n === 1 ? 'stranger' : 'strangers'}, less alone because you didn't stay silent.`,
     primary:     'say something new',
@@ -80,7 +80,7 @@ const COPY: Record<RtueState, {
     ghostDest:   '/read',
   },
   growing: {
-    hi:          'you were heard',
+    hi:          'You were heard',
     feltLabel:   'felt this too',
     sub:         () => "you're still not the only one.",
     primary:     'say something new',
@@ -89,7 +89,7 @@ const COPY: Record<RtueState, {
     ghostDest:   '/read',
   },
   milestone: {
-    hi:          'a milestone',
+    hi:          'A milestone',
     feltLabel:   'have felt this',
     sub:         (_, n) => `${n.toLocaleString()} strangers, less alone because you spoke once.`,
     primary:     'say something new',
@@ -200,7 +200,7 @@ function YouWroteCard({ text }: { text: string }) {
 
   return (
     <View style={staticSt.youCard}>
-      <Text style={staticSt.youLabel}>you wrote</Text>
+      <Text style={staticSt.youLabel}>You wrote</Text>
       <Text style={styles.youText} numberOfLines={5} ellipsizeMode="tail">{text}</Text>
     </View>
   );
@@ -256,7 +256,7 @@ export default function RtueScreen() {
           resizeMode="contain"
           accessibilityElementsHidden
         />
-        <Text style={staticSt.kick}>welcome back</Text>
+        <Text style={staticSt.kick}>Welcome back</Text>
 
         {/* Headline */}
         <Text style={styles.hi}>{copy.hi}</Text>
@@ -267,7 +267,7 @@ export default function RtueScreen() {
         {/* Moment: count or big text */}
         <View style={staticSt.moment}>
           {state === 'not_yet' ? (
-            <Text style={styles.bigText}>out there,{'\n'}finding its person</Text>
+            <Text style={styles.bigText}>Out there,{'\n'}finding its person</Text>
           ) : (
             <>
               <AnimatedCount from={animFrom} to={current} state={state} />
@@ -398,7 +398,7 @@ function createSt(color: ColorSet) {
       alignItems:        'center',
     },
     hi: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   23,
       lineHeight: 27,
       color:      color.paper,
@@ -406,13 +406,13 @@ function createSt(color: ColorSet) {
       marginTop:  6,
     },
     youText: {
-      fontFamily: fontFamily.serif,
+      fontFamily: fontFamily.sans,
       fontSize:   12,
       lineHeight: 17,
       color:      color.paper,
     },
     count: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   44,
       lineHeight: 48,
     },
@@ -425,7 +425,7 @@ function createSt(color: ColorSet) {
       textAlign:     'center',
     },
     bigText: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sans,
       fontSize:   20,
       lineHeight: 24,
       color:      color.paper,

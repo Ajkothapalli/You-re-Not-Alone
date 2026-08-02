@@ -10,8 +10,9 @@ import {
   type PressableProps,
   type ViewStyle,
 } from 'react-native';
-import { useThemeColors } from '../theme/ThemeProvider';
+import { useTheme, useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius } from '../theme/tokens';
+import { DURATION, EASING, SPRING } from '../theme/motion';
 import { useReducedMotion } from '../lib/a11y';
 
 // Neo-brutalism: flat electric yellow face, black hard-offset edge
@@ -37,16 +38,15 @@ function usePressDepth(disabled?: boolean | null, reduceMotion?: boolean) {
     if (reduceMotion) return;
     Animated.timing(press, {
       toValue:         1,
-      duration:        80,
+      duration:        DURATION.press,
       useNativeDriver: true,
     }).start();
   }, [disabled, press, reduceMotion]);
 
   const onPressOut = useCallback(() => {
     Animated.spring(press, {
-      toValue:        0,
-      speed:          22,
-      bounciness:     7,
+      toValue:         0,
+      ...SPRING.pressSpring,
       useNativeDriver: true,
     }).start();
   }, [press]);
@@ -63,7 +63,10 @@ export function PrimaryButton({
 }: ButtonProps) {
   const isDisabled = !!(disabled || loading);
   const reduceMotion = useReducedMotion();
+  const { isDark } = useTheme();
   const { press, onPressIn, onPressOut } = usePressDepth(isDisabled, reduceMotion);
+  const edgeColor  = isDark ? '#C07D00' : EDGE_COLOR;  // amber shadow on dark bg
+  const faceBorder = isDark ? FACE_COLOR : EDGE_COLOR;
 
   const faceTranslateY = press.interpolate({
     inputRange:  [0, 1],
@@ -77,9 +80,9 @@ export function PrimaryButton({
 
   return (
     <View style={style}>
-      <View style={[primaryStyles.wrapper, isDisabled && primaryStyles.disabled]}>
-        {/* Edge — static black block below the face */}
-        <View style={primaryStyles.edge} />
+      <View style={primaryStyles.wrapper}>
+        {/* Edge — black in light mode, amber in dark mode */}
+        <View style={[primaryStyles.edge, { backgroundColor: edgeColor }]} />
 
         {/* Face — slides down on press */}
         <Pressable
@@ -92,14 +95,16 @@ export function PrimaryButton({
           onPressOut={e => { onPressOut(); extPressOut?.(e); }}
         >
           <Animated.View style={{ transform: [{ translateY: faceTranslateY }] }}>
-            <View style={primaryStyles.face}>
+            <View style={[primaryStyles.face, { borderColor: faceBorder }]}>
               <Animated.View
                 pointerEvents="none"
                 style={[primaryStyles.tintOverlay, { opacity: tintOpacity }]}
               />
               {loading
                 ? <ActivityIndicator color={FACE_TEXT} />
-                : <Text style={primaryStyles.label}>{label}</Text>}
+                : <Text style={[primaryStyles.label, isDisabled && primaryStyles.labelDisabled]}>
+                    {label}
+                  </Text>}
             </View>
           </Animated.View>
         </Pressable>
@@ -199,6 +204,9 @@ const primaryStyles = StyleSheet.create({
     textTransform: 'uppercase',
     color:         FACE_TEXT,
   },
+  labelDisabled: {
+    opacity: 0.38,
+  },
   tintOverlay: {
     position:        'absolute',
     top:             0,
@@ -206,9 +214,6 @@ const primaryStyles = StyleSheet.create({
     right:           0,
     bottom:          0,
     backgroundColor: '#000000',
-  },
-  disabled: {
-    opacity: 0.32,
   },
 });
 

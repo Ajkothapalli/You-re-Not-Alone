@@ -10,10 +10,13 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Animated, Pressable } from 'react-native';
 import { getPersonaById, PersonaBadge, type Persona } from './Persona';
 import { getProfile } from '../lib/profile';
+import { DURATION, SPRING } from '../theme/motion';
+import { useReducedMotion } from '../lib/a11y';
 
 export default function ProfileButton() {
-  const [persona, setPersona] = useState<Persona | null>(null);
-  const press = useRef(new Animated.Value(0)).current;
+  const [persona, setPersona]   = useState<Persona | null>(null);
+  const press                   = useRef(new Animated.Value(0)).current;
+  const reduceMotion            = useReducedMotion();
 
   useFocusEffect(
     useCallback(() => {
@@ -29,12 +32,13 @@ export default function ProfileButton() {
 
   return (
     <Pressable
-      onPress={() => router.push('/profile')}
-      onPressIn={() =>
-        Animated.timing(press, { toValue: 1, duration: 80, useNativeDriver: true }).start()
-      }
+      onPress={() => router.navigate('/(tabs)/you')}
+      onPressIn={() => {
+        if (!reduceMotion)
+          Animated.timing(press, { toValue: 1, duration: DURATION.press, useNativeDriver: true }).start();
+      }}
       onPressOut={() =>
-        Animated.spring(press, { toValue: 0, speed: 22, bounciness: 8, useNativeDriver: true }).start()
+        Animated.spring(press, { toValue: 0, ...SPRING.pressSpring, useNativeDriver: true }).start()
       }
       hitSlop={10}
       accessibilityRole="button"

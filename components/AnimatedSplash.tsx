@@ -32,9 +32,10 @@
 
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text } from 'react-native';
+import { Animated, StyleSheet, Text } from 'react-native';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '../theme/tokens';
+import { DURATION, EASING, SPRING } from '../theme/motion';
 import { useReducedMotion } from '../lib/a11y';
 
 const LOGO_SIZE  = 220;            // must match app.json imageWidth
@@ -92,7 +93,7 @@ export default function AnimatedSplash({ onDone }: Props) {
     if (reduceMotion) {
       wordmark.setValue(1);
       const t = setTimeout(() => {
-        Animated.timing(overlay, { toValue: 0, duration: 300, useNativeDriver: true })
+        Animated.timing(overlay, { toValue: 0, duration: DURATION.screen, useNativeDriver: true })
           .start(() => finish());
       }, 1_100);
       return () => {
@@ -108,8 +109,8 @@ export default function AnimatedSplash({ onDone }: Props) {
       done = true;
       Animated.timing(overlay, {
         toValue:         0,
-        duration:        450,
-        easing:          Easing.in(Easing.quad),
+        duration:        DURATION.screen,
+        easing:          EASING.exit,
         useNativeDriver: true,
       }).start(() => finish());
     }
@@ -119,14 +120,13 @@ export default function AnimatedSplash({ onDone }: Props) {
       Animated.delay(200),
       Animated.timing(spread, {
         toValue:         1,
-        duration:        480,
-        easing:          Easing.out(Easing.cubic),
+        duration:        480,        // intentional choreography timing — breathe-apart phase
+        easing:          EASING.enter,
         useNativeDriver: true,
       }),
       Animated.spring(spread, {
         toValue:         0,
-        speed:           9,
-        bounciness:      16,
+        ...SPRING.meeting,           // the signature overshoot — two souls meeting
         useNativeDriver: true,
       }),
     ]).start();
@@ -136,14 +136,14 @@ export default function AnimatedSplash({ onDone }: Props) {
       Animated.delay(820),
       Animated.timing(pulse, {
         toValue:         1,
-        duration:        170,
-        easing:          Easing.out(Easing.quad),
+        duration:        170,        // intentional choreography timing — meeting beat in
+        easing:          EASING.enter,
         useNativeDriver: true,
       }),
       Animated.timing(pulse, {
         toValue:         0,
-        duration:        260,
-        easing:          Easing.in(Easing.quad),
+        duration:        260,        // intentional choreography timing — meeting beat out
+        easing:          EASING.exit,
         useNativeDriver: true,
       }),
     ]).start();
@@ -152,27 +152,27 @@ export default function AnimatedSplash({ onDone }: Props) {
     const bob = (v: Animated.Value, up: number, down: number) =>
       Animated.loop(
         Animated.sequence([
-          Animated.timing(v, { toValue: 1, duration: up,   easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(v, { toValue: 0, duration: down, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(v, { toValue: 1, duration: up,   easing: EASING.breathe, useNativeDriver: true }),
+          Animated.timing(v, { toValue: 0, duration: down, easing: EASING.breathe, useNativeDriver: true }),
         ]),
       );
     const floatLoopL = bob(floatL, 1_150, 1_150);
     const floatLoopR = bob(floatR, 1_350, 1_350);
     const floatStart = setTimeout(() => { floatLoopL.start(); floatLoopR.start(); }, 1_500);
 
+    // Text appears after logo spring animation settles (~1300ms), not during
     Animated.timing(wordmark, {
       toValue:         1,
-      duration:        600,
-      delay:           1_100,
-      easing:          Easing.out(Easing.cubic),
+      duration:        DURATION.entrance,
+      delay:           1_400,
+      easing:          EASING.enter,
       useNativeDriver: true,
     }).start();
 
-    // 5. hold briefly after wordmark is fully visible, then fade out
-    // wordmark fully visible at ~1700ms; hold 800ms before dismissing
-    const dismissTimer = setTimeout(dismissNow, 2_500);
+    // 5. hold after wordmark is fully visible (~1700ms), then fade out
+    const dismissTimer = setTimeout(dismissNow, 2_800);
     // hard-stop — cannot rely on the Animated callback alone
-    const hardStop     = setTimeout(dismissNow, 4_000);
+    const hardStop     = setTimeout(dismissNow, 4_500);
 
     return () => {
       clearTimeout(dismissTimer);
@@ -246,7 +246,7 @@ export default function AnimatedSplash({ onDone }: Props) {
         ]}
       >
         <Text style={styles.wordmarkText}>soulyap</Text>
-        <Text style={styles.subText}>a private place to say what you can't</Text>
+        <Text style={styles.subText}>A private place to say what you can't</Text>
       </Animated.View>
     </Animated.View>
   );
@@ -273,11 +273,11 @@ function createStyles(color: ColorSet) {
     },
     wordmarkContainer: {
       alignItems: 'center',
-      gap:        8,
-      marginTop:  28,
+      gap:        4,
+      marginTop:  -44,
     },
     wordmarkText: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   24,
       color:      color.paper,
     },

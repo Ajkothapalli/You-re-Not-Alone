@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fontFamily } from '@/theme/tokens';
+import { ScrawlIcon } from './ScrawlIcon';
 
 const MAX_HEIGHT = Dimensions.get('window').height * 0.85;
 
@@ -41,7 +42,7 @@ export default function BottomSheet({ children, title, onClose }: Props) {
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-              <Text style={styles.closeIcon}>✕</Text>
+              <ScrawlIcon name="x_mark" size={18} color="#1A1A1A" roughen={false} strokeWidth={2.5} />
             </Pressable>
           </View>
         ) : null}
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(243,238,232,0.09)',
   },
   title: {
-    fontFamily: fontFamily.serifItalic,
+    fontFamily: fontFamily.sansBold,
     fontSize:   22,
     color:      '#F3EEE8',
   },

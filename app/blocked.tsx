@@ -49,7 +49,7 @@ function createStyles(color: ColorSet) {
       gap: 20,
     },
     heading: {
-      fontFamily: 'Fraunces_400Regular',
+      fontFamily: fontFamily.sansBold,
       fontSize: 26,
       color: color.paper,
       lineHeight: 34,

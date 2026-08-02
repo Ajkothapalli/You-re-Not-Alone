@@ -26,6 +26,7 @@ import { usePalette, useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius } from '../theme/tokens';
 
 const MAX_CHARS = 1000;
+const SHADOW    = 4;
 
 interface Props extends Omit<TextInputProps, 'multiline' | 'style'> {
   value:        string;
@@ -66,27 +67,29 @@ export default function ConfessionInput({
   }
 
   const emojiTheme = {
-    backdrop:           '#0A0A0ACC',
+    backdrop:           color.bg + 'CC',
     knob:               palette.them,
-    container:          '#141414',
+    container:          color.ink,
     header:             color.dim,
-    skinTonesContainer: '#1E1E1E',
+    skinTonesContainer: color.bg,
     category: {
       icon:            color.dim,
-      iconActive:      '#0A0A0A',
-      container:       '#1E1E1E',
+      iconActive:      color.bg,
+      container:       color.bg,
       containerActive: palette.them,
     },
     search: {
       text:        color.paper,
       placeholder: color.dim,
       icon:        color.dim,
-      background:  '#1E1E1E',
+      background:  color.bg,
     },
   };
 
   return (
-    <View style={[styles.wrapper, style]}>
+    <View style={[styles.outerShell, style]}>
+      <View pointerEvents="none" style={styles.shadowBlock} />
+      <View style={styles.wrapper}>
       <TextInput
         {...rest}
         style={styles.input}
@@ -131,16 +134,30 @@ export default function ConfessionInput({
         categoryPosition="top"
         theme={emojiTheme}
       />
+      </View>
     </View>
   );
 }
 
 function createStyles(color: ColorSet) {
   return StyleSheet.create({
+    outerShell: {
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+    },
+    shadowBlock: {
+      position:     'absolute',
+      top:          SHADOW,
+      left:         SHADOW,
+      right:        0,
+      bottom:       0,
+      borderRadius: radius.input,
+      backgroundColor: color.border,
+    },
     wrapper: {
       flex:            1,
       minHeight:       180,
-      backgroundColor: '#141414',
+      backgroundColor: color.ink,
       borderRadius:    radius.input,
       borderWidth:     2,
       borderColor:     color.border,
@@ -162,15 +179,13 @@ function createStyles(color: ColorSet) {
     toggle: {
       width:          30,
       height:         30,
-      borderRadius:   radius.pill,
-      borderWidth:    2,
-      borderColor:    color.dim,
       alignItems:     'center',
       justifyContent: 'center',
     },
     toggleFace: {
-      fontSize:   18,
-      lineHeight: 20,
+      fontSize:           18,
+      lineHeight:         30,
+      includeFontPadding: false,
     },
     counter: {
       fontFamily: fontFamily.sans,

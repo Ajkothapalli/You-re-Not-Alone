@@ -1,11 +1,17 @@
+/**
+ * Write tab — compose and submit a confession.
+ *
+ * Full pipeline runs server-side (CLAUDE.md §1).
+ * After submit → pushes to /match (formSheet above tabs).
+ * Edit flow: arrives with prefillText param from My Confessions.
+ */
+
 import ConfessionInput from '@/components/ConfessionInput';
-import ProfileButton from '@/components/ProfileButton';
 import { PrimaryButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
 import { submitConfession } from '@/lib/api';
 import { useDraft } from '@/lib/draftContext';
 import { getDeviceHash } from '@/lib/deviceHash';
-import { session } from '@/lib/sessionFlags';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -15,30 +21,25 @@ import {
   Platform,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
+import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { showDialog } from '@/components/AppDialog';
 
 const MIN_CHARS = 1;
 
-export default function WriteScreen() {
+export default function WriteTabScreen() {
   const color                          = useThemeColors();
+  const insets                         = useSafeAreaInsets();
   const styles                         = useMemo(() => createStyles(color), [color]);
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading, setLoading]          = useState(false);
   const { prefillText }                = useLocalSearchParams<{ prefillText?: string }>();
 
   useEffect(() => {
-    if (!session.readShown) router.replace('/read');
-  }, []);
-
-  // Seed the draft when arriving from an Edit flow in My Confessions
-  useEffect(() => {
-    if (prefillText && !draft) {
-      setDraft(prefillText);
-    }
+    if (prefillText && !draft) setDraft(prefillText);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -55,28 +56,49 @@ export default function WriteScreen() {
         ? 'IN' : 'US';
       const result = await submitConfession(trimmed, deviceHash, region);
 
-      if (result.type === 'crisis')  { router.push('/crisis'); return; }
-      if (result.type === 'blocked') { analytics.blockedByModeration(result.blockReason); return; }
+      if (result.type === 'crisis') { router.push('/crisis'); return; }
+      if (result.type === 'blocked') {
+        analytics.blockedByModeration(result.blockReason);
+        router.push('/blocked');
+        return;
+      }
 
       clearDraft();
 
       if (result.type === 'submitted') {
         analytics.confessionSubmitted(result.match?.id ?? '');
-        // Land on the feed first so the sheet opens over it, not over the write screen.
         router.replace({ pathname: '/read', params: { from: 'match' } });
-        router.push({ pathname: '/match', params: { youText: trimmed, themText: '', feltCount: '1', confessionId: result.match?.id ?? '', noMatch: '1' } });
+        router.push({
+          pathname: '/match',
+          params: {
+            youText:      trimmed,
+            themText:     '',
+            feltCount:    '1',
+            confessionId: result.match?.id ?? '',
+            noMatch:      '1',
+          },
+        });
         return;
       }
 
       analytics.confessionSubmitted(result.match!.id);
       router.replace({ pathname: '/read', params: { from: 'match' } });
-      router.push({ pathname: '/match', params: { youText: trimmed, themText: result.match!.text, feltCount: String(result.match!.feltCount), confessionId: result.match!.id, noMatch: '0' } });
+      router.push({
+        pathname: '/match',
+        params: {
+          youText:      trimmed,
+          themText:     result.match!.text,
+          feltCount:    String(result.match!.feltCount),
+          confessionId: result.match!.id,
+          noMatch:      '0',
+        },
+      });
     } catch (err: any) {
       const msg: string = err?.message ?? '';
-      if      (msg.includes('moderation_unavailable'))                                              showDialog('Not available', 'The service is not ready yet. Please try again later.');
-      else if (err?.status === 429 || msg.includes('429') || msg.toLowerCase().includes('rate'))    showDialog('Slow down', "You've shared a lot today. Come back tomorrow.");
-      else if (err?.status === 403 || msg.includes('403') || msg.toLowerCase().includes('banned'))  showDialog('Account suspended', 'Your account has been suspended.');
-      else                                                                                           showDialog('Something went wrong', msg || 'Please try again.');
+      if      (msg.includes('moderation_unavailable'))                                             showDialog('Not available', 'The service is not ready yet. Please try again later.');
+      else if (err?.status === 429 || msg.includes('429') || msg.toLowerCase().includes('rate'))   showDialog('Slow down', "You've shared a lot today. Come back tomorrow.");
+      else if (err?.status === 403 || msg.includes('403') || msg.toLowerCase().includes('banned')) showDialog('Account suspended', 'Your account has been suspended.');
+      else                                                                                          showDialog('Something went wrong', msg || 'Please try again.');
     } finally {
       setLoading(false);
     }
@@ -84,35 +106,25 @@ export default function WriteScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.root}
+      style={[styles.root, { paddingTop: insets.top }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.replace('/read')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
-          <View style={{ transform: [{ scaleX: -1 }] }}>
-            <ScrawlIcon name="arrow_right" size={18} color={color.dim} roughen={false} strokeWidth={2.5} />
-          </View>
-        </TouchableOpacity>
-        <ProfileButton />
-      </View>
-
-      {/* Prompt */}
+      <BackgroundPattern />
       <View style={styles.header}>
-        <Text style={styles.prompt} accessibilityRole="header">What do you carry that you've never said out loud?</Text>
+        <Text style={styles.prompt} accessibilityRole="header">
+          What do you carry that you've never said out loud?
+        </Text>
       </View>
 
-      {/* Input */}
       <ConfessionInput
         value={draft}
         onChangeText={setDraft}
         placeholder="Write it here. It stays private."
-        autoFocus
+        autoFocus={false}
         style={styles.inputArea}
       />
 
-      {/* Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 90 }]}>
         <PrimaryButton
           label="Find who feels this"
           onPress={handleSubmit}
@@ -136,23 +148,10 @@ function createStyles(color: ColorSet) {
       flex:              1,
       backgroundColor:   color.bg,
       paddingHorizontal: spacing.screenPadding,
-      paddingTop:        60,
     },
-    topBar: {
-      flexDirection: 'row',
-      alignItems:    'center',
-      gap:           12,
-      marginBottom:  14,
-    },
-    backLabel: {
-      fontFamily: fontFamily.sansBold,
-      fontSize:   18,
-      color:      color.dim,
-      lineHeight: 22,
-    },
-    header:    { marginBottom: 16 },
+    header:    { marginTop: 20, marginBottom: 16 },
     prompt: {
-      fontFamily: fontFamily.sansBold,
+      fontFamily: fontFamily.serifItalic,
       fontSize:   22,
       color:      color.paper,
       lineHeight: 32,

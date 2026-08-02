@@ -1,4 +1,5 @@
 import ReadCard from '@/components/ReadCard';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { reportConfession } from '@/lib/api';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
@@ -7,6 +8,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
+import { showToast } from '@/components/Toast';
+import { BackgroundPattern } from '@/components/BackgroundPattern';
 
 export default function ReadDetailScreen() {
   const color  = useThemeColors();
@@ -33,6 +36,7 @@ export default function ReadDetailScreen() {
           style: 'destructive',
           onPress: async () => {
             try { await reportConfession(id, 'other'); } catch {}
+            showToast('Successfully reported');
           },
         },
       ],
@@ -40,8 +44,10 @@ export default function ReadDetailScreen() {
   }
 
   return (
+    <View style={styles.root}>
+    <BackgroundPattern />
     <ScrollView
-      style={styles.root}
+      style={{ flex: 1 }}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
@@ -52,7 +58,12 @@ export default function ReadDetailScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.back}>← back</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ transform: [{ scaleX: -1 }] }}>
+              <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.back}>back</Text>
+          </View>
         </Pressable>
       </View>
 
@@ -64,6 +75,7 @@ export default function ReadDetailScreen() {
         personaSeed={id ?? ''}
       />
     </ScrollView>
+    </View>
   );
 }
 

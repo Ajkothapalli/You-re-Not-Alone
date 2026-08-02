@@ -29,8 +29,10 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -253,12 +255,14 @@ export default function IndexScreen() {
     try {
       const success = await signInWithGoogle();
       if (!success) {
-        // Android dismiss path — deep link will complete auth.
-        waitingForDeepLink = true;
-        setTimeout(() => {
-          // Fires only if user truly cancelled (no deep link arrived).
-          setBusy(false);
-        }, 15_000);
+        if (Platform.OS === 'android') {
+          // Android: openAuthSessionAsync is a polyfill; real auth arrives via deep link.
+          // Keep spinner alive and let handleDeepLink clear it (15s guard for true cancels).
+          waitingForDeepLink = true;
+          setTimeout(() => setBusy(false), 15_000);
+          return;
+        }
+        // iOS: false means the user dismissed the Safari sheet — stop spinner immediately.
         return;
       }
       // iOS / success-URL path — session is already established.
@@ -275,16 +279,21 @@ export default function IndexScreen() {
   // ── Step 1: email ─────────────────────────────────────────────────────────────
   async function handleEmail() {
     clearError();
-    if (!email.trim()) { setError('Enter your email address.'); return; }
+    const trimmed = email.trim();
+    if (!trimmed) { setError("Add your email to continue"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError("That doesn't look like an email");
+      return;
+    }
     setBusy(true);
     try {
       const { error: err } = await supabase.auth.signInWithOtp({
-        email: email.trim().toLowerCase(),
+        email: trimmed.toLowerCase(),
       });
       if (err) throw err;
       setStep('otp');
     } catch (err: any) {
-      setError(err.message ?? 'Could not send code. Try again.');
+      setError("Couldn't send the code — try again");
     } finally {
       setBusy(false);
     }
@@ -349,7 +358,11 @@ export default function IndexScreen() {
   if (step === 'loading') {
     return (
       <View style={styles.center}>
-        <Text style={styles.wordmark} accessibilityRole="header">you're not alone</Text>
+        <View style={styles.logoRow}>
+          <Image source={require('../assets/splash-quote-left.png')}  style={styles.logoLeft}  resizeMode="stretch" />
+          <Image source={require('../assets/splash-quote-right.png')} style={styles.logoRight} resizeMode="stretch" />
+        </View>
+        <Text style={styles.wordmark} accessibilityRole="header">soulyap</Text>
         <ActivityIndicator
           color={color.dim}
           style={{ marginTop: 20 }}
@@ -368,13 +381,19 @@ export default function IndexScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.wordmark} accessibilityRole="header">you're not alone</Text>
-        <Text style={styles.sub}>
-          {step === 'email' && 'A private place to share what you carry.'}
-          {step === 'otp'   && `Check your email — we sent a code to ${email}`}
-          {step === 'dob'   && 'Adults only. Your age is verified once.'}
-          {step === 'retry' && ''}
-        </Text>
+        <View style={styles.header}>
+          <View style={styles.logoRow}>
+            <Image source={require('../assets/splash-quote-left.png')}  style={styles.logoLeft}  resizeMode="stretch" />
+            <Image source={require('../assets/splash-quote-right.png')} style={styles.logoRight} resizeMode="stretch" />
+          </View>
+          <Text style={styles.wordmark} accessibilityRole="header">soulyap</Text>
+          <Text style={styles.sub}>
+            {step === 'email' && 'A private place to share what you carry.'}
+            {step === 'otp'   && `Check your email — we sent a code to ${email}`}
+            {step === 'dob'   && 'Adults only. Your age is verified once.'}
+            {step === 'retry' && ''}
+          </Text>
+        </View>
 
         {/* ── Email step ── */}
         {step === 'email' && (
@@ -393,7 +412,7 @@ export default function IndexScreen() {
             </View>
 
             {/* Email / OTP path */}
-            <Text style={styles.label}>your email</Text>
+            <Text style={styles.label}>Your email</Text>
             <TextInput
               style={styles.input}
               value={email}
@@ -407,6 +426,11 @@ export default function IndexScreen() {
               returnKeyType="done"
               accessibilityLabel="Your email address"
             />
+            {!!error && (
+              <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+                {error}
+              </Text>
+            )}
             <PrimaryButton label="Continue" onPress={handleEmail} loading={busy} />
           </View>
         )}
@@ -430,9 +454,13 @@ export default function IndexScreen() {
               autoComplete="sms-otp"
               accessibilityLabel="6-digit verification code from your email"
             />
-            <Text style={styles.otpHint}>
-              Open your email and enter the 6-digit code.
-            </Text>
+            {!!error ? (
+              <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+                {error}
+              </Text>
+            ) : (
+              <Text style={styles.otpHint}>Open your email and enter the 6-digit code.</Text>
+            )}
             <PrimaryButton label="Verify" onPress={handleOtp} loading={busy} />
             <GhostButton
               label="Use a different email"
@@ -444,7 +472,7 @@ export default function IndexScreen() {
         {/* ── DOB step ── */}
         {step === 'dob' && (
           <View style={styles.form}>
-            <Text style={styles.label}>date of birth</Text>
+            <Text style={styles.label}>Date of birth</Text>
             <TextInput
               style={styles.input}
               value={dob}
@@ -462,9 +490,13 @@ export default function IndexScreen() {
                 '. Dashes are added automatically.'
               }
             />
-            <Text style={styles.dobHint}>
-              Checked once. Never shown with anything you write.
-            </Text>
+            {!!error ? (
+              <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+                {error}
+              </Text>
+            ) : (
+              <Text style={styles.dobHint}>Checked once. Never shown with anything you write.</Text>
+            )}
             <PrimaryButton label="Enter" onPress={handleDob} loading={busy} />
           </View>
         )}
@@ -472,7 +504,7 @@ export default function IndexScreen() {
         {/* ── Retry step ── */}
         {step === 'retry' && (
           <View style={styles.form}>
-            <Text style={styles.retryHeading}>taking longer than usual</Text>
+            <Text style={styles.retryHeading}>Taking longer than usual</Text>
             <Text style={styles.sub}>
               we can't reach soulyap right now.{'\n'}check your connection and try again.
             </Text>
@@ -487,20 +519,27 @@ export default function IndexScreen() {
           </View>
         )}
 
-        {!!error && (
-          <Text
-            style={styles.errorText}
-            accessibilityRole="alert"
-            accessibilityLiveRegion="assertive"
+        <View style={styles.legalRow}>
+          <Text style={styles.legal}>By continuing you agree to our </Text>
+          <Pressable
+            onPress={() => router.push({ pathname: '/policy', params: { type: 'terms' } })}
+            accessibilityRole="link"
+            accessibilityLabel="Terms of Service"
           >
-            {error}
-          </Text>
-        )}
-
-        <Text style={styles.legal}>
-          By continuing you agree to our{'\n'}Terms of Service and Privacy Policy.
-        </Text>
+            <Text style={styles.legalLink}>Terms of Service</Text>
+          </Pressable>
+          <Text style={styles.legal}> and </Text>
+          <Pressable
+            onPress={() => router.push({ pathname: '/policy', params: { type: 'privacy' } })}
+            accessibilityRole="link"
+            accessibilityLabel="Privacy Policy"
+          >
+            <Text style={styles.legalLink}>Privacy Policy</Text>
+          </Pressable>
+          <Text style={styles.legal}>.</Text>
+        </View>
       </ScrollView>
+
     </KeyboardAvoidingView>
   );
 }
@@ -518,25 +557,43 @@ function createStyles(color: ColorSet) {
       alignItems:      'center',
     },
     scroll: {
-      flexGrow:        1,
-      justifyContent:  'center',
-      padding:         spacing.screenPadding,
-      paddingVertical: 64,
-      gap:             20,
+      flexGrow:      1,
+      padding:       spacing.screenPadding,
+      paddingTop:    88,
+      paddingBottom: 48,
+      gap:           20,
+    },
+    header: {
+      alignItems:   'center',
+      gap:          4,
+      marginBottom: 20,
+    },
+    logoRow: {
+      flexDirection: 'row',
+      width:         140,
+      height:        140,
+      marginBottom:  -28,
+    },
+    logoLeft: {
+      width:  140 * 0.4111,
+      height: 140,
+    },
+    logoRight: {
+      width:  140 * (1 - 0.4111),
+      height: 140,
     },
     wordmark: {
-      fontFamily:   fontFamily.serifItalic,
-      fontSize:     30,
-      color:        color.paper,
-      textAlign:    'center',
-      marginBottom: 4,
+      fontFamily:     fontFamily.sansBold,
+      fontSize:       30,
+      color:          color.paper,
+      textAlign:      'center',
+      textTransform:  'none',
     },
     sub: {
-      fontFamily:   fontFamily.sans,
-      fontSize:     15,
-      color:        color.dim,
-      textAlign:    'center',
-      marginBottom: 12,
+      fontFamily: fontFamily.sans,
+      fontSize:   15,
+      color:      color.dim,
+      textAlign:  'center',
     },
     form: {
       gap: 12,
@@ -567,8 +624,10 @@ function createStyles(color: ColorSet) {
       color:         color.dim,
     },
     input: {
-      backgroundColor: '#1A1720',
+      backgroundColor: color.ink,
       borderRadius:    radius.input,
+      borderWidth:     2,
+      borderColor:     color.border,
       padding:         16,
       fontFamily:      fontFamily.sans,
       fontSize:        15,
@@ -593,24 +652,34 @@ function createStyles(color: ColorSet) {
       marginTop:  -4,
     },
     retryHeading: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   22,
       color:      color.paper,
       textAlign:  'center',
     },
     errorText: {
       fontFamily: fontFamily.sans,
-      fontSize:   14,
-      color:      '#F5996E',
-      textAlign:  'center',
+      fontSize:   13,
+      color:      '#EF4444',
+      marginTop:  -4,
+    },
+    legalRow: {
+      flexDirection:  'row',
+      flexWrap:       'wrap',
+      justifyContent: 'center',
+      alignItems:     'center',
+      marginTop:      8,
     },
     legal: {
       fontFamily: fontFamily.sans,
       fontSize:   11,
-      textAlign:  'center',
-      marginTop:  8,
       color:      color.dim,
-      opacity:    0.45,
+    },
+    legalLink: {
+      fontFamily:         fontFamily.sansBold,
+      fontSize:           11,
+      color:              color.dim,
+      textDecorationLine: 'underline',
     },
   });
 }

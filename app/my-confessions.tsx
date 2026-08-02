@@ -17,7 +17,9 @@
  */
 
 import { GhostButton } from '@/components/Buttons';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
+import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -32,6 +34,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const SHADOW = 4;
 
 const STATUS_LABEL: Record<string, string> = {
   live:         'live',
@@ -68,7 +72,9 @@ function ConfessionRow({
   const isGone      = item.status === 'retired' || item.status === 'removed' || item.status === 'deleted';
 
   return (
-    <View style={[styles.card, isGone && styles.cardGone]}>
+    <View style={[styles.cardOuter, isGone && styles.cardGone]}>
+      <View pointerEvents="none" style={styles.cardShadow} />
+      <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={[styles.badge, { backgroundColor: statusColor + '22' }]}>
           <View style={[styles.badgeDot, { backgroundColor: statusColor }]} />
@@ -102,6 +108,7 @@ function ConfessionRow({
           </Pressable>
         </View>
       )}
+      </View>
     </View>
   );
 }
@@ -194,6 +201,7 @@ export default function MyConfessionsScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + 8 }]}>
+      <BackgroundPattern />
       <View style={styles.header}>
         <Pressable
           onPress={() => router.back()}
@@ -201,9 +209,14 @@ export default function MyConfessionsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.back}>← back</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ transform: [{ scaleX: -1 }] }}>
+              <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.back}>back</Text>
+          </View>
         </Pressable>
-        <Text style={styles.title}>my confessions</Text>
+        <Text style={styles.title}>My confessions</Text>
         <View style={{ width: 60 }} />
       </View>
 
@@ -260,7 +273,7 @@ function createStyles(color: ColorSet) {
       width:      60,
     },
     title: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   17,
       color:      color.paper,
     },
@@ -282,9 +295,24 @@ function createStyles(color: ColorSet) {
       paddingBottom: 32,
       gap:           12,
     },
+    cardOuter: {
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+    },
+    cardShadow: {
+      position:        'absolute',
+      top:             SHADOW,
+      left:            SHADOW,
+      right:           0,
+      bottom:          0,
+      borderRadius:    radius.card,
+      backgroundColor: color.border,
+    },
     card: {
       backgroundColor: color.ink,
       borderRadius:    radius.card,
+      borderWidth:     2,
+      borderColor:     color.border,
       padding:         16,
       gap:             10,
     },

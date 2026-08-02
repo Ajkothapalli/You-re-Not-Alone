@@ -14,6 +14,33 @@ Single source of truth for all visual design decisions in the React Native app.
 
 ---
 
+## Content Guidelines
+
+### Capitalisation
+Every piece of user-visible text starts with a capital letter — one rule, no exceptions.
+
+- **UI copy**: buttons, labels, placeholders, hints, tab names, section headers → first letter caps.
+- **Error messages**: inline errors, dialog messages, toast text → first letter caps.
+- **Body / descriptive text**: screen subheadings, card copy, policy content → first letter caps.
+- **Button labels**: already UPPERCASE via `textTransform: 'uppercase'` — capitalisation is irrelevant, but the source string should still start with a capital.
+- **Accessibility strings** (`accessibilityLabel`, `accessibilityHint`): first letter caps.
+
+**Not covered:** brand name (`soulyap`) and persona names (`kai`, `ezra`, …) are intentionally lowercase — these are proper nouns with a deliberate stylistic choice, not copy.
+
+### Tone
+Write from the user's side of the screen. Direct, calm, human — never robotic or formal.
+
+- Use contractions naturally: "That doesn't look like an email", not "Invalid email format".
+- Error messages name what happened, not what the system did: "Couldn't send the code — try again", not "OTP request failed".
+- Under-promise, over-deliver. When in doubt, say less.
+
+### Punctuation
+- End stand-alone sentences with a full stop. Omit for short labels/hints that aren't full sentences.
+- Em-dash ( — ) for inline asides, not parentheses.
+- No exclamation marks outside celebration moments.
+
+---
+
 ## Color Tokens
 
 Defined in `theme/tokens.ts`. Access via `useThemeColors()`.
@@ -439,6 +466,133 @@ BRAIN = 'M6 9 C6 6.4 8.4 5 12 5 C15.6 5 18 6.4 18 9 C19.1 9.4 19.5 10.7 18.9 11.
 ```
 
 **CategoryBadge:** circle, `c + '14'` bg (8% opacity), `c + '40'` border, glyph at 68% of badge size.
+
+---
+
+## Iconography & Graphics Language — Scrawl
+
+Owner decision 2026-07-30. Applied across all card decorative graphics, inline icons, and illustration accents.
+
+### Style definition
+
+```
+stroke-width:    2.5
+stroke-linejoin: round
+stroke-linecap:  round
+fill:            none
+filter:          url(#scrawl)     ← feTurbulence roughen (see below)
+```
+
+The roughen filter makes every line feel drawn by hand in ink. The displacement is subtle — enough to read as analog without looking broken.
+
+### SVG filter
+
+```svg
+<filter id="scrawl" x="-10%" y="-10%" width="120%" height="120%">
+  <feTurbulence type="fractalNoise" baseFrequency="0.038" numOctaves="2" seed="5" result="noise"/>
+  <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.6"
+    xChannelSelector="R" yChannelSelector="G"/>
+</filter>
+```
+
+**React Native SVG (react-native-svg v15+):**
+
+```tsx
+import { Defs, Filter, FeTurbulence, FeDisplacementMap } from 'react-native-svg';
+
+// Inside <Svg> — define once per screen, reference by id from any path
+<Defs>
+  <Filter id="scrawl">
+    <FeTurbulence type="fractalNoise" baseFrequency="0.038" numOctaves={2} seed={5} result="noise"/>
+    <FeDisplacementMap in="SourceGraphic" in2="noise" scale={2.6}
+      xChannelSelector="R" yChannelSelector="G"/>
+  </Filter>
+</Defs>
+```
+
+> If `filter` prop is unsupported on a target OS version, fall through to the paths with no filter applied — the icons still read correctly without roughening.
+
+### Icon set (viewBox 0 0 48 48)
+
+All icons: `stroke="currentColor"` — inherits palette accent from parent card.
+
+**Speech Bubble** — voice, confession, saying the unsayable
+```svg
+<path d="M4 5H44V33H28L22 43V33H4V5Z"/>
+<path d="M11 15H37M11 23H30"/>
+```
+
+**Heart** — felt resonance, you are not alone
+```svg
+<path d="M24 41C24 41 4 28 4 16C4 9 9 4 16 4C20 4 23 7 24 9C25 7 28 4 32 4C39 4 44 9 44 16C44 28 24 41 24 41Z"/>
+```
+
+**Lightning** — urgency, a moment of clarity, the thing that breaks through
+```svg
+<path d="M28 3L12 25H22L20 45L36 25H26L28 3Z"/>
+```
+
+**Lock** — secret, the thing kept inside, chosen privacy
+```svg
+<rect x="8" y="22" width="32" height="22" rx="2"/>
+<path d="M15 22V15C15 8 24 8 24 8C24 8 33 8 33 15V22"/>
+<circle cx="24" cy="34" r="3"/>
+```
+
+**Infinity** — the connection that keeps going, never the only one
+```svg
+<path d="M24 24C24 24 29 16 37 16C44 16 47 20 47 24C47 28 44 32 37 32C29 32 19 16 11 16C4 16 1 20 1 24C1 28 4 32 11 32C19 32 24 24 24 24Z"/>
+```
+
+### Card decorative graphic usage
+
+One icon placed as a large background graphic at the bottom-right corner of each card, rotated 45°. Acts as a visual accent, not a functional element.
+
+```tsx
+// Inside ConfessionCard / ReadCard — absolutely positioned
+<View pointerEvents="none" style={styles.decorGfx}>
+  <ScrawlIcon name={decorIcon} size={64} color={color.paper} roughen />
+</View>
+
+// styles:
+// ReadCard
+decorGfx: {
+  position:  'absolute',
+  bottom:    -30,
+  right:     -24,
+  opacity:   0.14,
+  transform: [{ rotate: '45deg' }],
+}
+// ConfessionCard (larger card, larger icon 60px)
+decorGfx: {
+  position:  'absolute',
+  bottom:    -38,
+  right:     -30,
+  opacity:   0.14,
+  transform: [{ rotate: '45deg' }],
+}
+// Card container needs: overflow: 'hidden'
+```
+
+**Color rule:** always `color.paper` (no palette accent) — grey/black only, never colored. Adapts automatically to light and dark mode.
+
+**Icon-to-card assignment:** rotate through the 5 icons based on `confession_id` (last char mod 5), so the graphic feels varied across a session without being random per render.
+
+### Inline icon usage
+
+For any icon used in-line (not as a card decoration), omit the filter — roughen is only for large decorative use. Inline icons stay crisp at small sizes.
+
+```tsx
+// Inline icon — no filter, same stroke style
+<Path
+  d={HEART_PATH}
+  stroke={palette.you}
+  strokeWidth={2}
+  strokeLinejoin="round"
+  strokeLinecap="round"
+  fill="none"
+/>
+```
 
 ---
 

@@ -14,20 +14,24 @@
  */
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Animated, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import type { Palette } from '../theme/palettes';
-import { useThemeColors } from '../theme/ThemeProvider';
+import { useTheme, useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '../theme/tokens';
 import { useReducedMotion } from '../lib/a11y';
+import { DURATION, EASING, RISE, SCALE } from '../theme/motion';
+import { ScrawlIcon, iconAtOffset } from './ScrawlIcon';
 
 const SHADOW = 5;
 
 interface Props {
-  youText:   string;
-  themText:  string;
-  feltCount: number;
-  palette:   Palette;
-  style?:    ViewStyle;
+  youText:            string;
+  themText:           string;
+  feltCount:          number;
+  palette:            Palette;
+  style?:             ViewStyle;
+  iconSeed?:          string;
+  iconSessionOffset?: number;
 }
 
 // WaveBackground — exported for test-mock compat, renders nothing.
@@ -44,25 +48,29 @@ function Seam({ you }: { you: string }) {
   return (
     <View style={styles.seamContainer}>
       <View style={[styles.seamLine, { backgroundColor: you }]} />
-      <Text style={styles.seamLabel}>someone, at the same moment</Text>
+      <Text style={styles.seamLabel}>Someone, at the same moment</Text>
     </View>
   );
 }
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
-export default function ConfessionCard({ youText, themText, feltCount, palette, style }: Props) {
-  const color  = useThemeColors();
+export default function ConfessionCard({ youText, themText, feltCount, palette, style, iconSeed, iconSessionOffset = 0 }: Props) {
+  const { colors: color, isDark } = useTheme();
   const styles = useMemo(() => createStyles(color), [color]);
   const anim = useRef(new Animated.Value(0)).current;
   const reduceMotion = useReducedMotion();
+  const seed = iconSeed ?? 'heart';
+  const iconBR = iconAtOffset(seed, 0, iconSessionOffset);
+  const iconTL = iconAtOffset(seed, 2, iconSessionOffset);
+  const iconTR = iconAtOffset(seed, 4, iconSessionOffset);
 
   useEffect(() => {
     if (reduceMotion) { anim.setValue(1); return; }
     Animated.timing(anim, {
       toValue:         1,
-      duration:        700,
-      easing:          Easing.out(Easing.cubic),
+      duration:        DURATION.entrance,
+      easing:          EASING.enter,
       useNativeDriver: true,
     }).start();
   }, [reduceMotion]);
@@ -72,8 +80,8 @@ export default function ConfessionCard({ youText, themText, feltCount, palette, 
     `Someone, at the same moment, wrote: ${themText}. ` +
     `${feltCount.toLocaleString()} people felt this too. You're not alone.`;
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] });
-  const scale      = anim.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] });
+  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [RISE.lg, 0] });
+  const scale      = anim.interpolate({ inputRange: [0, 1], outputRange: [SCALE.card, 1] });
 
   return (
     <Animated.View
@@ -92,17 +100,28 @@ export default function ConfessionCard({ youText, themText, feltCount, palette, 
 
         {/* Card */}
         <View style={styles.card}>
+          {/* Scrawl decorative graphics — scattered across the card */}
+          <View pointerEvents="none" style={[styles.decor, { top: 16, right: 18, opacity: 0.13 }]}>
+            <ScrawlIcon name={iconBR} size={52} color={color.paper} roughen />
+          </View>
+          <View pointerEvents="none" style={[styles.decor, { top: 210, left: 10, opacity: 0.10, transform: [{ rotate: '-28deg' }] }]}>
+            <ScrawlIcon name={iconTL} size={44} color={color.paper} roughen />
+          </View>
+          <View pointerEvents="none" style={[styles.decor, { bottom: 68, right: 14, opacity: 0.12, transform: [{ rotate: '55deg' }] }]}>
+            <ScrawlIcon name={iconTR} size={46} color={color.paper} roughen />
+          </View>
+
           <View style={styles.content} accessible accessibilityLabel={a11yLabel}>
 
             {/* ── You wrote ── */}
-            <Text style={[styles.label, { color: palette.you }]}>you wrote</Text>
+            <Text style={[styles.label, { color: isDark ? palette.you : color.paper }]}>You wrote</Text>
             <Text style={styles.confessionText}>{youText}</Text>
 
             {/* ── Seam ── */}
             <Seam you={palette.you} />
 
             {/* ── They wrote ── */}
-            <Text style={[styles.label, { color: palette.them }]}>they wrote</Text>
+            <Text style={[styles.label, { color: isDark ? palette.them : color.paper }]}>They wrote</Text>
             <Text style={styles.confessionText}>{themText}</Text>
 
             {/* Push footer to bottom */}
@@ -154,6 +173,10 @@ function createStyles(color: ColorSet) {
       flex:    1,
       padding: spacing.cardPadding,
       minHeight: 472,
+    },
+    decor: {
+      position:  'absolute',
+      transform: [{ rotate: '45deg' }],
     },
     label: {
       fontFamily:    fontFamily.sansBold,

@@ -17,14 +17,15 @@
  */
 
 import ReadCard from '@/components/ReadCard';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { announce } from '@/lib/a11y';
 import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -34,6 +35,7 @@ import {
   View,
 } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
+import { showToast } from '@/components/Toast';
 
 const DWELL_THRESHOLD_MS = 5_000;
 
@@ -46,6 +48,12 @@ export default function ExploreScreen() {
   const [loading,         setLoading]         = useState(true);
   const [done,            setDone]            = useState(false);
   const [premiumRequired, setPremiumRequired] = useState(false);
+  const [iconSession,     setIconSession]     = useState(() => Math.floor(Math.random() * 102));
+
+  // Rotate icons each time the user navigates back to this screen
+  useFocusEffect(useCallback(() => {
+    setIconSession(Math.floor(Math.random() * 102));
+  }, []));
 
   const dwellTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dwellFired   = useRef(false);
@@ -129,6 +137,7 @@ export default function ExploreScreen() {
               await reportConfession(confessionId, 'other');
               logReadEvent(confessionId, 'report');
               announce('Reported. Thank you.');
+              showToast('Successfully reported');
             } catch {}
             handleNext();
           },
@@ -157,13 +166,18 @@ export default function ExploreScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backLabel}>← back</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ transform: [{ scaleX: -1 }] }}>
+              <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.backLabel}>back</Text>
+          </View>
         </Pressable>
         <View style={styles.endContent}>
           <Text style={styles.endHeading} accessibilityRole="header">
             {confessions.length === 0
-              ? 'nothing here yet'
-              : 'you\'re all caught up'}
+              ? 'Nothing here yet'
+              : 'You\'re all caught up'}
           </Text>
           <Text style={styles.endBody}>
             {confessions.length === 0
@@ -192,7 +206,12 @@ export default function ExploreScreen() {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Text style={styles.backLabel}>← back</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <View style={{ transform: [{ scaleX: -1 }] }}>
+              <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
+            </View>
+            <Text style={styles.backLabel}>back</Text>
+          </View>
         </Pressable>
         <Text
           style={styles.progress}
@@ -214,6 +233,7 @@ export default function ExploreScreen() {
           personaSeed={current.id}
           onReport={() => handleReport(current.id)}
           onFelt={() => handleFelt(current.id)}
+          iconSessionOffset={iconSession}
         />
 
         <View style={styles.navRow}>
@@ -268,7 +288,7 @@ function createStyles(color: ColorSet) {
     scroll: {
       padding:       spacing.screenPadding,
       paddingTop:    8,
-      paddingBottom: 60,
+      paddingBottom: 96,
       gap:           20,
     },
     navRow: {
@@ -282,7 +302,7 @@ function createStyles(color: ColorSet) {
       gap:               16,
     },
     endHeading: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   26,
       color:      color.paper,
     },

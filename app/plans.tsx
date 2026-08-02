@@ -12,6 +12,8 @@
 import { router } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrawlIcon, type ScrawlIconName } from '../components/ScrawlIcon';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showDialog } from '../components/AppDialog';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { PrimaryButton } from '../components/Buttons';
@@ -23,7 +25,9 @@ import { usePremium } from '../lib/premiumContext';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '../theme/tokens';
 
-const GOLD = '#FFE500';
+const GOLD    = '#FFE500';  // badge only
+const MUSTARD = '#C07D00';  // selection accent — visible on light and dark
+const SHADOW  = 4;
 
 interface Tier {
   id:      TierId;
@@ -40,16 +44,17 @@ const TIER_META: { id: TierId; label: string; period: string; best?: boolean }[]
   { id: 'year',     label: 'Yearly',   period: '/ year', best: true },
 ];
 
-const PERKS = [
-  'Unlimited reading across your categories',
-  'Explore, tuned to what resonates with you',
-  'Funds human review & keeps crisis resources current',
+const PERKS: { icon: ScrawlIconName; text: string }[] = [
+  { icon: 'heart',     text: 'Unlimited reading across your categories' },
+  { icon: 'infinity',  text: 'Explore, tuned to what resonates with you' },
+  { icon: 'lock',      text: 'Funds human review & keeps crisis resources current' },
 ];
 
 export default function PlansScreen() {
   const { refresh } = usePremium();
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
+  const insets = useSafeAreaInsets();
 
   const [selected, setSelected] = useState<TierId>('year');
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
@@ -129,7 +134,7 @@ export default function PlansScreen() {
   return (
     <ScrollView
       style={styles.fill}
-      contentContainerStyle={styles.scroll}
+      contentContainerStyle={[styles.scroll, { paddingBottom: 48 + insets.bottom }]}
       showsVerticalScrollIndicator={false}
     >
 
@@ -137,7 +142,7 @@ export default function PlansScreen() {
         <View style={styles.badge}>
           <Text style={styles.badgeText}>Premium</Text>
         </View>
-        <Text style={styles.heading} accessibilityRole="header">read every voice that matches yours</Text>
+        <Text style={styles.heading} accessibilityRole="header">Read every voice that matches yours</Text>
         <Text style={styles.sub}>
           Your first reads are on us. Go deeper — unlimited confessions, tuned
           to the categories you chose. Cancel anytime.
@@ -146,9 +151,9 @@ export default function PlansScreen() {
         {/* Perks */}
         <View style={styles.perks}>
           {PERKS.map((p) => (
-            <View key={p} style={styles.perkRow}>
-              <Text style={styles.perkCheck}>✓</Text>
-              <Text style={styles.perkText}>{p}</Text>
+            <View key={p.text} style={styles.perkRow}>
+              <ScrawlIcon name={p.icon} size={18} color={color.dim} roughen={false} />
+              <Text style={styles.perkText}>{p.text}</Text>
             </View>
           ))}
         </View>
@@ -158,8 +163,9 @@ export default function PlansScreen() {
           {TIERS.map((t) => {
             const isSelected = selected === t.id;
             return (
+              <View style={styles.tierOuter} key={t.id}>
+              <View pointerEvents="none" style={styles.tierShadow} />
               <Pressable
-                key={t.id}
                 onPress={() => setSelected(t.id)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: isSelected }}
@@ -191,6 +197,7 @@ export default function PlansScreen() {
                   </View>
                 </View>
               </Pressable>
+              </View>
             );
           })}
         </View>
@@ -213,10 +220,9 @@ function createStyles(color: ColorSet) {
   return StyleSheet.create({
     fill: { flex: 1, backgroundColor: color.bg },
     scroll: {
-      padding:       spacing.screenPadding,
-      paddingTop:    16,
-      paddingBottom: 48,
-      gap:           14,
+      padding:    spacing.screenPadding,
+      paddingTop: 16,
+      gap:        14,
     },
     back: {
       fontFamily: fontFamily.sans,
@@ -241,7 +247,7 @@ function createStyles(color: ColorSet) {
       color:         '#0A0A0A',
     },
     heading: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   27,
       color:      color.paper,
       lineHeight: 36,
@@ -262,12 +268,6 @@ function createStyles(color: ColorSet) {
       alignItems:    'flex-start',
       gap:           10,
     },
-    perkCheck: {
-      fontFamily: fontFamily.sansBold,
-      fontSize:   14,
-      color:      '#FFE500',
-      lineHeight: 21,
-    },
     perkText: {
       flex:       1,
       fontFamily: fontFamily.sans,
@@ -276,18 +276,31 @@ function createStyles(color: ColorSet) {
       lineHeight: 21,
     },
     tierList: {
-      gap:       10,
+      gap:       10 + SHADOW,
       marginTop: 4,
+    },
+    tierOuter: {
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+    },
+    tierShadow: {
+      position:        'absolute',
+      top:             SHADOW,
+      left:            SHADOW,
+      right:           0,
+      bottom:          0,
+      borderRadius:    radius.input,
+      backgroundColor: color.border,
     },
     tierBorder: {
       borderRadius: radius.input,
       borderWidth:  2,
     },
     tierBorderIdle: {
-      borderColor: color.line,
+      borderColor: color.border,
     },
     tierBorderActive: {
-      borderColor: GOLD,
+      borderColor: color.border,
     },
     tierInner: {
       backgroundColor:   color.ink,
@@ -329,8 +342,8 @@ function createStyles(color: ColorSet) {
     radioDot: {
       width:           10,
       height:          10,
-      borderRadius:    2,
-      backgroundColor: GOLD,
+      borderRadius:    5,
+      backgroundColor: MUSTARD,
     },
     tierTextWrap: { flex: 1, gap: 2 },
     tierLabel: {
@@ -344,13 +357,13 @@ function createStyles(color: ColorSet) {
       color:      color.dim,
     },
     tierNoteGold: {
-      color: GOLD,
+      color: MUSTARD,
     },
     tierPriceWrap: {
       alignItems: 'flex-end',
     },
     tierPrice: {
-      fontFamily: fontFamily.serif,
+      fontFamily: fontFamily.sansBold,
       fontSize:   19,
       color:      color.paper,
     },

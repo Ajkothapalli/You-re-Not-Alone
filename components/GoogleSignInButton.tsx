@@ -14,6 +14,7 @@ import React, { useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useReducedMotion } from '../lib/a11y';
+import { DURATION, EASING } from '../theme/motion';
 import { radius } from '../theme/tokens';
 
 // Official four-colour Google "G" mark paths (24-unit viewBox, widely published).
@@ -55,16 +56,16 @@ export default function GoogleSignInButton({ onPress, disabled, loading }: Props
   function handlePressIn() {
     if (reduceMotion) return;
     Animated.parallel([
-      Animated.timing(scale,   { toValue: 0.97, duration: 80, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0.9,  duration: 80, useNativeDriver: true }),
+      Animated.timing(scale,   { toValue: 0.97, duration: DURATION.press, easing: EASING.standard, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0.9,  duration: DURATION.press, easing: EASING.standard, useNativeDriver: true }),
     ]).start();
   }
 
   function handlePressOut() {
     if (reduceMotion) return;
     Animated.parallel([
-      Animated.timing(scale,   { toValue: 1, duration: 120, useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 1, duration: 120, useNativeDriver: true }),
+      Animated.timing(scale,   { toValue: 1, duration: DURATION.quick, easing: EASING.enter, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: DURATION.quick, easing: EASING.enter, useNativeDriver: true }),
     ]).start();
   }
 
@@ -96,13 +97,15 @@ export default function GoogleSignInButton({ onPress, disabled, loading }: Props
 
 const styles = StyleSheet.create({
   button: {
-    height:          52,
-    borderRadius:    radius.pill,
-    backgroundColor: '#FFFFFF',
-    flexDirection:   'row',
-    alignItems:      'center',
-    justifyContent:  'center',
-    gap:             12,
+    height:            52,
+    borderRadius:      radius.pill,
+    backgroundColor:   '#FFFFFF',
+    borderWidth:       1.5,
+    borderColor:       '#747775',
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'center',
+    gap:               12,
     paddingHorizontal: 24,
   },
   label: {

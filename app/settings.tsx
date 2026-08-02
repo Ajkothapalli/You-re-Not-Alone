@@ -1,10 +1,10 @@
-import { deleteAccount, type DeleteMode } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { GhostButton } from '@/components/Buttons';
-import { useTheme } from '@/theme/ThemeProvider';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
+import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Linking,
   ScrollView,
@@ -13,7 +13,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { showDialog } from '@/components/AppDialog';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const SHADOW = 4;
 
 // [REPLACE BEFORE LAUNCH] — Apple and Google require live, publicly accessible
 // policy URLs at review time. Placeholder URLs will cause app rejection.
@@ -23,191 +25,123 @@ const POLICY_URLS = {
   content: 'https://example.com/content-policy',
 } as const;
 
+const PRIVACY_POINTS = [
+  'No profiles, no replies. Nobody can see who wrote what.',
+  'Every submission is checked before it goes live. Crisis signals return support resources — nothing is published.',
+  'Your account link is severed permanently if you delete your account.',
+] as const;
+
 export default function SettingsScreen() {
-  const { colors: color, setTheme, isDark } = useTheme();
+  const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
-  const [deleting, setDeleting] = useState(false);
+  const insets = useSafeAreaInsets();
 
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.replace('/');
   }
 
-  function handleDeletePress() {
-    if (deleting) return;
-    showDialog(
-      'Delete your account?',
-      'Choose what happens to your confessions.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text:    'Erase everything',
-          style:   'destructive',
-          onPress: () => confirmDelete('erase'),
-        },
-        {
-          text:    'Leave my words anonymously',
-          style:   'default',
-          onPress: () => confirmDelete('anonymize'),
-        },
-      ],
-    );
-  }
-
-  function confirmDelete(mode: DeleteMode) {
-    const isErase = mode === 'erase';
-    showDialog(
-      isErase ? 'Erase everything?' : 'Leave words anonymously?',
-      isErase
-        ? 'Your account and every confession will be permanently deleted. This cannot be undone.'
-        : 'Your account is deleted. Your confessions stay live, unlinked from any identity — forever anonymous.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text:              isErase ? 'Yes, erase everything' : 'Yes, leave them',
-          style:             'destructive',
-          onPress:           () => runDelete(mode),
-          keepOpenWhilePending: true,
-        },
-      ],
-    );
-  }
-
-  async function runDelete(mode: DeleteMode) {
-    setDeleting(true);
-    try {
-      await deleteAccount(mode);
-      router.replace('/');
-    } catch {
-      setDeleting(false);
-      showDialog(
-        'Something went wrong',
-        'Deletion failed. Please try again, or contact nani.ajay@gmail.com.',
-        [{ text: 'OK' }],
-      );
-    }
-  }
-
   return (
-    <View style={styles.root}>
-    <ScrollView style={styles.scroller} contentContainerStyle={styles.scroll}>
+    <ScrollView
+      style={styles.fill}
+      contentContainerStyle={[styles.scroll, { paddingBottom: 40 + insets.bottom }]}
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
+      <Text style={styles.heading}>Privacy & policies</Text>
+      <Text style={styles.sub}>How your information works in this app.</Text>
 
-      {/* Anonymity explainer */}
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>how your privacy works</Text>
-        <Text style={styles.cardBody}>
-          Your confessions are never shown with your identity. Other users cannot see who
-          wrote what — there are no profiles, no replies, and no way to link a confession
-          to a person.
-        </Text>
-        <Text style={styles.cardBody}>
-          Every submission passes through automated safety checks before storage. If you
-          describe a crisis, you receive support resources instead — nothing is published.
-        </Text>
-        <Text style={styles.cardBody}>
-          Internally, your confessions are linked to your account for ownership and moderation
-          only. This link is severed permanently when you delete your account. See the Privacy
-          Policy for full details.
-        </Text>
-      </View>
-
-      {/* Policy links */}
-      <View style={styles.policySection}>
-        <Text style={styles.sectionLabel}>policies</Text>
-        <TouchableOpacity
-          onPress={() => Linking.openURL(POLICY_URLS.privacy)}
-          hitSlop={8}
-          accessibilityRole="link"
-          accessibilityLabel="Privacy Policy"
-          accessibilityHint="Opens in your browser"
-        >
-          <Text style={styles.policyLink}>Privacy Policy</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => Linking.openURL(POLICY_URLS.terms)}
-          hitSlop={8}
-          accessibilityRole="link"
-          accessibilityLabel="Terms of Service"
-          accessibilityHint="Opens in your browser"
-        >
-          <Text style={styles.policyLink}>Terms of Service</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => Linking.openURL(POLICY_URLS.content)}
-          hitSlop={8}
-          accessibilityRole="link"
-          accessibilityLabel="Content Policy"
-          accessibilityHint="Opens in your browser"
-        >
-          <Text style={styles.policyLink}>Content Policy</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Theme */}
-      <View style={styles.themeSection}>
-        <Text style={styles.sectionLabel}>appearance</Text>
-        <View style={styles.themeRow}>
-          <TouchableOpacity
-            onPress={() => setTheme('light')}
-            style={[styles.themeChip, !isDark && styles.themeChipActive]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: !isDark }}
-          >
-            <Text style={[styles.themeChipText, !isDark && styles.themeChipTextActive]}>Light</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => setTheme('dark')}
-            style={[styles.themeChip, isDark && styles.themeChipActive]}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isDark }}
-          >
-            <Text style={[styles.themeChipText, isDark && styles.themeChipTextActive]}>Dark</Text>
-          </TouchableOpacity>
+      {/* Privacy card */}
+      <View style={styles.cardOuter}>
+        <View pointerEvents="none" style={styles.cardShadow} />
+        <View style={styles.card}>
+          <Text style={styles.cardLabel}>How your privacy works</Text>
+          {PRIVACY_POINTS.map((point, i) => (
+            <View key={i} style={styles.bullet}>
+              <Text style={styles.bulletDot}>·</Text>
+              <Text style={styles.bulletText}>{point}</Text>
+            </View>
+          ))}
         </View>
       </View>
 
-      {/* Actions */}
+      {/* Policies */}
+      <Text style={styles.sectionLabel}>Policies</Text>
+      <View style={styles.policyCard}>
+        {([
+          { label: 'Privacy Policy',   url: POLICY_URLS.privacy },
+          { label: 'Terms of Service', url: POLICY_URLS.terms   },
+          { label: 'Content Policy',   url: POLICY_URLS.content },
+        ] as const).map(({ label, url }, i, arr) => (
+          <TouchableOpacity
+            key={label}
+            onPress={() => Linking.openURL(url)}
+            hitSlop={8}
+            accessibilityRole="link"
+            accessibilityLabel={label}
+            accessibilityHint="Opens in your browser"
+            style={[styles.policyRow, i < arr.length - 1 && styles.policyRowBorder]}
+          >
+            <Text style={styles.policyLink}>{label}</Text>
+            <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Sign out */}
       <View style={styles.actions}>
         <GhostButton label="Sign out" onPress={handleSignOut} />
       </View>
-
-      {/* Account deletion — Apple guideline 5.1.1(v) */}
-      <TouchableOpacity
-        onPress={handleDeletePress}
-        disabled={deleting}
-        hitSlop={12}
-        style={styles.deleteRow}
-        accessibilityRole="button"
-        accessibilityState={{ disabled: deleting, busy: deleting }}
-        accessibilityLabel="Delete account"
-        accessibilityHint="Choose to erase everything or leave your words anonymously."
-      >
-        <Text style={[styles.deleteLink, deleting && styles.deleteLinkMuted]}>
-          {deleting ? 'deleting…' : 'delete account'}
-        </Text>
-      </TouchableOpacity>
-
     </ScrollView>
-    </View>
   );
 }
 
 function createStyles(color: ColorSet) {
   return StyleSheet.create({
-    root: {
+    fill: {
       flex:            1,
       backgroundColor: color.bg,
     },
-    scroller: { flex: 1 },
     scroll: {
-      padding:       spacing.screenPadding,
-      paddingTop:    20,
-      paddingBottom: 24,
-      gap:           24,
+      padding:    spacing.screenPadding,
+      paddingTop: 20,
+      gap:        20,
+    },
+
+    // Header
+    heading: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   26,
+      color:      color.paper,
+      lineHeight: 34,
+    },
+    sub: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.dim,
+      lineHeight: 21,
+      marginTop:  -8,
+    },
+
+    // Privacy card
+    cardOuter: {
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+    },
+    cardShadow: {
+      position:        'absolute',
+      top:             SHADOW,
+      left:            SHADOW,
+      right:           0,
+      bottom:          0,
+      borderRadius:    radius.input,
+      backgroundColor: color.border,
     },
     card: {
-      backgroundColor: '#1A1720',
+      backgroundColor: color.ink,
       borderRadius:    radius.input,
+      borderWidth:     2,
+      borderColor:     color.border,
       padding:         20,
       gap:             12,
     },
@@ -217,71 +151,70 @@ function createStyles(color: ColorSet) {
       letterSpacing: font.labelLetterSpacing,
       textTransform: 'uppercase',
       color:         color.dim,
-      marginBottom:  2,
+      marginBottom:  4,
     },
-    cardBody: {
+    bullet: {
+      flexDirection: 'row',
+      gap:           10,
+      alignItems:    'flex-start',
+    },
+    bulletDot: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   16,
+      color:      color.dim,
+      lineHeight: 20,
+    },
+    bulletText: {
+      flex:       1,
       fontFamily: fontFamily.sans,
-      fontSize:   15,
+      fontSize:   13,
       color:      color.paper,
-      lineHeight: 23,
+      lineHeight: 20,
     },
-    policySection: {
-      gap: 10,
-    },
+
+    // Section label
     sectionLabel: {
       fontFamily:    fontFamily.sansBold,
       fontSize:      font.labelSize,
       letterSpacing: font.labelLetterSpacing,
       textTransform: 'uppercase',
       color:         color.dim,
-      marginBottom:  2,
+      marginBottom:  -8,
+    },
+
+    // Policy card
+    policyCard: {
+      backgroundColor: color.ink,
+      borderRadius:    radius.input,
+      borderWidth:     2,
+      borderColor:     color.border,
+      overflow:        'hidden',
+    },
+    policyRow: {
+      flexDirection:     'row',
+      justifyContent:    'space-between',
+      alignItems:        'center',
+      paddingHorizontal: 18,
+      paddingVertical:   16,
+    },
+    policyRowBorder: {
+      borderBottomWidth: 1,
+      borderBottomColor: color.border + '28',
     },
     policyLink: {
-      fontFamily:          fontFamily.sans,
-      fontSize:            15,
-      color:               color.paper,
-      textDecorationLine:  'underline',
-      textDecorationColor: 'rgba(243,238,232,0.35)',
+      fontFamily: fontFamily.sans,
+      fontSize:   15,
+      color:      color.paper,
     },
-    themeSection: { gap: 10 },
-    themeRow: { flexDirection: 'row', gap: 10 },
-    themeChip: {
-      flex:            1,
-      paddingVertical: 12,
-      borderRadius:    radius.pill,
-      borderWidth:     2,
-      borderColor:     color.line,
-      alignItems:      'center',
+    policyArrow: {
+      fontFamily: fontFamily.sans,
+      fontSize:   15,
+      color:      color.dim,
     },
-    themeChipActive: {
-      borderColor:     color.border,
-      backgroundColor: color.ink,
-    },
-    themeChipText: {
-      fontFamily:    fontFamily.sansBold,
-      fontSize:      13,
-      letterSpacing: 0.18 * 13,
-      textTransform: 'uppercase',
-      color:         color.dim,
-    },
-    themeChipTextActive: {
-      color: color.paper,
-    },
+
+    // Sign out
     actions: {
       gap: 12,
-    },
-    deleteRow: {
-      alignItems: 'center',
-      paddingTop: 8,
-    },
-    deleteLink: {
-      fontFamily:         fontFamily.sans,
-      fontSize:           13,
-      color:              '#B85555',
-      textDecorationLine: 'underline',
-    },
-    deleteLinkMuted: {
-      opacity: 0.45,
     },
   });
 }

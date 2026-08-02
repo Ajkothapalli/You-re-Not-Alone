@@ -1,20 +1,16 @@
 /**
  * FTUE v2 — "The Doorway"
  *
- * 5-beat premium onboarding driven by react-native-reanimated.
- * scrollX → background glow crossfade (interpolateColor ambient wash)
- *         → card depth (scale 0.94↔1.0 + opacity 0.6↔1.0)
- *         → content parallax (0.12× translateX, clipped at card boundary)
+ * 5-beat onboarding driven by react-native-reanimated.
+ * scrollX → card depth (scale 0.96↔1.0 + opacity 0.7↔1.0)
+ *         → content parallax (0.10× translateX, clipped at card boundary)
  *
  * Beats:
- *  0 – Welcome       (3D logo, tagline, begin)
+ *  0 – Welcome       (logo, tagline, begin)
  *  1 – How it works  (mini confession card at −3°)
  *  2 – Safe here     (3 safety pillars)
  *  3 – Your persona  (tappable bust, shuffle, rename)
  *  4 – Categories    (multi-select chips, two CTAs)
- *
- * Skip (beats 1–3) → random persona + all categories → /read, markFtueDone().
- * Finish (beat 4)  → chosen persona + chosen categories → /write or /read.
  */
 
 import * as Haptics from 'expo-haptics';
@@ -31,7 +27,6 @@ import {
 import Animated, {
   Extrapolation,
   interpolate,
-  interpolateColor,
   runOnJS,
   runOnUI,
   scrollTo,
@@ -44,15 +39,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  Path,
-  RadialGradient,
-  Rect,
-  Stop,
-} from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
@@ -63,83 +50,28 @@ import { markFtueDone } from '@/lib/onboarding';
 import { setProfilePersona, setProfileName } from '@/lib/profile';
 import { saveReaderPreferences } from '@/lib/api';
 import { announce, useReducedMotion } from '@/lib/a11y';
-import { randomPersona, type Persona } from '@/components/Persona';
-import { color, fontFamily } from '@/theme/tokens';
+import { randomPersona, type Persona, Bust, PERSONAS } from '@/components/Persona';
+import { PrimaryButton, GhostButton } from '@/components/Buttons';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
+import { color, fontFamily, radius } from '@/theme/tokens';
+import { useTheme, useThemeColors } from '@/theme/ThemeProvider';
 
 // ─── Design constants ─────────────────────────────────────────────────────────
 
-const WARM   = '#F5996E';
-const COOL   = '#9C8BF6';
-const PINK   = '#FB7185';
-const GOLD   = '#FBBF24';
+const SHAD   = 4;
+const BORDER = '#1A1A1A';
 const INK2   = '#241F2B';
 const EYE_W  = '#FBF7F0';
-
-// Per-beat background ambient hues for interpolateColor crossfade.
-// Beat 3 uses WARM as a placeholder; the actual tint comes from the per-card SVG glow.
-const BG_HUES = [WARM, WARM, COOL, WARM, PINK] as const;
-
-// Per-beat glow overlay config (null = beat 3, driven by persona tint prop).
-const BEAT_GLOWS = [
-  { glowColor: WARM,  cy: 0.22, r: 0.58, opacity: 0.50 },   // 0 Welcome
-  { glowColor: WARM,  cy: 0.16, r: 0.55, opacity: 0.22 },   // 1 How it works
-  { glowColor: COOL,  cy: 0.20, r: 0.58, opacity: 0.50 },   // 2 Safety
-  null,                                                        // 3 Persona (dynamic)
-  { glowColor: PINK,  cy: 0.80, r: 0.58, opacity: 0.45 },   // 4 Categories
-] as const;
-
-// ─── CardGlow ─────────────────────────────────────────────────────────────────
-// SVG radial gradient overlay. One per card, single colour, never blended.
-
-function CardGlow({
-  id, glowColor, cy, r, opacity, cardW, cardH,
-}: {
-  id:        string;
-  glowColor: string;
-  cy:        number;    // 0–1 fraction of card height
-  r:         number;    // 0–1 fraction of card width
-  opacity:   number;
-  cardW:     number;
-  cardH:     number;
-}) {
-  const cx   = cardW * 0.5;
-  const cyPx = cardH * cy;
-  const rPx  = cardW * r;
-  return (
-    <Svg
-      style={StyleSheet.absoluteFill}
-      viewBox={`0 0 ${cardW} ${cardH}`}
-      preserveAspectRatio="none"
-    >
-      <Defs>
-        <RadialGradient id={id} cx={cx} cy={cyPx} r={rPx} gradientUnits="userSpaceOnUse">
-          <Stop offset="0" stopColor={glowColor} stopOpacity={String(opacity)} />
-          <Stop offset="1" stopColor={glowColor} stopOpacity="0" />
-        </RadialGradient>
-      </Defs>
-      <Rect x="0" y="0" width={cardW} height={cardH} fill={`url(#${id})`} />
-    </Svg>
-  );
-}
+const LEFT_R = 0.4111; // splash-quote-left width ratio
 
 // ─── FtueBust ─────────────────────────────────────────────────────────────────
-// Simple generic bust (viewBox 0 0 80 84) scaled by a Reanimated SharedValue.
-// Used only in beat 3 as the tappable persona hero.
 
-function FtueBust({
-  persona,
-  bustScale,
-}: {
-  persona:   Persona;
-  bustScale: SharedValue<number>;
-}) {
+function FtueBust({ persona, bustScale }: { persona: Persona; bustScale: SharedValue<number> }) {
   const [, skin, hair] = persona.colors;
-  const aStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: bustScale.value }],
-  }));
+  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: bustScale.value }] }));
   return (
     <Animated.View style={aStyle}>
-      <Svg width={130} height={136} viewBox="0 0 80 84">
+      <Svg width={120} height={126} viewBox="0 0 80 84">
         <Circle cx="40" cy="38" r="33" fill={hair} />
         <Circle cx="40" cy="44" r="24" fill={skin} />
         <Path d="M16 36 Q40 6 64 36 Q56 22 40 21 Q24 22 16 36 Z" fill={hair} />
@@ -147,37 +79,52 @@ function FtueBust({
         <Ellipse cx="49" cy="44" rx="4" ry="5" fill={EYE_W} />
         <Circle cx="31.6" cy="44.8" r="2.3" fill={INK2} />
         <Circle cx="49.6" cy="44.8" r="2.3" fill={INK2} />
-        <Ellipse cx="26" cy="52" rx="4"  ry="2.6" fill="#F0837A" fillOpacity="0.55" />
-        <Ellipse cx="54" cy="52" rx="4"  ry="2.6" fill="#F0837A" fillOpacity="0.55" />
-        <Path
-          d="M34 56 Q40 60 46 56"
-          stroke={INK2} strokeWidth="2" fill="none" strokeLinecap="round"
-        />
+        <Ellipse cx="26" cy="52" rx="4" ry="2.6" fill="#F0837A" fillOpacity="0.55" />
+        <Ellipse cx="54" cy="52" rx="4" ry="2.6" fill="#F0837A" fillOpacity="0.55" />
+        <Path d="M34 56 Q40 60 46 56" stroke={INK2} strokeWidth="2" fill="none" strokeLinecap="round" />
       </Svg>
     </Animated.View>
   );
 }
 
-// ─── WarmCta ──────────────────────────────────────────────────────────────────
-// Gold→Pink gradient button (105°), matching the ftue.html reference.
+// ─── PersonaCircle — shared across illustrations ──────────────────────────────
 
-function WarmCta({ label, onPress, disabled }: {
-  label:    string;
-  onPress:  () => void;
-  disabled?: boolean;
-}) {
+function PersonaCircle({ id, size }: { id: string; size: number }) {
+  const persona = PERSONAS.find(p => p.id === id) ?? PERSONAS[0];
   return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={({ pressed }) => ({ opacity: pressed ? 0.78 : 1 })}
-    >
-      <View style={s.ctaWarm}>
-        <Text style={s.ctaWarmTxt}>{label}</Text>
+    <View style={{
+      width:           size,
+      height:          size,
+      borderRadius:    size / 2,
+      backgroundColor: persona.colors[0] + '30',
+      alignItems:      'center',
+      justifyContent:  'center',
+      overflow:        'hidden',
+      borderWidth:     2,
+      borderColor:     BORDER,
+    }}>
+      <Svg width={size * 1.25} height={size * 1.25} viewBox="0 0 24 24">
+        <Bust id={id} skin={persona.colors[1]} hair={persona.colors[2]} />
+      </Svg>
+    </View>
+  );
+}
+
+// ─── IllustrationConnect (beat 0) — two people finding each other ─────────────
+
+function IllustrationConnect() {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <PersonaCircle id="cove"  size={92} />
+      {/* Brand quote marks = the shared confession linking them */}
+      <View style={{ alignItems: 'center' }}>
+        <View style={{ flexDirection: 'row', width: 48, height: 48, marginBottom: -Math.round(48 * 0.28) }}>
+          <Image source={require('../assets/splash-quote-left.png')}  style={{ width: 48 * LEFT_R,        height: 48 }} resizeMode="stretch" />
+          <Image source={require('../assets/splash-quote-right.png')} style={{ width: 48 * (1 - LEFT_R),  height: 48 }} resizeMode="stretch" />
+        </View>
       </View>
-    </Pressable>
+      <PersonaCircle id="miles" size={92} />
+    </View>
   );
 }
 
@@ -185,55 +132,71 @@ function WarmCta({ label, onPress, disabled }: {
 
 function MiniCard() {
   return (
-    <View style={mc.card}>
-      <Text style={mc.labelW}>you wrote</Text>
-      <Text style={mc.confText}>
-        "i smile all day so nobody worries."
-      </Text>
-      <View style={mc.seam} />
-      <Text style={mc.labelC}>they wrote</Text>
-      <Text style={mc.confText}>
-        "everyone thinks i'm fine. i'm barely holding on."
-      </Text>
-      <View style={mc.pill}>
-        <HeartIcon filled color="#3A0A14" size={10} />
-        <Text style={mc.pillText}> 218 felt this too</Text>
+    <View style={mc.wrapper}>
+      <View pointerEvents="none" style={mc.shadow} />
+      <View style={mc.card}>
+        <View style={mc.labelRow}>
+          <PersonaCircle id="max"   size={22} />
+          <Text style={mc.labelW}>You wrote</Text>
+        </View>
+        <Text style={mc.confText}>"i smile all day so nobody worries."</Text>
+        <View style={mc.seam} />
+        <View style={mc.labelRow}>
+          <PersonaCircle id="river" size={22} />
+          <Text style={mc.labelC}>They wrote</Text>
+        </View>
+        <Text style={mc.confText}>"everyone thinks i'm fine. i'm barely holding on."</Text>
+        <View style={mc.pill}>
+          <HeartIcon filled color="#3A0A14" size={10} />
+          <Text style={mc.pillText}> 218 felt this too</Text>
+        </View>
       </View>
     </View>
   );
 }
 
 const mc = StyleSheet.create({
+  wrapper: {
+    paddingRight:  SHAD,
+    paddingBottom: SHAD,
+    transform:     [{ rotate: '-3deg' }],
+  },
+  shadow: {
+    position:        'absolute',
+    top:             SHAD,
+    left:            SHAD,
+    right:           0,
+    bottom:          0,
+    borderRadius:    16,
+    backgroundColor: BORDER,
+  },
   card: {
-    width:            228,
-    backgroundColor:  '#0B0910',
-    borderWidth:      1,
-    borderColor:      'rgba(243,238,232,0.10)',
-    borderRadius:     20,
-    padding:          17,
-    transform:        [{ rotate: '-3deg' }],
-    shadowColor:      WARM,
-    shadowOpacity:    0.26,
-    shadowRadius:     16,
-    shadowOffset:     { width: 0, height: 8 },
-    elevation:        10,
+    width:           248,
+    backgroundColor: color.ink,
+    borderRadius:    16,
+    borderWidth:     2,
+    borderColor:     BORDER,
+    padding:         18,
+  },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems:    'center',
+    gap:           7,
+    marginBottom:  5,
   },
   labelW: {
     fontFamily:    fontFamily.sansBold,
     fontSize:      9,
     letterSpacing: 1.44,
     textTransform: 'uppercase',
-    color:         WARM,
-    marginBottom:  4,
+    color:         '#E8A87C',
   },
   labelC: {
     fontFamily:    fontFamily.sansBold,
     fontSize:      9,
     letterSpacing: 1.44,
     textTransform: 'uppercase',
-    color:         COOL,
-    marginBottom:  4,
-    marginTop:     12,
+    color:         '#9C8BF6',
   },
   confText: {
     fontFamily: fontFamily.serif,
@@ -243,8 +206,9 @@ const mc = StyleSheet.create({
   },
   seam: {
     height:          1,
-    backgroundColor: 'rgba(243,238,232,0.20)',
+    backgroundColor: 'rgba(26,26,26,0.12)',
     marginTop:       12,
+    marginBottom:    12,
   },
   pill: {
     flexDirection:     'row',
@@ -262,47 +226,38 @@ const mc = StyleSheet.create({
   },
 });
 
-// ─── Safety tick icons ────────────────────────────────────────────────────────
+// ─── Safety icons ─────────────────────────────────────────────────────────────
 
 function ShieldIcon() {
   return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z"
-        stroke={COOL} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-      />
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z" stroke={BORDER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
 
 function NoReplyIcon() {
   return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Path
-        d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-        stroke={COOL} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-      />
-      <Path d="M8 11h8" stroke={COOL} strokeWidth="2.2" strokeLinecap="round" />
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={BORDER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M8 11h8" stroke={BORDER} strokeWidth="2.2" strokeLinecap="round" />
     </Svg>
   );
 }
 
 function CheckIcon() {
   return (
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="9" stroke={COOL} strokeWidth="2.2" />
-      <Path
-        d="M9 12l2 2 4-4"
-        stroke={COOL} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
-      />
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="12" r="9" stroke={BORDER} strokeWidth="2.2" />
+      <Path d="M9 12l2 2 4-4" stroke={BORDER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
 
 // ─── SegmentBar ───────────────────────────────────────────────────────────────
-// 5 equal-width segments; active = full-opacity white.
 
 function SegItem({ i, scrollX, W }: { i: number; scrollX: SharedValue<number>; W: number }) {
+  const dynColor = useThemeColors();
   const style = useAnimatedStyle(() => {
     const active = interpolate(
       scrollX.value,
@@ -318,19 +273,18 @@ function SegItem({ i, scrollX, W }: { i: number; scrollX: SharedValue<number>; W
       opacity:      interpolate(active, [0, 1], [0.28, 1]),
     };
   });
-  return <Animated.View style={[s.dot, style]} />;
+  return <Animated.View style={[s.dot, { backgroundColor: dynColor.paper }, style]} />;
 }
 
 function SegmentBar({ scrollX, W }: { scrollX: SharedValue<number>; W: number }) {
   return (
     <View style={s.segBar}>
-      {[0, 1, 2, 3, 4].map(i => <SegItem key={i} i={i} scrollX={scrollX} W={W} />)}
+      {[0, 1, 2, 3, 4, 5].map(i => <SegItem key={i} i={i} scrollX={scrollX} W={W} />)}
     </View>
   );
 }
 
 // ─── BeatSlide ────────────────────────────────────────────────────────────────
-// Wraps card content with depth (scale+opacity) and parallax (0.12× translateX).
 
 interface SlideProps {
   index:        number;
@@ -341,21 +295,18 @@ interface SlideProps {
   reduceMotion: boolean;
   showSkip:     boolean;
   onSkip:       () => void;
-  glowCfg:      { glowColor: string; cy: number; r: number; opacity: number } | null;
-  personaTint?: string;    // beat 3: override glow with live persona tint
+  accent:       string;
   children:     React.ReactNode;
 }
 
-function BeatSlide({
-  index, scrollX, W, cardW, cardH, reduceMotion,
-  showSkip, onSkip, glowCfg, personaTint, children,
-}: SlideProps) {
+function BeatSlide({ index, scrollX, W, cardW, cardH, reduceMotion, showSkip, onSkip, accent, children }: SlideProps) {
+  const dynColor = useThemeColors();
   const depthStyle = useAnimatedStyle(() => {
     if (reduceMotion) return {};
     const range = [(index - 1) * W, index * W, (index + 1) * W];
     return {
-      transform: [{ scale: interpolate(scrollX.value, range, [0.94, 1, 0.94], Extrapolation.CLAMP) }],
-      opacity:          interpolate(scrollX.value, range, [0.6,  1, 0.6],  Extrapolation.CLAMP),
+      transform: [{ scale: interpolate(scrollX.value, range, [0.96, 1, 0.96], Extrapolation.CLAMP) }],
+      opacity:          interpolate(scrollX.value, range, [0.7,  1, 0.7],  Extrapolation.CLAMP),
     };
   });
 
@@ -366,50 +317,36 @@ function BeatSlide({
         translateX: interpolate(
           scrollX.value,
           [(index - 1) * W, index * W, (index + 1) * W],
-          [cardW * 0.12, 0, -cardW * 0.12],
+          [cardW * 0.10, 0, -cardW * 0.10],
           Extrapolation.CLAMP,
         ),
       }],
     };
   });
 
-  const gColor   = personaTint ?? glowCfg?.glowColor ?? WARM;
-  const gCy      = glowCfg?.cy      ?? 0.40;
-  const gR       = glowCfg?.r       ?? 0.58;
-  const gOpacity = glowCfg?.opacity  ?? 0.45;
-
   return (
-    <View style={{ width: W, flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View style={[s.card, { width: cardW, height: cardH }, depthStyle]}>
-        {/* 1. Radial glow behind content */}
-        <CardGlow
-          id={`g${index}`}
-          glowColor={gColor}
-          cy={gCy}
-          r={gR}
-          opacity={gOpacity}
-          cardW={cardW}
-          cardH={cardH}
-        />
-
-        {/* 2. Parallaxed card content */}
-        <Animated.View style={[StyleSheet.absoluteFill, s.cardContent, showSkip && s.cardContentSkip, parallaxStyle]}>
-          {children}
-        </Animated.View>
-
-        {/* 3. Skip — bottom-center of the card, above parallax layer */}
-        {showSkip && (
-          <Pressable
-            onPress={onSkip}
-            hitSlop={20}
-            style={s.skipBtn}
-            accessibilityRole="button"
-            accessibilityLabel="Skip onboarding"
+    <View style={{ width: W, flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+      {/* depth animation wraps both shadow + card so they scale together */}
+      <Animated.View style={[{ paddingRight: SHAD, paddingBottom: SHAD }, depthStyle]}>
+        <View style={[s.cardShadow, { width: cardW, height: cardH, backgroundColor: accent }]} />
+        <View style={[s.card, { width: cardW, height: cardH, backgroundColor: dynColor.ink }]}>
+          <Animated.View
+            style={[StyleSheet.absoluteFill, s.cardContent, parallaxStyle]}
           >
-            <Text style={s.skipText}>skip</Text>
-          </Pressable>
-        )}
+            {children}
+          </Animated.View>
+        </View>
       </Animated.View>
+      {showSkip && (
+        <Pressable
+          onPress={onSkip}
+          hitSlop={20}
+          accessibilityRole="button"
+          accessibilityLabel="Skip onboarding"
+        >
+          <Text style={s.skipText}>Skip</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -418,30 +355,30 @@ function BeatSlide({
 
 export default function WelcomeScreen() {
   const { width: W, height: H } = useWindowDimensions();
-  const insets      = useSafeAreaInsets();
+  const insets       = useSafeAreaInsets();
   const reduceMotion = useReducedMotion();
 
   const CARD_W = W - 48;
-  const CARD_H = Math.min(H - insets.top - insets.bottom - 80, 600);
+  const CARD_H = Math.min(H - insets.top - insets.bottom - 100, 580);
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  const [persona,  setPersona]  = useState<Persona>(() => randomPersona());
-  const [name,     setName]     = useState('');
-  const [renaming, setRenaming] = useState(false);
-  const [selected, setSelected] = useState<Set<CategoryId>>(
-    new Set(CATEGORIES.map(c => c.id)),
-  );
-  const [saving,   setSaving]   = useState(false);
-  const [page,     setPage]     = useState(0);
+  const { setTheme } = useTheme();
+  const dynColor = useThemeColors();
 
-  // ── Reanimated ─────────────────────────────────────────────────────────────
+  const [persona,      setPersona]      = useState<Persona>(() => randomPersona());
+  const [name,         setName]         = useState('');
+  const [renaming,     setRenaming]     = useState(false);
+  const [selected,     setSelected]     = useState<Set<CategoryId>>(new Set(CATEGORIES.map(c => c.id)));
+  const [saving,       setSaving]       = useState(false);
+  const [page,         setPage]         = useState(0);
+  const [chosenTheme,  setChosenTheme]  = useState<'light' | 'dark' | null>(null);
+
   const scrollX    = useSharedValue(0);
   const bustScale  = useSharedValue(1);
   const aScrollRef = useAnimatedRef<Animated.ScrollView>();
 
   const scrollHandler = useAnimatedScrollHandler({
-    onScroll:       (e) => { scrollX.value = e.contentOffset.x; },
-    onMomentumEnd:  (e) => {
+    onScroll:      (e) => { scrollX.value = e.contentOffset.x; },
+    onMomentumEnd: (e) => {
       const p = Math.round(e.contentOffset.x / W);
       runOnJS(onPageSnap)(p);
     },
@@ -450,7 +387,7 @@ export default function WelcomeScreen() {
   function onPageSnap(p: number) {
     if (p === page) return;
     if (!reduceMotion) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    const titles = ['Welcome', 'How it works', "You're safe here", 'Your persona', 'What resonates'];
+    const titles = ['Welcome', 'How it works', "You're safe here", 'Your persona', 'What resonates', 'Appearance'];
     announce(titles[p] ?? '');
     setPage(p);
   }
@@ -460,12 +397,7 @@ export default function WelcomeScreen() {
     setPage(p);
   }
 
-  // ── Persistence + navigation ───────────────────────────────────────────────
-  async function persist(
-    chosenPersona: Persona,
-    chosenCats:    CategoryId[],
-    dest:          '/write' | '/read',
-  ) {
+  async function persist(chosenPersona: Persona, chosenCats: CategoryId[], dest: '/write' | '/read') {
     setSaving(true);
     try {
       await Promise.all([
@@ -473,7 +405,7 @@ export default function WelcomeScreen() {
         saveReaderPreferences(chosenCats),
         markFtueDone(),
       ]);
-    } catch { /* non-fatal — route through anyway */ }
+    } catch { /* non-fatal */ }
     setSaving(false);
     router.replace(dest);
   }
@@ -484,12 +416,11 @@ export default function WelcomeScreen() {
 
   function handleFinish(dest: '/write' | '/read') {
     const cats = selected.size > 0 ? [...selected] : CATEGORIES.map(c => c.id);
-    const n    = name.trim();
+    const n = name.trim();
     if (n) setProfileName(n).catch(() => {});
     persist(persona, cats, dest);
   }
 
-  // ── Persona shuffle with pop spring ───────────────────────────────────────
   function shufflePersona() {
     setPersona(prev => {
       let next: Persona;
@@ -516,31 +447,11 @@ export default function WelcomeScreen() {
     });
   }
 
-  // ── Ambient background tint ───────────────────────────────────────────────
-  const bgTintStyle = useAnimatedStyle(() => {
-    if (reduceMotion) return {};
-    return {
-      backgroundColor: interpolateColor(
-        scrollX.value,
-        [0, W, 2 * W, 3 * W, 4 * W],
-        [...BG_HUES],
-      ),
-    };
-  });
-
   const commonSlideProps = { scrollX, W, cardW: CARD_W, cardH: CARD_H, reduceMotion };
 
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <View style={[s.root, { paddingTop: insets.top }]}>
+    <View style={[s.root, { paddingTop: insets.top, backgroundColor: dynColor.bg }]}>
 
-      {/* Ambient background tint (7% opacity crossfade) */}
-      <Animated.View
-        style={[StyleSheet.absoluteFill, bgTintStyle, s.bgTint]}
-        pointerEvents="none"
-      />
-
-      {/* Horizontal paged scroll */}
       <Animated.ScrollView
         ref={aScrollRef}
         horizontal
@@ -552,128 +463,90 @@ export default function WelcomeScreen() {
         style={{ flex: 1 }}
       >
 
-        {/* ── Beat 0 — Welcome ────────────────────────────────────────────── */}
-        <BeatSlide
-          {...commonSlideProps}
-          index={0}
-          showSkip={false}
-          onSkip={handleSkip}
-          glowCfg={BEAT_GLOWS[0]}
-        >
+        {/* ── Beat 0 — Welcome ──────────────────────────────────────────── */}
+        <BeatSlide {...commonSlideProps} index={0} showSkip={false} onSkip={handleSkip} accent="#FFE500">
           <View style={s.col}>
-            <View style={s.heroCenter}>
-              <Image
-                source={require('../assets/splash-icon.png')}
-                style={s.logo}
-                resizeMode="contain"
-                accessibilityLabel="soulyap"
-              />
-              <Text style={s.title}>welcome to{'\n'}soulyap</Text>
-              <Text style={s.body}>
-                say the things you can't say out loud — and meet the one person who felt the same.
-              </Text>
+            {/* Logo + wordmark compact at top */}
+            <View style={{ alignItems: 'center', gap: 2 }}>
+              <View style={s.logoRowSm}>
+                <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
+                <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+              </View>
+              <Text style={s.wordmark}>soulyap</Text>
             </View>
-            <Pressable
-              onPress={() => goToPage(1)}
-              style={s.ctaPaper}
-              accessibilityRole="button"
-              accessibilityLabel="Begin"
-            >
-              <Text style={s.ctaPaperTxt}>begin</Text>
-            </Pressable>
+            {/* Illustration fills the flex center */}
+            <View style={s.heroCenter}>
+              <IllustrationConnect />
+            </View>
+            <Text style={s.tagline}>
+              Say the things you can't say out loud — and meet the one person who felt the same.
+            </Text>
+            <PrimaryButton label="Begin" onPress={() => goToPage(1)} />
           </View>
         </BeatSlide>
 
-        {/* ── Beat 1 — How it works ───────────────────────────────────────── */}
-        <BeatSlide
-          {...commonSlideProps}
-          index={1}
-          showSkip
-          onSkip={handleSkip}
-          glowCfg={BEAT_GLOWS[1]}
-        >
+        {/* ── Beat 1 — How it works ─────────────────────────────────────── */}
+        <BeatSlide {...commonSlideProps} index={1} showSkip onSkip={handleSkip} accent="#FF4F00">
           <View style={s.col}>
-            <Image
-              source={require('../assets/splash-icon.png')}
-              style={s.logoSm}
-              resizeMode="contain"
-              accessibilityElementsHidden
-            />
-            <Text style={s.kick}>how it works</Text>
-            <Text style={s.title}>write it,{'\n'}and you're heard</Text>
+            <View style={s.logoRowSm}>
+              <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
+              <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+            </View>
+            <Text style={s.kick}>How it works</Text>
+            <Text style={s.title}>Write it,{'\n'}and you're heard</Text>
             <View style={s.heroCenter}>
               <MiniCard />
             </View>
-            <Text style={[s.body, { marginBottom: 0 }]}>
-              one true thing → one real match. no feed, no comments.
+            <Text style={s.body}>
+              One true thing → one real match. No feed, no comments.
             </Text>
           </View>
         </BeatSlide>
 
-        {/* ── Beat 2 — Safe here ──────────────────────────────────────────── */}
-        <BeatSlide
-          {...commonSlideProps}
-          index={2}
-          showSkip
-          onSkip={handleSkip}
-          glowCfg={BEAT_GLOWS[2]}
-        >
+        {/* ── Beat 2 — Safe here ────────────────────────────────────────── */}
+        <BeatSlide {...commonSlideProps} index={2} showSkip onSkip={handleSkip} accent="#00D4FF">
           <View style={s.col}>
-            <Image
-              source={require('../assets/splash-icon.png')}
-              style={s.logoSm}
-              resizeMode="contain"
-              accessibilityElementsHidden
-            />
-            <Text style={s.kick}>you're safe here</Text>
-            <Text style={s.title}>nothing here{'\n'}can reach you</Text>
+            <View style={s.logoRowSm}>
+              <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
+              <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+            </View>
+            <Text style={s.kick}>You're safe here</Text>
+            <Text style={s.title}>Nothing here{'\n'}can reach you</Text>
+            <View style={{ alignItems: 'center', marginVertical: 4 }}>
+              <PersonaCircle id="sage" size={80} />
+            </View>
             <View style={s.ticks}>
               <View style={s.tick}>
                 <ShieldIcon />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.tickTitle}>anonymous</Text>
-                  <Text style={s.tickBody}>always a random persona — no one can tie it to you.</Text>
+                  <Text style={s.tickTitle}>Anonymous</Text>
+                  <Text style={s.tickBody}>Always a random persona — no one can tie it to you.</Text>
                 </View>
               </View>
               <View style={s.tick}>
                 <NoReplyIcon />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.tickTitle}>no replies, ever</Text>
-                  <Text style={s.tickBody}>no DMs, no profiles. no one can find you.</Text>
+                  <Text style={s.tickTitle}>No replies, ever</Text>
+                  <Text style={s.tickBody}>No DMs, no profiles. No one can find you.</Text>
                 </View>
               </View>
               <View style={s.tick}>
                 <CheckIcon />
                 <View style={{ flex: 1 }}>
-                  <Text style={s.tickTitle}>checked first</Text>
-                  <Text style={s.tickBody}>reviewed before anyone sees it.</Text>
+                  <Text style={s.tickTitle}>Checked first</Text>
+                  <Text style={s.tickBody}>Reviewed before anyone sees it.</Text>
                 </View>
               </View>
             </View>
-            <View style={{ flex: 1 }} />
-            <Pressable
-              onPress={() => goToPage(3)}
-              style={s.ctaPaper}
-              accessibilityRole="button"
-            >
-              <Text style={s.ctaPaperTxt}>I understand</Text>
-            </Pressable>
+            <PrimaryButton label="I understand" onPress={() => goToPage(3)} />
           </View>
         </BeatSlide>
 
-        {/* ── Beat 3 — Your persona ───────────────────────────────────────── */}
-        <BeatSlide
-          {...commonSlideProps}
-          index={3}
-          showSkip
-          onSkip={handleSkip}
-          glowCfg={null}
-          personaTint={persona.colors[0]}
-        >
+        {/* ── Beat 3 — Your persona ─────────────────────────────────────── */}
+        <BeatSlide {...commonSlideProps} index={3} showSkip onSkip={handleSkip} accent="#B388FF">
           <View style={s.col}>
             <View style={{ flex: 1 }} />
 
-            {/* Tappable bust — shuffle on tap */}
             <Pressable
               onPress={shufflePersona}
               style={{ alignSelf: 'center' }}
@@ -686,7 +559,7 @@ export default function WelcomeScreen() {
 
             {renaming ? (
               <TextInput
-                style={[s.personaName, s.nameInput, { color: persona.colors[0] }]}
+                style={[s.personaName, s.nameInput]}
                 value={name}
                 onChangeText={setName}
                 onBlur={() => setRenaming(false)}
@@ -699,54 +572,46 @@ export default function WelcomeScreen() {
                 accessibilityLabel="Enter your display name"
               />
             ) : (
-              <Text style={[s.personaName, { color: persona.colors[0] }]}>
-                you're {name || persona.name}
+              <Text style={s.personaName}>
+                You're{' '}
+                <Text style={s.personaNameBold}>{name || persona.name}</Text>
               </Text>
             )}
 
             <Text style={s.body}>
-              a private face, just for you — never shown on a confession.{' '}
-              <Text style={{ color: color.paper, fontFamily: fontFamily.sansBold }}>
-                tap it to change.
-              </Text>
+              A private face, just for you — never shown on a confession.{' '}
+              <Text style={s.bodyBold}>Tap it to change.</Text>
             </Text>
 
             <View style={{ flex: 1 }} />
 
             <View style={s.ghostRow}>
-              <Pressable onPress={shufflePersona} hitSlop={10}>
-                <Text style={s.ghostLink}>↻ shuffle</Text>
+              <Pressable onPress={shufflePersona} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <ScrawlIcon name="arrow_loop" size={16} color={BORDER} roughen={false} strokeWidth={2.5} />
+                <Text style={s.ghostLink}>Shuffle</Text>
               </Pressable>
               <Text style={s.ghostDot}> · </Text>
               <Pressable
                 onPress={() => { setRenaming(true); if (!name) setName(persona.name); }}
                 hitSlop={10}
               >
-                <Text style={s.ghostLink}>rename</Text>
+                <Text style={s.ghostLink}>Rename</Text>
               </Pressable>
             </View>
 
-            <WarmCta label="that's me" onPress={() => goToPage(4)} />
+            <PrimaryButton label="That's me" onPress={() => goToPage(4)} />
           </View>
         </BeatSlide>
 
-        {/* ── Beat 4 — Categories ─────────────────────────────────────────── */}
-        <BeatSlide
-          {...commonSlideProps}
-          index={4}
-          showSkip={false}
-          onSkip={handleSkip}
-          glowCfg={BEAT_GLOWS[4]}
-        >
+        {/* ── Beat 4 — Categories ───────────────────────────────────────── */}
+        <BeatSlide {...commonSlideProps} index={4} showSkip={false} onSkip={handleSkip} accent="#CCFF00">
           <View style={s.col}>
-            <Image
-              source={require('../assets/splash-icon.png')}
-              style={s.logoSm}
-              resizeMode="contain"
-              accessibilityElementsHidden
-            />
-            <Text style={s.kick}>what resonates</Text>
-            <Text style={s.title}>what do you{'\n'}want to read?</Text>
+            <View style={s.logoRowSm}>
+              <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
+              <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+            </View>
+            <Text style={s.kick}>What resonates</Text>
+            <Text style={s.title}>What do you{'\n'}want to read?</Text>
 
             <View style={s.chips}>
               {CATEGORIES.map(cat => {
@@ -755,18 +620,13 @@ export default function WelcomeScreen() {
                   <Pressable
                     key={cat.id}
                     onPress={() => toggleCategory(cat.id)}
-                    style={[
-                      s.chip,
-                      on && { borderColor: cat.color, backgroundColor: cat.color + '1A' },
-                    ]}
+                    style={[s.chip, on && s.chipOn]}
                     accessibilityRole="checkbox"
                     accessibilityState={{ checked: on }}
                     accessibilityLabel={cat.label}
                   >
-                    <CategoryBadge id={cat.id} size={26} />
-                    <Text style={[s.chipTxt, on && { color: cat.color, fontFamily: fontFamily.sansBold }]}>
-                      {cat.label}
-                    </Text>
+                    <CategoryBadge id={cat.id} size={22} />
+                    <Text style={[s.chipTxt, on && s.chipTxtOn]}>{cat.label}</Text>
                   </Pressable>
                 );
               })}
@@ -774,8 +634,61 @@ export default function WelcomeScreen() {
 
             <View style={{ flex: 1 }} />
 
-            <WarmCta
-              label="say your first thing"
+            <PrimaryButton
+              label="Next"
+              onPress={() => goToPage(5)}
+            />
+          </View>
+        </BeatSlide>
+
+        {/* ── Beat 5 — Appearance ───────────────────────────────────── */}
+        <BeatSlide {...commonSlideProps} index={5} showSkip={false} onSkip={handleSkip} accent="#B388FF">
+          <View style={s.col}>
+            <View style={s.logoRowSm}>
+              <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
+              <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+            </View>
+            <Text style={[s.kick, { color: dynColor.dim }]}>One last thing</Text>
+            <Text style={[s.title, { color: dynColor.paper }]}>How do you like{'\n'}your screen?</Text>
+
+            <View style={s.heroCenter}>
+              <View style={s.themeOptions}>
+                {([
+                  { mode: 'light' as const, icon: 'sun',  label: 'Light' },
+                  { mode: 'dark'  as const, icon: 'moon', label: 'Dark'  },
+                ]).map(({ mode, icon, label }) => {
+                  const active = chosenTheme === mode;
+                  return (
+                    <Pressable
+                      key={mode}
+                      onPress={() => {
+                        setChosenTheme(mode);
+                        setTheme(mode);
+                      }}
+                      style={[s.themeOpt, !active && { borderColor: dynColor.border }, active && s.themeOptActive]}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected: active }}
+                      accessibilityLabel={`${label} mode`}
+                    >
+                      <ScrawlIcon
+                        name={icon}
+                        size={32}
+                        color={active ? '#1A1A1A' : dynColor.dim}
+                        roughen={false}
+                        strokeWidth={2.5}
+                      />
+                      <Text style={[s.themeOptLabel, { color: dynColor.dim }, active && s.themeOptLabelActive]}>{label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {chosenTheme !== null && (
+                <Text style={[s.themeHint, { color: dynColor.dim }]}>You can always switch this in your profile.</Text>
+              )}
+            </View>
+
+            <PrimaryButton
+              label="Say your first thing"
               onPress={() => handleFinish('/write')}
               disabled={saving}
             />
@@ -786,15 +699,15 @@ export default function WelcomeScreen() {
               style={{ marginTop: 12, alignSelf: 'center' }}
               accessibilityRole="button"
             >
-              <Text style={s.ghostLink}>or read a few first</Text>
+              <Text style={[s.ghostLink, { color: dynColor.dim }]}>Or read a few first</Text>
             </Pressable>
           </View>
         </BeatSlide>
 
       </Animated.ScrollView>
 
-      {/* Fixed segment bar below the scroll — outside the ScrollView */}
-      <View style={[s.segBarRow, { paddingBottom: insets.bottom + 12 }]}>
+      {/* Fixed segment bar */}
+      <View style={[s.segBarRow, { paddingBottom: insets.bottom + 16 }]}>
         <SegmentBar scrollX={scrollX} W={W} />
       </View>
 
@@ -804,112 +717,136 @@ export default function WelcomeScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+const LOGO_H   = 96;
+const LOGO_SM  = 32;
+
 const s = StyleSheet.create({
   root: {
     flex:            1,
-    backgroundColor: color.ink,
-  },
-  bgTint: {
-    opacity: 0.07,
+    backgroundColor: color.bg,
   },
 
-  // Card shell
+  // Card shell — matches feed cards exactly
+  cardShadow: {
+    position:     'absolute',
+    top:          SHAD,
+    left:         SHAD,
+    borderRadius: radius.input,
+  },
   card: {
     backgroundColor: color.ink,
-    borderRadius:    36,
-    borderWidth:     1,
-    borderColor:     'rgba(243,238,232,0.07)',
+    borderRadius:    radius.input,
+    borderWidth:     2,
+    borderColor:     BORDER,
     overflow:        'hidden',
-    shadowColor:     '#000',
-    shadowOpacity:   0.55,
-    shadowRadius:    26,
-    shadowOffset:    { width: 0, height: 13 },
-    elevation:       20,
   },
   cardContent: {
     padding: 26,
   },
-  cardContentSkip: {
-    paddingBottom: 54,
-  },
 
-  // Skip button — bottom-center of the card (outside parallax layer)
-  skipBtn: {
-    position:   'absolute',
-    bottom:     20,
-    left:       0,
-    right:      0,
-    alignItems: 'center',
-    zIndex:     10,
-  },
+  // Skip
   skipText: {
-    fontFamily:    fontFamily.sans,
-    fontSize:      12,
-    letterSpacing: 0.4,
-    color:         'rgba(243,238,232,0.48)',
+    fontFamily:    fontFamily.sansBold,
+    fontSize:      11,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    color:         color.dim,
   },
 
-  // Column layout used inside every beat card
+  // Column layout used inside every card
   col: {
-    flex:           1,
-    flexDirection:  'column',
-    gap:            14,
+    flex:          1,
+    flexDirection: 'column',
+    gap:           14,
   },
 
-  // Logo
-  logo: {
-    width:        150,
-    height:       150,
-    alignSelf:    'center',
-    marginBottom: 8,
+  // Logo — beat 0 (large, two-part)
+  logoRow: {
+    flexDirection: 'row',
+    width:         LOGO_H,
+    height:        LOGO_H,
+    marginBottom:  -Math.round(LOGO_H * 0.28), // compensate baked-in transparent padding
   },
-  logoSm: {
-    width:       26,
-    height:      26,
-    alignSelf:   'center',
-    opacity:     0.9,
-    marginTop:   2,
-  },
+  logoLeft:  { width: LOGO_H * LEFT_R,        height: LOGO_H },
+  logoRight: { width: LOGO_H * (1 - LEFT_R),  height: LOGO_H },
 
-  // Hero center area (flex: 1 so it pushes CTAs to the bottom)
+  // Logo — small mark on beats 1/2/4
+  logoRowSm: {
+    flexDirection: 'row',
+    width:         LOGO_SM,
+    height:        LOGO_SM,
+    alignSelf:     'center',
+    marginBottom:  -Math.round(LOGO_SM * 0.28),
+  },
+  logoSmLeft:  { width: LOGO_SM * LEFT_R,       height: LOGO_SM },
+  logoSmRight: { width: LOGO_SM * (1 - LEFT_R), height: LOGO_SM },
+
+  // Hero centering area
   heroCenter: {
     flex:           1,
     alignItems:     'center',
     justifyContent: 'center',
-    gap:            16,
+    gap:            8,
   },
 
-  // Text styles
-  kick: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      10,
-    letterSpacing: 3.5,
-    textTransform: 'uppercase',
-    color:         'rgba(243,238,232,0.65)',
-    textAlign:     'center',
-    marginTop:     4,
-  },
-  title: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   30,
-    lineHeight: 35,
+  // Beat 0 wordmark + tagline
+  wordmark: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   28,
+    lineHeight: 32,
     color:      color.paper,
     textAlign:  'center',
   },
+  tagline: {
+    fontFamily: fontFamily.sans,
+    fontSize:   14,
+    lineHeight: 22,
+    color:      color.dim,
+    textAlign:  'center',
+    maxWidth:   240,
+    marginTop:  4,
+    alignSelf:  'center',
+  },
+
+  // Eyebrow label
+  kick: {
+    fontFamily:    fontFamily.sansBold,
+    fontSize:      10,
+    letterSpacing: 3.0,
+    textTransform: 'uppercase',
+    color:         color.dim,
+    textAlign:     'center',
+    marginTop:     4,
+  },
+
+  // Section heading
+  title: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   28,
+    lineHeight: 33,
+    color:      color.paper,
+    textAlign:  'center',
+  },
+
+  // Body copy
   body: {
     fontFamily: fontFamily.sans,
     fontSize:   13,
     lineHeight: 21,
-    color:      'rgba(243,238,232,0.82)',
+    color:      color.dim,
     textAlign:  'center',
     maxWidth:   240,
     alignSelf:  'center',
   },
+  bodyBold: {
+    fontFamily: fontFamily.sansBold,
+    color:      color.paper,
+  },
 
   // Safety ticks (beat 2)
   ticks: {
-    gap:       20,
-    marginTop: 6,
+    gap:       18,
+    marginTop: 4,
   },
   tick: {
     flexDirection: 'row',
@@ -917,104 +854,91 @@ const s = StyleSheet.create({
     gap:           12,
   },
   tickTitle: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   13.5,
-    color:      color.paper,
+    fontFamily:   fontFamily.sansBold,
+    fontSize:     14,
+    color:        color.paper,
     marginBottom: 2,
+    marginTop:    1,
   },
   tickBody: {
     fontFamily: fontFamily.sans,
     fontSize:   12.5,
     lineHeight: 18,
-    color:      '#EDE7DE',
+    color:      color.dim,
   },
 
   // Persona (beat 3)
   personaName: {
-    fontFamily: fontFamily.serifItalic,
-    fontSize:   27,
+    fontFamily: fontFamily.sansBold,
+    fontSize:   26,
     textAlign:  'center',
+    color:      color.paper,
     marginTop:  4,
   },
+  personaNameBold: {
+    fontFamily: fontFamily.sansBold,
+    color:      color.paper,
+  },
   nameInput: {
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(243,238,232,0.25)',
-    paddingBottom:     4,
-    fontSize:          22,
+    borderBottomWidth:  2,
+    borderBottomColor:  BORDER,
+    paddingBottom:      4,
+    fontSize:           22,
+    color:              color.paper,
   },
   ghostRow: {
     flexDirection:  'row',
     justifyContent: 'center',
     alignItems:     'center',
-    marginBottom:   8,
+    marginBottom:   4,
   },
   ghostLink: {
-    fontFamily: fontFamily.sans,
-    fontSize:   12.5,
-    color:      'rgba(243,238,232,0.70)',
+    fontFamily: fontFamily.sansBold,
+    fontSize:   12,
+    color:      color.dim,
   },
   ghostDot: {
     fontFamily: fontFamily.sans,
-    fontSize:   12.5,
-    color:      'rgba(243,238,232,0.35)',
+    fontSize:   12,
+    color:      color.dim,
   },
 
-  // Category chips (beat 4)
+  // Category chips (beat 4) — neo-brutal flat, yellow when selected
   chips: {
     flexDirection:  'row',
     flexWrap:       'wrap',
-    gap:            7,
+    gap:            8,
     justifyContent: 'center',
-    marginTop:      4,
+    marginTop:      2,
   },
   chip: {
     flexDirection:     'row',
     alignItems:        'center',
     gap:               6,
-    borderWidth:       1.5,
-    borderColor:       'rgba(243,238,232,0.22)',
+    borderWidth:       2,
+    borderColor:       BORDER,
     borderRadius:      999,
-    paddingVertical:   5,
-    paddingHorizontal: 10,
+    paddingVertical:   6,
+    paddingHorizontal: 12,
+    backgroundColor:   'transparent',
+  },
+  chipOn: {
+    backgroundColor: '#FFE500',
   },
   chipTxt: {
-    fontFamily: fontFamily.sans,
-    fontSize:   11.5,
-    color:      '#EDE7DE',
-  },
-
-  // CTA buttons
-  ctaPaper: {
-    backgroundColor: color.paper,
-    borderRadius:    999,
-    paddingVertical: 13,
-    alignItems:      'center',
-  },
-  ctaPaperTxt: {
     fontFamily: fontFamily.sansBold,
-    fontSize:   14,
-    color:      '#9c2f17',
+    fontSize:   13,
+    color:      color.paper,
   },
-  ctaWarm: {
-    borderRadius:    4,
-    borderWidth:     2,
-    borderColor:     '#0A0A0A',
-    backgroundColor: '#FFE500',
-    paddingVertical: 13,
-    alignItems:      'center',
-  },
-  ctaWarmTxt: {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      14,
-    letterSpacing: 0.18 * 14,
-    textTransform: 'uppercase',
-    color:         '#0A0A0A',
+  chipTxtOn: {
+    color: BORDER,
   },
 
-  // Dot indicator
+  // Segment bar
   segBarRow: {
     paddingTop:  10,
     alignItems:  'center',
+    gap:         12,
   },
   segBar: {
     flexDirection: 'row',
@@ -1024,4 +948,44 @@ const s = StyleSheet.create({
   dot: {
     backgroundColor: color.paper,
   },
+
+  // Appearance (beat 5) — theme option cards
+  themeOptions: {
+    flexDirection: 'row',
+    gap:           14,
+    marginBottom:  4,
+  },
+  themeOpt: {
+    flex:           1,
+    alignItems:     'center',
+    justifyContent: 'center',
+    gap:            10,
+    paddingVertical: 24,
+    borderRadius:   radius.input,
+    borderWidth:    2,
+    borderColor:    BORDER,
+    backgroundColor: 'transparent',
+  },
+  themeOptActive: {
+    backgroundColor: '#FFE500',
+  },
+  themeOptLabel: {
+    fontFamily:    fontFamily.sansBold,
+    fontSize:      11,
+    letterSpacing: 1.5,
+    textTransform: 'uppercase',
+    color:         color.dim,
+  },
+  themeOptLabelActive: {
+    color: BORDER,
+  },
+  themeHint: {
+    fontFamily: fontFamily.sans,
+    fontSize:   12,
+    lineHeight: 18,
+    color:      color.dim,
+    textAlign:  'center',
+    maxWidth:   220,
+  },
+
 });

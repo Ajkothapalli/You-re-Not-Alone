@@ -1,12 +1,9 @@
 /**
  * Celebration — the delight beat after a confession is posted.
  *
- * A radial burst of light + confetti, a luminous emblem that springs in, a
- * rotating affirmation, and a climbing "release count" that makes letting go
- * feel rewarding (and worth doing again). Milestones (every 5th) bloom bigger.
- *
- * Tone: warm and luminous, not party-popper — this fires right after someone
- * set down something heavy. Auto-advances to the match reveal; tap to skip.
+ * Confetti bursts from the screen centre (absolute layer).
+ * Emblem + text sit in a centred flex column — no absolute overlap.
+ * Auto-advances to the match reveal; tap to skip.
  * Honours reduce-motion (no burst; emblem + words hold, then fade).
  */
 
@@ -14,25 +11,28 @@ import * as Haptics from 'expo-haptics';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
-  Easing,
   Pressable,
   StyleSheet,
   Text,
+  View,
   useWindowDimensions,
 } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, Ellipse, RadialGradient, Stop } from 'react-native-svg';
 import type { Palette } from '../theme/palettes';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '../theme/tokens';
 import { announce, useReducedMotion } from '../lib/a11y';
-import { incrementReleaseCount, ordinal } from '../lib/profile';
+import { DURATION, EASING, SPRING } from '../theme/motion';
+import { Bust, getPersonaById } from '../components/Persona';
+import { getProfileSync, incrementReleaseCount, ordinal } from '../lib/profile';
 
-const GOLD = '#FBBF24';
+// Mustard — visible on both light and dark backgrounds (~4.5:1 on white)
+const MUSTARD = '#C07D00';
 
 const AFFIRMATIONS = [
   'that took courage',
   'you let it out',
-  'that\'s off your chest',
+  "that's off your chest",
   'you said the hard thing',
   'braver than yesterday',
   'you set it down',
@@ -45,10 +45,10 @@ interface Props {
 
 interface Piece {
   anim:     Animated.Value;
-  angle:    number;   // radial direction
+  angle:    number;
   distance: number;
   size:     number;
-  bar:      boolean;  // confetti bar vs dot
+  bar:      boolean;
   spin:     number;
   delay:    number;
   color:    string;
@@ -60,31 +60,36 @@ export function Celebration({ palette, onDone }: Props) {
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
 
+  const persona            = getPersonaById(getProfileSync().personaId);
+  const [tint, skin, hair] = persona.colors;
+
   const headline = useMemo(
     () => AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)],
     [],
   );
-  // Increment exactly once (lazy initializer runs a single time).
-  const [count]      = useState(() => incrementReleaseCount());
-  const isMilestone  = count > 0 && count % 5 === 0;
+
+  const [count]     = useState(() => incrementReleaseCount());
+  const isMilestone = count > 0 && count % 5 === 0;
   const [shownCount, setShownCount] = useState(reduceMotion ? count : Math.max(count - 1, 0));
 
-  const overlay  = useRef(new Animated.Value(1)).current;
-  const emblem   = useRef(new Animated.Value(0)).current;  // spring in
-  const pulse    = useRef(new Animated.Value(0)).current;  // ring bloom
-  const textAnim = useRef(new Animated.Value(0)).current;
+  const overlay   = useRef(new Animated.Value(1)).current;
+  const emblem    = useRef(new Animated.Value(0)).current;
+  const pulse     = useRef(new Animated.Value(0)).current;
+  const textAnim  = useRef(new Animated.Value(0)).current;
   const countAnim = useRef(new Animated.Value(0)).current;
+  const float     = useRef(new Animated.Value(0)).current;
 
+  // Confetti bursts from the visible centre of the overlay
   const cx = width / 2;
-  const cy = height * 0.42;
+  const cy = height * 0.38;
 
   const pieces = useRef<Piece[]>(
     Array.from({ length: isMilestone ? 42 : 28 }, (_, i) => {
-      const palette3 = [palette.you, palette.them, color.paper, GOLD];
+      const palette3 = [palette.you, palette.them, color.paper, MUSTARD];
       return {
         anim:     new Animated.Value(0),
         angle:    (i / (isMilestone ? 42 : 28)) * Math.PI * 2 + Math.random() * 0.4,
-        distance: 120 + Math.random() * (height * 0.22),
+        distance: 100 + Math.random() * (height * 0.20),
         size:     5 + Math.random() * 6,
         bar:      i % 3 === 0,
         spin:     (Math.random() - 0.5) * 4,
@@ -103,7 +108,7 @@ export function Celebration({ palette, onDone }: Props) {
 
     const finish = (delay: number) =>
       setTimeout(() => {
-        Animated.timing(overlay, { toValue: 0, duration: 480, useNativeDriver: true })
+        Animated.timing(overlay, { toValue: 0, duration: DURATION.gentle, easing: EASING.exit, useNativeDriver: true })
           .start(({ finished }) => { if (finished) onDone(); });
       }, delay);
 
@@ -114,40 +119,47 @@ export function Celebration({ palette, onDone }: Props) {
       return () => clearTimeout(t);
     }
 
-    // Emblem springs in with overshoot
     Animated.spring(emblem, {
-      toValue: 1, speed: 11, bounciness: 14, useNativeDriver: true,
+      toValue: 1, ...SPRING.pop, useNativeDriver: true,
     }).start();
 
-    // Ring bloom pulse
+    // Gentle floating bob — starts once the spring settles
+    Animated.sequence([
+      Animated.delay(600),
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(float, { toValue: 1, duration: DURATION.count, easing: EASING.breathe, useNativeDriver: true }),
+          Animated.timing(float, { toValue: 0, duration: DURATION.count, easing: EASING.breathe, useNativeDriver: true }),
+        ])
+      ),
+    ]).start();
+
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 1100, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 0, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: DURATION.breath, easing: EASING.enter, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0, duration: DURATION.instant, useNativeDriver: true }),
       ]),
       { iterations: 2 },
     ).start();
 
-    // Confetti burst
     pieces.forEach((p) => {
       Animated.sequence([
         Animated.delay(p.delay),
         Animated.timing(p.anim, {
           toValue: 1, duration: 1400 + Math.random() * 500,
-          easing: Easing.out(Easing.cubic), useNativeDriver: true,
+          easing: EASING.enter, useNativeDriver: true,
         }),
       ]).start();
     });
 
-    // Words rise, then the count climbs
     Animated.sequence([
       Animated.delay(280),
-      Animated.timing(textAnim, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+      Animated.timing(textAnim, { toValue: 1, duration: DURATION.entrance, easing: EASING.enter, useNativeDriver: true }),
     ]).start();
 
     Animated.sequence([
       Animated.delay(520),
-      Animated.timing(countAnim, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: false }),
+      Animated.timing(countAnim, { toValue: 1, duration: DURATION.entrance, easing: EASING.enter, useNativeDriver: false }),
     ]).start();
     const countId = countAnim.addListener(({ value }) => {
       setShownCount(Math.round(Math.max(count - 1, 0) + value * 1));
@@ -159,78 +171,127 @@ export function Celebration({ palette, onDone }: Props) {
 
   const emblemScale = emblem.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] });
   const ringScale   = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] });
-  const ringOpacity = pulse.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.5, 0] });
+  const ringOpacity = pulse.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.45, 0] });
+  const floatY      = float.interpolate({ inputRange: [0, 1], outputRange: [0, -10] });
 
   return (
     <Pressable
       style={styles.overlay}
-      onPress={() => Animated.timing(overlay, { toValue: 0, duration: 260, useNativeDriver: true }).start(({ finished }) => finished && onDone())}
+      onPress={() =>
+        Animated.timing(overlay, { toValue: 0, duration: DURATION.base, easing: EASING.exit, useNativeDriver: true })
+          .start(({ finished }) => finished && onDone())
+      }
       accessibilityRole="button"
       accessibilityLabel={`${headline}. Tap to continue.`}
     >
-      <Animated.View style={[StyleSheet.absoluteFill, styles.center, { opacity: overlay }]}>
+      <Animated.View style={[StyleSheet.absoluteFill, styles.root, { opacity: overlay }]}>
 
-        {/* Confetti burst */}
+        {/* ── Confetti — absolute burst from centre ── */}
         {pieces.map((p, i) => {
-          const tx = p.anim.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(p.angle) * p.distance] });
-          const ty = p.anim.interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(p.angle) * p.distance + height * 0.12] });
-          const op = p.anim.interpolate({ inputRange: [0, 0.1, 0.7, 1], outputRange: [0, 1, 0.85, 0] });
+          const tx  = p.anim.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(p.angle) * p.distance] });
+          const ty  = p.anim.interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(p.angle) * p.distance] });
+          const op  = p.anim.interpolate({ inputRange: [0, 0.1, 0.7, 1], outputRange: [0, 1, 0.85, 0] });
           const rot = p.anim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${p.spin * 360}deg`] });
           return (
             <Animated.View
               key={i}
+              pointerEvents="none"
               style={{
-                position: 'absolute', left: cx - p.size / 2, top: cy - p.size / 2,
-                width: p.bar ? p.size * 2.2 : p.size, height: p.size,
-                borderRadius: p.bar ? 2 : p.size / 2,
-                backgroundColor: p.color, opacity: op,
-                transform: [{ translateX: tx }, { translateY: ty }, { rotate: rot }],
+                position:        'absolute',
+                left:            cx - p.size / 2,
+                top:             cy - p.size / 2,
+                width:           p.bar ? p.size * 2.2 : p.size,
+                height:          p.size,
+                borderRadius:    p.bar ? 2 : p.size / 2,
+                backgroundColor: p.color,
+                opacity:         op,
+                transform:       [{ translateX: tx }, { translateY: ty }, { rotate: rot }],
               }}
             />
           );
         })}
 
-        {/* Bloom ring — expands and fades out from the emblem */}
-        <Animated.View
-          pointerEvents="none"
-          style={{ position: 'absolute', top: cy - 46, opacity: ringOpacity, transform: [{ scale: ringScale }] }}
-        >
-          <Svg width={92} height={92} viewBox="0 0 92 92">
-            <Circle cx={46} cy={46} r={30} stroke={palette.you} strokeWidth={2} fill="none" />
-          </Svg>
-        </Animated.View>
+        {/* ── Centred content column: emblem → text ── */}
+        <View style={styles.column}>
 
-        {/* Emblem — luminous ring that springs in */}
-        <Animated.View style={{ position: 'absolute', top: cy - 46, transform: [{ scale: emblemScale }] }}>
-          <Svg width={92} height={92} viewBox="0 0 92 92">
-            <Circle cx={46} cy={46} r={30} stroke={palette.them} strokeWidth={2.5} fill={palette.you + '22'} />
-            <Circle cx={46} cy={46} r={6} fill={GOLD} />
-          </Svg>
-        </Animated.View>
+          {/* Emblem wrapper — ring and character overlap; text block sits below in flex */}
+          <View style={styles.emblemWrap}>
+            {/* Ground shadow stays grounded while character floats above */}
+            <View pointerEvents="none" style={styles.groundShadow} />
 
-        {/* Words */}
-        <Animated.View
-          style={[
-            styles.textContainer,
-            { opacity: textAnim, transform: [{ translateY: textAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] },
-          ]}
-        >
-          <Text style={styles.headline}>{headline}</Text>
+            {/* Float layer — ring + disc bob together */}
+            <Animated.View style={[StyleSheet.absoluteFill, styles.centred, { transform: [{ translateY: floatY }] }]}>
 
-          {/* Climbing release count — the motivating beat */}
-          <Text style={styles.countLine}>
-            <Text style={[styles.countNum, { color: GOLD }]}>{shownCount}</Text>
-            <Text style={styles.countRest}>
-              {isMilestone ? `  things set down — a milestone` : `  ${count === 1 ? 'thing' : 'things'} set down`}
+              {/* Bloom pulse ring */}
+              <Animated.View
+                pointerEvents="none"
+                style={[StyleSheet.absoluteFill, styles.centred, { opacity: ringOpacity, transform: [{ scale: ringScale }] }]}
+              >
+                <Svg width={140} height={140} viewBox="0 0 140 140">
+                  <Circle cx={70} cy={70} r={46} stroke={palette.you} strokeWidth={2} fill="none" />
+                </Svg>
+              </Animated.View>
+
+              {/* Character disc — springs in, Blender clay aesthetic */}
+              <Animated.View style={{ transform: [{ scale: emblemScale }] }}>
+                {/* Outer: shadow + border-radius without overflow:hidden */}
+                <View style={styles.clayOuter}>
+                  {/* Inner: clips character to circle */}
+                  <View style={[styles.clayInner, { backgroundColor: tint }]}>
+                    {/* Specular gradient — diffuse top-left light hitting the clay */}
+                    <Svg style={StyleSheet.absoluteFill} width={120} height={120} viewBox="0 0 120 120">
+                      <Defs>
+                        <RadialGradient id="spec" cx="35%" cy="28%" r="55%">
+                          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.55} />
+                          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
+                        </RadialGradient>
+                      </Defs>
+                      <Circle cx={60} cy={60} r={60} fill="url(#spec)" />
+                      {/* Rim light — bright crescent top-right, classic 3-point lighting */}
+                      <Ellipse cx={90} cy={20} rx={22} ry={9} fill="white" opacity={0.18} transform="rotate(-28 90 20)" />
+                    </Svg>
+
+                    {/* User's chosen character */}
+                    <Svg style={StyleSheet.absoluteFill} width={120} height={120} viewBox="0 0 24 24">
+                      <Bust id={persona.id} skin={skin} hair={hair} />
+                    </Svg>
+                  </View>
+                </View>
+              </Animated.View>
+
+            </Animated.View>
+          </View>
+
+          {/* Text block */}
+          <Animated.View
+            style={[
+              styles.textBlock,
+              {
+                opacity:   textAnim,
+                transform: [{ translateY: textAnim.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+              },
+            ]}
+          >
+            <Text style={styles.headline}>{headline}</Text>
+
+            <View style={styles.countRow}>
+              <Text style={styles.countNum}>{shownCount}</Text>
+              <Text style={styles.countLabel}>
+                {isMilestone
+                  ? ` ${count === 1 ? 'thing' : 'things'} set down — a milestone`
+                  : ` ${count === 1 ? 'thing' : 'things'} set down`}
+              </Text>
+            </View>
+
+            <Text style={styles.sub}>
+              {isMilestone
+                ? 'you keep choosing honesty. that matters.'
+                : 'someone is about to feel less alone'}
             </Text>
-          </Text>
+          </Animated.View>
 
-          <Text style={styles.sub}>
-            {isMilestone
-              ? 'you keep choosing honesty. that matters.'
-              : 'someone is about to feel less alone'}
-          </Text>
-        </Animated.View>
+        </View>
+
       </Animated.View>
     </Pressable>
   );
@@ -244,32 +305,85 @@ function createStyles(color: ColorSet) {
       backgroundColor: color.ink,
       zIndex: 10,
     },
-    center: { justifyContent: 'center', alignItems: 'center' },
-    textContainer: { alignItems: 'center', gap: 10, marginTop: 90, paddingHorizontal: 32 },
+    root: {
+      justifyContent: 'center',
+      alignItems:     'center',
+    },
+    // Flex column — emblem sits directly above text, never overlapping
+    column: {
+      alignItems: 'center',
+      gap:        28,
+      paddingHorizontal: 32,
+    },
+    emblemWrap: {
+      width:  140,
+      height: 140,
+    },
+    centred: {
+      alignItems:     'center',
+      justifyContent: 'center',
+    },
+    groundShadow: {
+      position:        'absolute',
+      bottom:          4,
+      alignSelf:       'center',
+      width:           88,
+      height:          18,
+      borderRadius:    44,
+      backgroundColor: 'rgba(0,0,0,0.2)',
+    },
+    clayOuter: {
+      width:         120,
+      height:        120,
+      borderRadius:  60,
+      shadowColor:   '#000',
+      shadowOffset:  { width: 0, height: 10 },
+      shadowOpacity: 0.28,
+      shadowRadius:  18,
+      elevation:     20,
+    },
+    clayInner: {
+      width:        120,
+      height:       120,
+      borderRadius: 60,
+      overflow:     'hidden',
+    },
+    textBlock: {
+      alignItems: 'center',
+      gap:        10,
+    },
     headline: {
-      fontFamily: fontFamily.serifItalic,
-      fontSize:   28,
+      fontFamily: fontFamily.sansBold,
+      fontSize:   30,
+      lineHeight: 38,
       color:      color.paper,
       textAlign:  'center',
     },
-    countLine: { textAlign: 'center' },
-    countNum: {
-      fontFamily: fontFamily.serif,
-      fontSize:   20,
+    countRow: {
+      flexDirection: 'row',
+      alignItems:    'baseline',
+      flexWrap:      'wrap',
+      justifyContent: 'center',
     },
-    countRest: {
+    countNum: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   22,
+      color:      MUSTARD,           // ~4.5:1 on white, passes AA
+    },
+    countLabel: {
       fontFamily:    fontFamily.sansBold,
       fontSize:      12,
       letterSpacing: 1.5,
       textTransform: 'uppercase',
-      color:         color.dim,
+      color:         color.paper,    // high contrast in both themes
     },
     sub: {
       fontFamily: fontFamily.sans,
-      fontSize:   13.5,
-      color:      color.dim,
+      fontSize:   14,
+      lineHeight: 21,
+      color:      color.paper,       // was color.dim — now AA-compliant
       textAlign:  'center',
-      marginTop:  2,
+      opacity:    0.65,
     },
   });
 }

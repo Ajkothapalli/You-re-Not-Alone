@@ -23,6 +23,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 
 export default function MatchScreen() {
@@ -45,8 +46,9 @@ export default function MatchScreen() {
 
   const storyRef = useRef<View>(null);
 
-  const [celebrating, setCelebrating] = useState(true);
-  const [sharing,     setSharing]     = useState(false);
+  const [celebrating,  setCelebrating]  = useState(true);
+  const [sharing,      setSharing]      = useState(false);
+  const [iconSession]                   = useState(() => Math.floor(Math.random() * 102));
 
   useEffect(() => {
     if (!isNoMatch && confessionId) {
@@ -84,14 +86,14 @@ export default function MatchScreen() {
             contentContainerStyle={styles.scroll}
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.heading} accessibilityRole="header">you're the first to feel this</Text>
+            <Text style={styles.heading} accessibilityRole="header">You're the first to feel this</Text>
             <Text style={styles.body}>
               Your words are waiting. When someone else shares something similar, they'll find
               you — and know they're not alone.
             </Text>
             <View style={styles.actions}>
               <PrimaryButton label="Take me to feed" onPress={goToFeed} />
-              <Text style={styles.unlockHint}>writing just unlocked 2 more reads</Text>
+              <Text style={styles.unlockHint}>Writing just unlocked 2 more reads</Text>
             </View>
           </ScrollView>
         )}
@@ -121,13 +123,18 @@ export default function MatchScreen() {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.heading} accessibilityRole="header">you're not alone in this</Text>
+          <View style={styles.headingRow}>
+            <ScrawlIcon name="infinity" size={20} color={color.dim} roughen={false} />
+            <Text style={styles.heading} accessibilityRole="header">You're not alone in this</Text>
+          </View>
 
           <ConfessionCard
             youText={youText}
             themText={themText}
             feltCount={feltCount}
             palette={palette}
+            iconSeed={confessionId}
+            iconSessionOffset={iconSession}
           />
 
           <View style={styles.actions}>
@@ -136,7 +143,7 @@ export default function MatchScreen() {
               onPress={handleShare}
               loading={sharing}
             />
-            <Text style={styles.unlockHint}>writing just unlocked 2 more reads</Text>
+            <Text style={styles.unlockHint}>Writing just unlocked 2 more reads</Text>
             <GhostButton label="Take me to feed" onPress={goToFeed} />
           </View>
         </ScrollView>
@@ -162,8 +169,14 @@ function createStyles(color: ColorSet) {
       alignItems:    'center',
       gap:           24,
     },
+    headingRow: {
+      flexDirection:  'row',
+      alignItems:     'center',
+      justifyContent: 'center',
+      gap:            8,
+    },
     heading: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   24,
       color:      color.paper,
       textAlign:  'center',

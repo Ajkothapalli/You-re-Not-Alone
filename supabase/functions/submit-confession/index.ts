@@ -1211,6 +1211,43 @@ serve(async (req: Request) => {
       shown_confession_id: matchRow.id,
     });
 
+    // Throttled 'felt' notification for the matched confession's owner.
+    // Max 1 notification per confession per hour — avoids spam.
+    // account_id is used server-side only and never returned to any client.
+    // Never reveals the feeler's identity (CLAUDE.md §2/#3).
+    void (async () => {
+      try {
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+        const { count: recentCount } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'felt')
+          .eq('confession_id', matchRow.id)
+          .gte('created_at', oneHourAgo);
+
+        if ((recentCount ?? 0) > 0) return; // throttled
+
+        const { data: owner } = await supabase
+          .from('confessions')
+          .select('account_id')
+          .eq('id', matchRow.id)
+          .single();
+
+        if (!owner?.account_id) return; // seed / legacy row without account_id
+
+        await supabase.from('notifications').insert({
+          account_id:    owner.account_id,
+          type:          'felt',
+          confession_id: matchRow.id,
+          data:          { felt_count: typeof newCount === 'number' ? newCount : matchRow.felt_count + 1 },
+        });
+      } catch (err) {
+        // Non-blocking — notification failure must never affect the main response.
+        console.error('[notify] felt notification error:', err instanceof Error ? err.message : String(err));
+      }
+    })();
+
     // ── [8] RETURN ─────────────────────────────────────────────────────────────
     // author_token is never returned to the client.
     // submittedId: the author's OWN new confession id, returned so the client

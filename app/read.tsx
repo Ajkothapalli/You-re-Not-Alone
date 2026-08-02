@@ -22,8 +22,8 @@ import { session } from '@/lib/sessionFlags';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -33,6 +33,11 @@ import {
   View,
 } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
+import { showToast } from '@/components/Toast';
+import { BackgroundPattern } from '@/components/BackgroundPattern';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
+
+const SHADOW = 4;
 
 // Shown when the server pool is empty or the RPC fails.
 // IDs match the seed migration so reporting works once the migration is applied.
@@ -57,14 +62,19 @@ export default function ReadScreen() {
   const [items,      setItems]      = useState<ReadConfession[]>([]);
   const [loading,    setLoading]    = useState(true);
   const [matchCount, setMatchCount] = useState(0);
+  const [iconSession, setIconSession] = useState(() => Math.floor(Math.random() * 102));
 
   const done = useRef(false);
+
+  useFocusEffect(useCallback(() => {
+    setIconSession(Math.floor(Math.random() * 102));
+  }, []));
 
   // No flag to set — read screen shows every launch (owner decision 2026-06-12).
   function finish() {
     if (done.current) return;
     done.current = true;
-    router.replace('/write');
+    router.replace('/(tabs)/write');
   }
 
   useEffect(() => {
@@ -100,6 +110,7 @@ export default function ReadScreen() {
           onPress: async () => {
             try { await reportConfession(item.id, 'other'); } catch {}
             analytics.reportSubmitted(item.id);
+            showToast('Successfully reported');
           },
         },
       ],
@@ -115,8 +126,10 @@ export default function ReadScreen() {
   }
 
   return (
+    <View style={styles.root}>
+    <BackgroundPattern />
     <ScrollView
-      style={styles.root}
+      style={{ flex: 1 }}
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
@@ -127,10 +140,10 @@ export default function ReadScreen() {
 
       <View style={styles.header}>
         <Text style={styles.heading} accessibilityRole="header">
-          {from === 'match' ? '2 more, because you shared' : 'before you write, read'}
+          {from === 'match' ? '2 more, because you shared' : 'Before you write, read'}
         </Text>
         <Text style={styles.sub}>
-          these people reached out into the dark.{'\n'}someone always finds them.
+          These people reached out into the dark.{'\n'}Someone always finds them.
         </Text>
       </View>
 
@@ -153,12 +166,13 @@ export default function ReadScreen() {
           })}
           delay={i * 160}
           personaSeed={item.id}
+          iconSessionOffset={iconSession}
         />
       ))}
 
       <View style={styles.actions}>
         <PrimaryButton label="Now it's your turn" onPress={finish} />
-        <Text style={styles.writeHint}>write one confession — unlock 2 more reads</Text>
+        <Text style={styles.writeHint}>Write one confession — unlock 2 more reads</Text>
       </View>
 
       <View style={styles.orRow}>
@@ -167,6 +181,8 @@ export default function ReadScreen() {
         <View style={styles.orLine} />
       </View>
 
+      <View style={styles.promoOuter}>
+      <View pointerEvents="none" style={styles.promoShadow} />
       <Pressable
         onPress={() => router.push('/plans')}
         style={({ pressed }) => [styles.promoCard, pressed && styles.promoCardPressed]}
@@ -179,17 +195,19 @@ export default function ReadScreen() {
             <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ waiting</Text>
           )}
         </View>
-        <Text style={styles.promoTitle}>don't stop at 2</Text>
+        <Text style={styles.promoTitle}>Don't stop at 2</Text>
         <Text style={styles.promoBody}>
           Right now, hundreds of confessions match what you carry.
           Premium readers see every one — no writing, no waiting.
         </Text>
         <View style={styles.promoCta}>
           <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
-          <Text style={styles.promoCtaArrow}> →</Text>
+          <ScrawlIcon name="arrow_right" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
         </View>
       </Pressable>
+      </View>
     </ScrollView>
+    </View>
   );
 }
 
@@ -209,7 +227,7 @@ function createStyles(color: ColorSet) {
       flexGrow:      1,
       padding:       spacing.screenPadding,
       paddingTop:    64,
-      paddingBottom: 64,
+      paddingBottom: 96,
       gap:           24,
     },
     topBar: {
@@ -217,10 +235,10 @@ function createStyles(color: ColorSet) {
       marginBottom:  4,
     },
     header: {
-      gap: 10,
+      gap: 8,
     },
     heading: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   26,
       color:      color.paper,
       textAlign:  'center',
@@ -259,16 +277,29 @@ function createStyles(color: ColorSet) {
       fontSize:   12,
       color:      color.dim,
     },
-    promoCard: {
-      backgroundColor: '#16131C',
+    promoOuter: {
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+    },
+    promoShadow: {
+      position:        'absolute',
+      top:             SHADOW,
+      left:            SHADOW,
+      right:           0,
+      bottom:          0,
       borderRadius:    radius.input,
-      borderWidth:     1,
-      borderColor:     '#FBBF2444',
+      backgroundColor: color.border,
+    },
+    promoCard: {
+      backgroundColor: color.ink,
+      borderRadius:    radius.input,
+      borderWidth:     2,
+      borderColor:     color.border,
       padding:         20,
       gap:             12,
     },
     promoCardPressed: {
-      backgroundColor: '#1C1824',
+      opacity: 0.88,
     },
     promoTop: {
       flexDirection:  'row',
@@ -279,7 +310,7 @@ function createStyles(color: ColorSet) {
       fontFamily:    fontFamily.sansBold,
       fontSize:      10,
       letterSpacing: 1.6,
-      color:         '#FBBF24',
+      color:         color.paper,
     },
     promoStat: {
       fontFamily: fontFamily.sansBold,
@@ -287,7 +318,7 @@ function createStyles(color: ColorSet) {
       color:      color.dim,
     },
     promoTitle: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   24,
       color:      color.paper,
       lineHeight: 30,
@@ -301,7 +332,7 @@ function createStyles(color: ColorSet) {
     promoCta: {
       flexDirection:     'row',
       alignItems:        'center',
-      backgroundColor:   '#FBBF24',
+      backgroundColor:   '#FFE500',
       borderRadius:      radius.pill,
       paddingHorizontal: 18,
       paddingVertical:   11,
@@ -311,12 +342,12 @@ function createStyles(color: ColorSet) {
     promoCtaText: {
       fontFamily: fontFamily.sansBold,
       fontSize:   14,
-      color:      '#1A0A00',
+      color:      '#0A0A0A',
     },
     promoCtaArrow: {
       fontFamily: fontFamily.sansBold,
       fontSize:   14,
-      color:      '#1A0A00',
+      color:      '#0A0A0A',
     },
   });
 }

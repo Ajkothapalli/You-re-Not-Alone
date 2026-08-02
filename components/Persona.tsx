@@ -163,7 +163,7 @@ function Freckles() {
 // 12 characters
 // ---------------------------------------------------------------------------
 
-function Bust({ id, skin, hair }: { id: string; skin: string; hair: string }) {
+export function Bust({ id, skin, hair }: { id: string; skin: string; hair: string }) {
   switch (id) {
     case 'kai': // tight buzz cut — close crop, dark skin, no frills
       return (

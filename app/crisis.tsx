@@ -30,7 +30,7 @@ export default function CrisisScreen() {
       contentContainerStyle={styles.scroll}
       showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.heading} accessibilityRole="header">you don't have to carry this alone</Text>
+      <Text style={styles.heading} accessibilityRole="header">You don't have to carry this alone</Text>
 
       <Text style={styles.body}>
         What you shared sounds really heavy. Please reach out to someone trained
@@ -47,7 +47,7 @@ export default function CrisisScreen() {
       </View>
 
       <View style={styles.linksSection}>
-        <Text style={styles.sectionLabel}>find a helpline near you</Text>
+        <Text style={styles.sectionLabel}>Find a helpline near you</Text>
 
         <Pressable
           style={styles.linkCard}
@@ -78,7 +78,7 @@ export default function CrisisScreen() {
 
       <GhostButton
         label="I'm okay — go back"
-        onPress={() => router.replace('/write')}
+        onPress={() => router.back()}
       />
     </ScrollView>
   );
@@ -97,7 +97,7 @@ function createStyles(color: ColorSet) {
       gap:             24,
     },
     heading: {
-      fontFamily: fontFamily.serifItalic,
+      fontFamily: fontFamily.sansBold,
       fontSize:   26,
       color:      color.paper,
       lineHeight: 36,

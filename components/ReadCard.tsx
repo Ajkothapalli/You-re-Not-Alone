@@ -1,24 +1,27 @@
 import * as Haptics from 'expo-haptics';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
 import { HeartIcon } from './HeartIcon';
 import { getPersona, PersonaBadge } from './Persona';
+import { ScrawlIcon, iconAtOffset } from './ScrawlIcon';
 import type { Palette } from '../theme/palettes';
-import { useThemeColors } from '../theme/ThemeProvider';
+import { useTheme } from '../theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius } from '../theme/tokens';
+import { DURATION, EASING, HEARTBEAT, RISE } from '../theme/motion';
 import { announce, useReducedMotion } from '../lib/a11y';
 
 const SHADOW = 5;
 
 interface Props {
-  text:        string;
-  feltCount:   number;
-  palette:     Palette;
-  onReport:    () => void;
-  onPress?:    () => void;
-  onFelt?:     () => void;
-  delay?:      number;
-  personaSeed: string;
+  text:               string;
+  feltCount:          number;
+  palette:            Palette;
+  onReport:           () => void;
+  onPress?:           () => void;
+  onFelt?:            () => void;
+  delay?:             number;
+  personaSeed:        string;
+  iconSessionOffset?: number;
 }
 
 // Single character that ticks vertically whenever `felt` flips.
@@ -41,13 +44,13 @@ function TickChar({ char, isChanged, felt, reduceMotion, style }: {
     const inY  = felt ?  10 : -10;
 
     Animated.parallel([
-      Animated.timing(y,       { toValue: outY, duration: 80, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0,    duration: 80,                                    useNativeDriver: true }),
+      Animated.timing(y,       { toValue: outY, duration: DURATION.press, easing: EASING.exit,     useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 0,    duration: DURATION.press,                          useNativeDriver: true }),
     ]).start(() => {
       y.setValue(inY);
       Animated.parallel([
-        Animated.timing(y,       { toValue: 0, duration: 120, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: 120,                                   useNativeDriver: true }),
+        Animated.timing(y,       { toValue: 0, duration: DURATION.quick, easing: EASING.standard, useNativeDriver: true }),
+        Animated.timing(opacity, { toValue: 1, duration: DURATION.quick,                          useNativeDriver: true }),
       ]).start();
     });
   }, [felt]);
@@ -61,13 +64,15 @@ function TickChar({ char, isChanged, felt, reduceMotion, style }: {
 
 const MAX_LINES = 6;
 
-export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed }: Props) {
-  const color  = useThemeColors();
+export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0 }: Props) {
+  const { colors: color, isDark } = useTheme();
   const styles = useMemo(() => createStyles(color), [color]);
 
   const [felt,        setFelt]        = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const persona = getPersona(personaSeed);
+  const iconBR  = iconAtOffset(personaSeed, 0, iconSessionOffset);
+  const iconTL  = iconAtOffset(personaSeed, 2, iconSessionOffset);
 
   const entranceAnim = useRef(new Animated.Value(0)).current;
   const feltScale    = useRef(new Animated.Value(1)).current;
@@ -78,16 +83,18 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
     entranceAnim.setValue(0);
     Animated.timing(entranceAnim, {
       toValue:         1,
-      duration:        600,
+      duration:        DURATION.entrance,
       delay,
-      easing:          Easing.out(Easing.quad),
+      easing:          EASING.enter,
       useNativeDriver: true,
     }).start();
   }, [text, reduceMotion]);
 
-  const translateY   = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] });
+  const translateY   = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [RISE.md, 0] });
   const displayCount = feltCount + (felt ? 1 : 0);
-  const labelColor   = felt ? palette.you : color.dim;
+  // Heart icon keeps palette color; text uses paper in light (not yellow-on-white)
+  const heartColor  = felt ? palette.you : color.dim;
+  const labelColor  = felt ? (isDark ? palette.you : color.paper) : color.dim;
 
   const oldStr  = feltCount.toLocaleString();
   const newStr  = (feltCount + 1).toLocaleString();
@@ -112,17 +119,16 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
 
     if (next) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      Animated.sequence([
-        Animated.timing(feltScale, { toValue: 1.4,  duration: 100, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(feltScale, { toValue: 0.88, duration: 80,  easing: Easing.in(Easing.quad),  useNativeDriver: true }),
-        Animated.timing(feltScale, { toValue: 1.2,  duration: 90,  easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(feltScale, { toValue: 1.0,  duration: 150, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
-      ]).start();
+      Animated.sequence(
+        HEARTBEAT.map(([toValue, duration, easing]) =>
+          Animated.timing(feltScale, { toValue, duration, easing, useNativeDriver: true }),
+        ),
+      ).start();
     } else {
       Haptics.selectionAsync().catch(() => {});
       Animated.sequence([
-        Animated.timing(feltScale, { toValue: 0.65, duration: 120, easing: Easing.in(Easing.quad),  useNativeDriver: true }),
-        Animated.timing(feltScale, { toValue: 1.0,  duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(feltScale, { toValue: 0.65, duration: DURATION.quick, easing: EASING.exit,     useNativeDriver: true }),
+        Animated.timing(feltScale, { toValue: 1.0,  duration: DURATION.base,  easing: EASING.standard, useNativeDriver: true }),
       ]).start();
     }
   }
@@ -146,18 +152,25 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
         {/* Hard offset shadow block */}
         <View style={[styles.shadowBlock, { backgroundColor: palette.you }]} />
 
-        {/* Card */}
-        <View style={styles.card}>
+        {/* Card — whole card is tappable when onPress is provided */}
+        <Pressable
+          onPress={onPress}
+          disabled={!onPress}
+          accessibilityRole={onPress ? 'button' : 'none'}
+          accessibilityLabel={onPress ? `${persona.name} wrote: ${text}` : undefined}
+          accessibilityHint={onPress ? 'Opens the full confession' : undefined}
+          style={({ pressed }) => [styles.card, onPress && pressed && styles.cardPressed]}
+        >
+          {/* Scrawl decorative graphics — scattered positions */}
+          <View pointerEvents="none" style={[styles.decor, { top: 14, right: 14, opacity: 0.13 }]}>
+            <ScrawlIcon name={iconBR} size={44} color={color.paper} roughen />
+          </View>
+          <View pointerEvents="none" style={[styles.decor, { bottom: 50, left: 12, opacity: 0.10, transform: [{ rotate: '-42deg' }] }]}>
+            <ScrawlIcon name={iconTL} size={36} color={color.paper} roughen />
+          </View>
+
           <View style={styles.content}>
-            {/* Tappable body area */}
-            <Pressable
-              onPress={onPress}
-              disabled={!onPress}
-              style={styles.bodyArea}
-              accessibilityRole={onPress ? 'button' : 'text'}
-              accessibilityLabel={`${persona.name} wrote: ${text}`}
-              accessibilityHint={onPress ? 'Opens the full confession' : undefined}
-            >
+            <View style={styles.bodyArea}>
               <View style={styles.personaRow}>
                 <PersonaBadge persona={persona} />
               </View>
@@ -174,7 +187,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
               {isTruncated && onPress && (
                 <Text style={styles.readMore}>read more</Text>
               )}
-            </Pressable>
+            </View>
 
             <View style={styles.spacer} />
 
@@ -189,7 +202,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
                 accessibilityHint={felt ? 'Removes that you felt this too' : 'Adds that you felt this too'}
               >
                 <Animated.View style={{ transform: [{ scale: feltScale }] }}>
-                  <HeartIcon filled={felt} color={labelColor} size={18} />
+                  <HeartIcon filled={felt} color={heartColor} size={18} />
                 </Animated.View>
 
                 <View style={styles.countRow}>
@@ -219,7 +232,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
               </Pressable>
             </View>
           </View>
-        </View>
+        </Pressable>
       </View>
     </Animated.View>
   );
@@ -248,6 +261,13 @@ function createStyles(color: ColorSet) {
       borderWidth:     2,
       borderColor:     color.border,
       overflow:        'hidden',
+    },
+    cardPressed: {
+      opacity: 0.88,
+    },
+    decor: {
+      position:  'absolute',
+      transform: [{ rotate: '45deg' }],
     },
     content: {
       flex:    1,

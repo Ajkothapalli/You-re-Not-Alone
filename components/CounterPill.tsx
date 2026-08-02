@@ -8,6 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import { font, fontFamily, radius } from '../theme/tokens';
+import { DURATION, SPRING } from '../theme/motion';
 import { useReducedMotion } from '../lib/a11y';
 
 interface Props {
@@ -27,8 +28,7 @@ export default function CounterPill({ count, youColor, palette, style, onPress }
     if (reduceMotion) { mount.setValue(1); return; }
     Animated.spring(mount, {
       toValue:         1,
-      speed:           14,
-      bounciness:      12,
+      ...SPRING.pop,
       useNativeDriver: true,
     }).start();
   }, [reduceMotion]);
@@ -61,10 +61,10 @@ export default function CounterPill({ count, youColor, palette, style, onPress }
       onPress={onPress}
       onPressIn={() => {
         if (reduceMotion) return;
-        Animated.timing(press, { toValue: 1, duration: 80, useNativeDriver: true }).start();
+        Animated.timing(press, { toValue: 1, duration: DURATION.press, useNativeDriver: true }).start();
       }}
       onPressOut={() =>
-        Animated.spring(press, { toValue: 0, speed: 22, bounciness: 7, useNativeDriver: true }).start()
+        Animated.spring(press, { toValue: 0, ...SPRING.pressSpring, useNativeDriver: true }).start()
       }
       hitSlop={8}
       style={{ alignSelf: 'flex-start' }}
