@@ -26,11 +26,8 @@ export default function ContactScreen() {
   async function handleSend() {
     setSending(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { error } = await supabase.from('support_messages').insert({
-        account_id: user?.id ?? null,
-        email:      email.trim(),
-        message:    msg.trim(),
+      const { error } = await supabase.functions.invoke('send-support-message', {
+        body: { email: email.trim(), message: msg.trim() },
       });
       if (error) throw error;
       showToast('Message sent! We\'ll reply to your email.');
