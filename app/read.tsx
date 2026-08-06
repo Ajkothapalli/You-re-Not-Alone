@@ -217,7 +217,6 @@ function WriteInviteCard({ onPress }: { onPress: () => void }) {
   const cardW = screenW - spacing.screenPadding * 2;
   const illH  = 160;
 
-  // Sparkle cross at (cx, cy) with arm length r
   function Sparkle({ cx, cy, r, stroke }: { cx: number; cy: number; r: number; stroke: string }) {
     return (
       <>
@@ -268,22 +267,22 @@ function WriteInviteCard({ onPress }: { onPress: () => void }) {
           <Circle cx={cardW * 0.85} cy={illH * 0.78} r={4} fill="#72D9C7" opacity={0.8} />
           <Circle cx={cardW * 0.50} cy={illH * 0.12} r={3} fill="#FF6B6B" opacity={0.7} />
 
-          {/* Heart — centred */}
+          {/* Heart — centred, proportional (width≈1.25× height) */}
           <Path
             d={`
-              M ${cardW * 0.5} ${illH * 0.60}
-              C ${cardW * 0.5} ${illH * 0.60}
-                ${cardW * 0.29} ${illH * 0.42}
-                ${cardW * 0.29} ${illH * 0.30}
-              C ${cardW * 0.29} ${illH * 0.19}
-                ${cardW * 0.38} ${illH * 0.12}
-                ${cardW * 0.5}  ${illH * 0.22}
-              C ${cardW * 0.62} ${illH * 0.12}
-                ${cardW * 0.71} ${illH * 0.19}
-                ${cardW * 0.71} ${illH * 0.30}
-              C ${cardW * 0.71} ${illH * 0.42}
-                ${cardW * 0.5}  ${illH * 0.60}
-                ${cardW * 0.5}  ${illH * 0.60}
+              M ${cardW * 0.50} ${illH * 0.65}
+              C ${cardW * 0.43} ${illH * 0.46}
+                ${cardW * 0.36} ${illH * 0.38}
+                ${cardW * 0.36} ${illH * 0.31}
+              C ${cardW * 0.36} ${illH * 0.24}
+                ${cardW * 0.43} ${illH * 0.15}
+                ${cardW * 0.50} ${illH * 0.24}
+              C ${cardW * 0.57} ${illH * 0.15}
+                ${cardW * 0.64} ${illH * 0.24}
+                ${cardW * 0.64} ${illH * 0.31}
+              C ${cardW * 0.64} ${illH * 0.38}
+                ${cardW * 0.57} ${illH * 0.46}
+                ${cardW * 0.50} ${illH * 0.65}
               Z
             `}
             fill="white"

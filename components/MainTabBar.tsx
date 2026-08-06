@@ -9,15 +9,15 @@ import Svg, { Path } from 'react-native-svg';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { useNotificationsContext } from '@/lib/notificationsContext';
 import { fontFamily } from '@/theme/tokens';
+import { ScrawlIcon } from './ScrawlIcon';
 
 const BAR_H  = 49;
 const ICON   = 22;
 const GOLD   = '#FFE500';
 
-// Material Design path data, 24x24 viewBox
+// Material Design path data, 24x24 viewBox (write tab uses ScrawlIcon instead)
 const ICON_PATHS: Record<string, string> = {
   read: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z',
-  write: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 000-1.41l-2.34-2.34a1 1 0 00-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z',
   you: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
   notifications: 'M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z',
 };
@@ -64,9 +64,13 @@ export default function MainTabBar({ state, navigation }: TabBarProps) {
             accessibilityLabel={label}
           >
             <View style={styles.iconWrap}>
-              <Svg width={ICON} height={ICON} viewBox="0 0 24 24">
-                <Path d={pathData} fill={iconColor} />
-              </Svg>
+              {isWrite ? (
+                <ScrawlIcon name="pencil" size={24} color={iconColor} roughen={false} strokeWidth={5} />
+              ) : (
+                <Svg width={ICON} height={ICON} viewBox="0 0 24 24">
+                  <Path d={pathData} fill={iconColor} />
+                </Svg>
+              )}
               {hasBadge && (
                 <View style={styles.badge}>
                   <Text style={styles.badgeText}>
