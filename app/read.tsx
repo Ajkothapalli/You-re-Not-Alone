@@ -13,7 +13,6 @@
  * always appears — there is no bypass-to-write path.
  */
 
-import { PrimaryButton } from '@/components/Buttons';
 import ProfileButton from '@/components/ProfileButton';
 import ReadCard from '@/components/ReadCard';
 import { analytics } from '@/lib/analytics';
@@ -30,8 +29,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
+import Svg, { Circle, Path, Ellipse, Line } from 'react-native-svg';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
@@ -170,10 +171,7 @@ export default function ReadScreen() {
         />
       ))}
 
-      <View style={styles.actions}>
-        <PrimaryButton label="Now it's your turn" onPress={finish} />
-        <Text style={styles.writeHint}>Write one confession — unlock 2 more reads</Text>
-      </View>
+      <WriteInviteCard onPress={finish} />
 
       <View style={styles.orRow}>
         <View style={styles.orLine} />
@@ -207,6 +205,134 @@ export default function ReadScreen() {
       </Pressable>
       </View>
     </ScrollView>
+    </View>
+  );
+}
+
+// ── WriteInviteCard ────────────────────────────────────────────────────────────
+
+function WriteInviteCard({ onPress }: { onPress: () => void }) {
+  const color = useThemeColors();
+  const { width: screenW } = useWindowDimensions();
+  const cardW = screenW - spacing.screenPadding * 2;
+  const illH  = 160;
+
+  // Sparkle cross at (cx, cy) with arm length r
+  function Sparkle({ cx, cy, r, stroke }: { cx: number; cy: number; r: number; stroke: string }) {
+    return (
+      <>
+        <Line x1={cx} y1={cy - r} x2={cx} y2={cy + r} stroke={stroke} strokeWidth={2} strokeLinecap="round" />
+        <Line x1={cx - r} y1={cy} x2={cx + r} y2={cy} stroke={stroke} strokeWidth={2} strokeLinecap="round" />
+        <Line x1={cx - r * 0.65} y1={cy - r * 0.65} x2={cx + r * 0.65} y2={cy + r * 0.65} stroke={stroke} strokeWidth={1.5} strokeLinecap="round" />
+        <Line x1={cx + r * 0.65} y1={cy - r * 0.65} x2={cx - r * 0.65} y2={cy + r * 0.65} stroke={stroke} strokeWidth={1.5} strokeLinecap="round" />
+      </>
+    );
+  }
+
+  return (
+    <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
+      {/* Neo-brutal hard shadow */}
+      <View style={{
+        position: 'absolute', top: SHADOW, left: SHADOW,
+        right: 0, bottom: 0,
+        borderRadius: 20,
+        backgroundColor: color.border,
+      }} />
+
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => ({
+          borderRadius:    20,
+          borderWidth:     2,
+          borderColor:     color.border,
+          overflow:        'hidden',
+          opacity:         pressed ? 0.9 : 1,
+        })}
+        accessibilityRole="button"
+        accessibilityLabel="Now it's your turn — write a confession"
+      >
+        {/* ── Colourful illustration ── */}
+        <Svg width={cardW} height={illH} viewBox={`0 0 ${cardW} ${illH}`}>
+          {/* Dark base */}
+          <Path d={`M0 0 H${cardW} V${illH} H0Z`} fill="#0D0D0D" />
+
+          {/* Three overlapping colour blobs */}
+          <Ellipse cx={cardW * 0.18} cy={illH * 0.45} rx={cardW * 0.30} ry={illH * 0.68} fill="#FF6B6B" opacity={0.82} />
+          <Ellipse cx={cardW * 0.82} cy={illH * 0.45} rx={cardW * 0.30} ry={illH * 0.68} fill="#9B6BFF" opacity={0.82} />
+          <Ellipse cx={cardW * 0.50} cy={illH * 0.80} rx={cardW * 0.28} ry={illH * 0.50} fill="#FFD166" opacity={0.88} />
+
+          {/* Small accent dots */}
+          <Circle cx={cardW * 0.08} cy={illH * 0.18} r={5} fill="#72D9C7" opacity={0.9} />
+          <Circle cx={cardW * 0.92} cy={illH * 0.22} r={4} fill="#FFE500" opacity={0.9} />
+          <Circle cx={cardW * 0.15} cy={illH * 0.82} r={3.5} fill="#FFE500" opacity={0.8} />
+          <Circle cx={cardW * 0.85} cy={illH * 0.78} r={4} fill="#72D9C7" opacity={0.8} />
+          <Circle cx={cardW * 0.50} cy={illH * 0.12} r={3} fill="#FF6B6B" opacity={0.7} />
+
+          {/* Heart — centred */}
+          <Path
+            d={`
+              M ${cardW * 0.5} ${illH * 0.60}
+              C ${cardW * 0.5} ${illH * 0.60}
+                ${cardW * 0.29} ${illH * 0.42}
+                ${cardW * 0.29} ${illH * 0.30}
+              C ${cardW * 0.29} ${illH * 0.19}
+                ${cardW * 0.38} ${illH * 0.12}
+                ${cardW * 0.5}  ${illH * 0.22}
+              C ${cardW * 0.62} ${illH * 0.12}
+                ${cardW * 0.71} ${illH * 0.19}
+                ${cardW * 0.71} ${illH * 0.30}
+              C ${cardW * 0.71} ${illH * 0.42}
+                ${cardW * 0.5}  ${illH * 0.60}
+                ${cardW * 0.5}  ${illH * 0.60}
+              Z
+            `}
+            fill="white"
+            opacity={0.95}
+          />
+
+          {/* Sparkles */}
+          <Sparkle cx={cardW * 0.20} cy={illH * 0.30} r={8}  stroke="white" />
+          <Sparkle cx={cardW * 0.80} cy={illH * 0.32} r={7}  stroke="white" />
+          <Sparkle cx={cardW * 0.50} cy={illH * 0.72} r={6}  stroke="white" />
+          <Sparkle cx={cardW * 0.12} cy={illH * 0.62} r={5}  stroke="#FFE500" />
+          <Sparkle cx={cardW * 0.88} cy={illH * 0.60} r={5}  stroke="#FFE500" />
+        </Svg>
+
+        {/* ── Text area ── */}
+        <View style={{
+          backgroundColor:   color.ink,
+          padding:           20,
+          gap:               6,
+        }}>
+          <Text style={{
+            fontFamily: fontFamily.sansBold,
+            fontSize:   20,
+            color:      color.paper,
+            lineHeight: 27,
+          }}>
+            Now it's your turn
+          </Text>
+          <Text style={{
+            fontFamily: fontFamily.sans,
+            fontSize:   13,
+            color:      color.dim,
+            lineHeight: 19,
+          }}>
+            Write one confession — unlock 2 more reads
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
+            <Text style={{
+              fontFamily: fontFamily.sansBold,
+              fontSize:   13,
+              color:      color.paper,
+              letterSpacing: 0.3,
+            }}>
+              Write yours
+            </Text>
+            <ScrawlIcon name="arrow_right" size={14} color={color.paper} roughen={false} strokeWidth={2.5} />
+          </View>
+        </View>
+      </Pressable>
     </View>
   );
 }
@@ -250,17 +376,6 @@ function createStyles(color: ColorSet) {
       textAlign:    'center',
       lineHeight:   22,
       marginBottom: 4,
-    },
-    actions: {
-      alignItems: 'center',
-      gap:        12,
-      marginTop:  8,
-    },
-    writeHint: {
-      fontFamily: fontFamily.sans,
-      fontSize:   13,
-      color:      color.dim,
-      textAlign:  'center',
     },
     orRow: {
       flexDirection: 'row',
