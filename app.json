@@ -23,7 +23,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "me.soulyap.app"
+      "package": "me.soulyap.app",
+      "versionCode": 18
     },
     "web": {
       "favicon": "./assets/favicon.png"
