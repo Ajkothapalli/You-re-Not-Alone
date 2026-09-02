@@ -15,7 +15,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Setup Java 17
@@ -24,16 +24,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Expo + EAS CLI
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install EAS CLI
+        run: npm install -g eas-cli@latest
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build APK (local — does not use EAS build quota)
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           eas build --local \
             --platform android \
