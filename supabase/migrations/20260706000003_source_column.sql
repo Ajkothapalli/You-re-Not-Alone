@@ -18,9 +18,17 @@ ALTER TABLE confessions
 UPDATE confessions SET source = 'seed'
   WHERE is_seed = true AND source = 'user';
 
-ALTER TABLE confessions
-  ADD CONSTRAINT IF NOT EXISTS confessions_source_check
-  CHECK (source IN ('user', 'seed', 'generated'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'confessions_source_check'
+  ) THEN
+    ALTER TABLE confessions
+      ADD CONSTRAINT confessions_source_check
+      CHECK (source IN ('user', 'seed', 'generated'));
+  END IF;
+END;
+$$;
 
 -- ── 2. Expand status CHECK to include 'retired' and 'deleted' ─────────────────
 -- 'retired' — user manually retired a confession (leaves pool immediately)

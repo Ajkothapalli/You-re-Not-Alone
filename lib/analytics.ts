@@ -21,9 +21,11 @@ type AnalyticsEvent =
   | { name: 'blocked_by_moderation'; props: { reason_code?: string } }
   | { name: 'crisis_flagged';        props: Record<string, never> }
   | { name: 'match_shown';           props: { confession_id: string; felt_count: number } }
-  | { name: 'card_shared';           props: Record<string, never> }
+  | { name: 'card_shared';           props: { source: string } }
   | { name: 'report_submitted';      props: { confession_id: string } }
-  | { name: 'onboarding_read_shown'; props: { confession_id: string } };
+  | { name: 'onboarding_read_shown'; props: { confession_id: string } }
+  | { name: 'share_click';           props: { bucket: string } }
+  | { name: 'install_attributed';    props: { source: string } };
 
 function track(event: AnalyticsEvent): void {
   if (__DEV__) {
@@ -60,8 +62,23 @@ export const analytics = {
   matchShown(confession_id: string, felt_count: number) {
     track({ name: 'match_shown', props: { confession_id, felt_count } });
   },
-  cardShared() {
-    track({ name: 'card_shared', props: {} });
+  cardShared(source: string) {
+    track({ name: 'card_shared', props: { source } });
+  },
+  shareClick(bucket: string) {
+    track({ name: 'share_click', props: { bucket } });
+  },
+  installAttributed(source: string) {
+    track({ name: 'install_attributed', props: { source } });
+    // Also write to growth_events so v_virality counts attributed installs
+    const base = process.env.EXPO_PUBLIC_SUPABASE_URL ?? '';
+    if (base.startsWith('http')) {
+      fetch(`${base}/functions/v1/track`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ event: 'install_attributed', source }),
+      }).catch(() => {});
+    }
   },
   reportSubmitted(confession_id: string) {
     track({ name: 'report_submitted', props: { confession_id } });

@@ -5,12 +5,9 @@
  * Cross-device: loaded from the server by account_id (not local receipts).
  *
  * Actions per card:
- *   Edit   — retires the old confession, then navigates to write.tsx pre-filled
- *            so the user can refine and resubmit through the full pipeline.
- *            The new submission goes through safety review and gets a fresh match;
- *            felt_count resets. User is warned before proceeding.
- *   Remove — soft-deletes (retire) with a destructive confirm dialog. The
- *            confession leaves the pool immediately.
+ *   Edit / View — navigates to confession/[id].tsx for full owner detail.
+ *                 can_edit=true shows Edit+Delete; can_edit=false shows sealed note+Delete.
+ *   Remove      — quick retire inline; the confession leaves the pool immediately.
  *
  * This is the user's OWN content only — invariant #2 (no new read surface) is
  * unaffected: no other users' confessions appear here.
@@ -93,9 +90,9 @@ function ConfessionRow({
             onPress={() => onEdit(item)}
             hitSlop={8}
             accessibilityRole="button"
-            accessibilityLabel="Edit this confession"
+            accessibilityLabel={item.can_edit ? 'Edit this confession' : 'View this confession'}
           >
-            <Text style={styles.editLink}>edit</Text>
+            <Text style={styles.editLink}>{item.can_edit ? 'edit' : 'view'}</Text>
           </Pressable>
           <Text style={styles.actionSep}>·</Text>
           <Pressable
@@ -146,32 +143,18 @@ export default function MyConfessionsScreen() {
   }
 
   function handleEdit(item: OwnConfession) {
-    showDialog(
-      'Edit this confession?',
-      'Editing retires this version immediately and releases a new one. ' +
-      'Its count starts fresh and it finds a new match.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text:  'Edit',
-          style: 'default',
-          onPress: async () => {
-            try {
-              await retireConfession(item.id);
-              markRetired(item.id);
-              router.back(); // close the sheet first
-              router.push({
-                pathname: '/write',
-                params:   { prefillText: item.text },
-              });
-            } catch {
-              showDialog('Something went wrong', 'Could not retire the confession. Please try again.');
-            }
-          },
-          keepOpenWhilePending: true,
-        },
-      ],
-    );
+    router.push({
+      pathname: '/confession/[id]',
+      params:   {
+        id:        item.id,
+        text:      item.text,
+        feltCount: String(item.felt_count),
+        canEdit:   String(item.can_edit),
+        createdAt: item.created_at,
+        updatedAt: item.updated_at ?? '',
+        status:    item.status,
+      },
+    });
   }
 
   function handleRemove(confessionId: string) {

@@ -108,18 +108,22 @@ describe('Identity separation — account_id never surfaces to clients (CLAUDE.m
     expect(src).toContain('p_seeker_account: user.id');
   });
 
-  it('get-my-confessions Edge Function never returns account_id to client', () => {
+  it('get-my-confessions Edge Function never returns account_id or real_felt_count to client', () => {
     const fs   = require('fs');
     const path = require('path');
     const src  = fs.readFileSync(
       path.join(__dirname, '..', 'supabase', 'functions', 'get-my-confessions', 'index.ts'),
       'utf8',
     );
-    // The select list must NOT include account_id
-    expect(src).toContain("select('id, text, felt_count, status, created_at')");
-    // Response must not include account_id
-    const responseMatch = src.match(/return json\(\{[^}]*confessions[^}]*\}\)/);
-    // Structural: account_id must not be referenced in what is returned
+    // account_id must NOT be in the select list
+    expect(src).not.toMatch(/select\([^)]*account_id/);
+    // real_felt_count must be selected server-side (for can_edit computation)
+    expect(src).toContain('real_felt_count');
+    // real_felt_count must be stripped before sending to client (destructured away in map)
+    expect(src).toContain('{ real_felt_count, ...rest }');
+    // can_edit is the only computed field sent to client
+    expect(src).toContain('can_edit: real_felt_count === 0');
+    // account_id must not appear in the return block
     const returnBlock = src.slice(src.lastIndexOf('return json'));
     expect(returnBlock).not.toContain('account_id');
   });
@@ -212,6 +216,38 @@ describe('Category list hard rules (CLAUDE.md §5)', () => {
     for (const id of expected) {
       expect(CATEGORY_IDS).toContain(id);
     }
+  });
+});
+
+// ─── §6 Share loop — crisis path must have zero share affordances ─────────────
+
+describe('Share loop — no affordances on crisis path (CLAUDE.md §6)', () => {
+  it('crisis screen (if present) has no shareConfessionCard import or call', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const crisisPath = path.join(__dirname, '..', 'app', 'crisis.tsx');
+    if (!fs.existsSync(crisisPath)) return; // passes vacuously when file absent
+    const src = fs.readFileSync(crisisPath, 'utf8');
+    expect(src).not.toContain('shareConfessionCard');
+    expect(src).not.toContain('StoryCard');
+    expect(src).not.toContain('cardShared');
+  });
+
+  it('share source buckets in lib/shareCard.ts are non-identifying strings only', () => {
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'lib', 'shareCard.ts'),
+      'utf8',
+    );
+    expect(src).toContain("'match'");
+    expect(src).toContain("'rtue'");
+    expect(src).toContain("'read'");
+    expect(src).not.toContain('account_id');
+    expect(src).not.toContain('confession_id');
+    expect(src).not.toContain('author_token');
+    // Validation must throw, never silently pass
+    expect(src).toContain('throw new Error');
   });
 });
 
@@ -456,9 +492,9 @@ describe('Source column, threshold, retire, api_call_log (Phase A–C)', () => {
     );
     expect(src).toContain('retireConfession');
     expect(src).not.toContain('removeConfession');
-    // Edit flow
-    expect(src).toContain('prefillText');
-    expect(src).toContain('/write');
+    // Edit flow: navigates to owner detail screen (not retire+prefill to /write)
+    expect(src).toContain('/confession/[id]');
+    expect(src).toContain('can_edit');
     // retired status must be handled
     expect(src).toContain("'retired'");
   });

@@ -46,7 +46,7 @@ export function ToastHost() {
 
   const opacity    = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-16)).current;
-  const timer      = useRef<ReturnType<typeof setTimeout>>();
+  const timer      = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     emit = (s) => {

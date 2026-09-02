@@ -156,8 +156,41 @@ export interface OwnConfession {
   id:         string;
   text:       string;
   felt_count: number;
+  can_edit:   boolean;       // server-computed: real_felt_count = 0; never expose real_felt_count
+  updated_at: string | null; // null until first edit; shown as "· edited" in owner view
   status:     'live' | 'approved' | 'under_review' | 'removed' | 'retired' | 'deleted';
   created_at: string;
+}
+
+export interface EditResult {
+  sealed?:    true;          // confession sealed (race: a real felt arrived while editing)
+  blocked?:   true;          // moderation or crisis gate rejected the new text
+  reason?:    string;        // block reason code (e.g. 'crisis', 'harassment,violence')
+  success?:   true;          // edit saved
+  confession?: OwnConfession; // reflects new state on success (can_edit still true)
+}
+
+export async function editConfession(
+  confessionId: string,
+  text:         string,
+): Promise<EditResult> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase.functions.invoke<EditResult>(
+    'edit-confession',
+    { body: { id: confessionId, text } },
+  );
+  if (error) {
+    try {
+      const body = await (error as any).context?.json?.();
+      if (body?.error) throw new Error(body.error);
+    } catch (inner: any) {
+      if (inner?.message && !inner.message.startsWith('Edge Function')) throw inner;
+    }
+    throw error;
+  }
+  return data!;
 }
 
 export async function getMyConfessions(): Promise<OwnConfession[]> {

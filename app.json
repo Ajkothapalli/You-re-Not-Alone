@@ -33,7 +33,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "me.soulyap.app",
-      "versionCode": 18
+      "versionCode": 19
     },
     "web": {
       "favicon": "./assets/favicon.png"

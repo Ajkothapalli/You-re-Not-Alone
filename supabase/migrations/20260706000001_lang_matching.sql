@@ -130,8 +130,8 @@ BEGIN
   THEN
     -- Upsert: if already scheduled, replace (idempotent re-run of this migration).
     PERFORM cron.unschedule('soulyap-daily-seed');
-  EXCEPTION WHEN OTHERS THEN NULL;  -- job didn't exist yet; ignore
   END IF;
+EXCEPTION WHEN OTHERS THEN NULL;  -- job didn't exist yet; ignore
 END $$;
 
 DO $$

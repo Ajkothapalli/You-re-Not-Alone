@@ -73,5 +73,23 @@ serve(async (req) => {
     console.error('[revenuecat-webhook] upsert failed:', error.message);
     return new Response('DB error', { status: 500 });
   }
+
+  // Log to revenue_events for MRR reporting (growth dashboard v_monetization).
+  // Only record events that carry a real charge amount.
+  const revenueUsd: number = event?.price_in_purchased_currency ?? event?.revenue ?? 0;
+  if (revenueUsd > 0 && ACTIVE.has(type)) {
+    const { error: revErr } = await supabase.from('revenue_events').insert({
+      account_id: userId,
+      event_type: type,
+      product_id: event?.product_id ?? null,
+      amount_usd: revenueUsd,
+      currency:   event?.currency ?? 'USD',
+      territory:  event?.country_code ?? 'XX',
+    });
+    if (revErr) {
+      console.warn('[revenuecat-webhook] revenue_events insert failed:', revErr.message);
+    }
+  }
+
   return new Response('OK', { status: 200 });
 });

@@ -183,7 +183,9 @@ POST /functions/v1/submit-confession  { text }  + JWT
 - `blocked_by_moderation` `{ reason_code }` — no text
 - `crisis_flagged` `{ }` — no id, no text
 - `match_shown` `{ confession_id, felt_count }`
-- `card_shared` `{ }`
+- `card_shared` `{ source }` — source is bucket only (`match` | `rtue` | `read`); no ids or tokens
+- `share_click` `{ bucket }` — fired client-side on the share landing page before redirect
+- `install_attributed` `{ source }` — fired on first app open when install referrer is available
 - `report_submitted` `{ confession_id }`
 
 ---

@@ -20,12 +20,18 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { StoryCard } from '@/components/StoryCard';
+import { analytics } from '@/lib/analytics';
+import { shareConfessionCard } from '@/lib/shareCard';
+import { palettes } from '@/theme/palettes';
+import { showDialog } from '@/components/AppDialog';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 
 import { PrimaryButton } from '@/components/Buttons';
 import { HeartIcon } from '@/components/HeartIcon';
+import { logReadEvent } from '@/lib/api';
 import { evaluateRtue, markRtueSeen, clearRtueCache, type RtueMoment, type RtueState } from '@/lib/rtue';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '@/theme/tokens';
@@ -214,7 +220,9 @@ export default function RtueScreen() {
   const color  = useThemeColors();
   const styles = useMemo(() => createSt(color), [color]);
 
-  const [moment, setMoment] = useState<RtueMoment | null | 'loading'>('loading');
+  const [moment,  setMoment]  = useState<RtueMoment | null | 'loading'>('loading');
+  const [sharing, setSharing] = useState(false);
+  const storyRef = useRef<View>(null);
 
   useEffect(() => {
     evaluateRtue().then(m => {
@@ -227,6 +235,19 @@ export default function RtueScreen() {
       );
     }).catch(() => router.replace('/read'));
   }, []);
+
+  async function handleShare() {
+    setSharing(true);
+    try {
+      await shareConfessionCard(storyRef, 'rtue');
+      analytics.cardShared('rtue');
+      if (moment && moment !== 'loading') logReadEvent(moment.id, 'share').catch(() => {});
+    } catch (err: any) {
+      showDialog('Could not share', err.message ?? 'Try again.');
+    } finally {
+      setSharing(false);
+    }
+  }
 
   function dismiss(dest: '/write' | '/read') {
     if (moment && moment !== 'loading') {
@@ -245,6 +266,17 @@ export default function RtueScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+      {/* Off-screen capture target — single mode, milestone palette */}
+      {state === 'milestone' && (
+        <StoryCard
+          ref={storyRef}
+          youText={text}
+          feltCount={current}
+          palette={palettes[0]}
+          source="rtue"
+        />
+      )}
+
       <ScreenGlow glowColor={glow.color} opacity={glow.opacity} W={W} H={H} />
 
       <View style={styles.content}>
@@ -287,6 +319,22 @@ export default function RtueScreen() {
           label={copy.primary}
           onPress={() => dismiss(copy.primaryDest)}
         />
+
+        {state === 'milestone' && (
+          <Pressable
+            onPress={handleShare}
+            disabled={sharing}
+            hitSlop={12}
+            style={staticSt.shareWrap}
+            accessibilityRole="button"
+            accessibilityLabel={`${current.toLocaleString()} people felt what you wrote — share it so one more does`}
+          >
+            <Text style={staticSt.shareText}>
+              {sharing ? 'Preparing…' : `${current.toLocaleString()} felt this — share it so one more does`}
+            </Text>
+          </Pressable>
+        )}
+
         <Pressable
           onPress={() => dismiss(copy.ghostDest)}
           hitSlop={12}
@@ -379,6 +427,21 @@ const staticSt = StyleSheet.create({
     fontFamily: fontFamily.sans,
     fontSize:   11.5,
     color:      'rgba(243,238,232,0.70)',
+  },
+  shareWrap: {
+    alignItems:        'center',
+    paddingVertical:   10,
+    paddingHorizontal: 20,
+    borderRadius:      999,
+    borderWidth:       1,
+    borderColor:       'rgba(251,191,36,0.45)',
+    backgroundColor:   'rgba(251,191,36,0.08)',
+  },
+  shareText: {
+    fontFamily: fontFamily.sansBold,
+    fontSize:   13,
+    color:      '#FBBF24',
+    textAlign:  'center',
   },
 });
 

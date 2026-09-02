@@ -12,6 +12,7 @@ import ConfessionCard from '@/components/ConfessionCard';
 import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
+import { logReadEvent } from '@/lib/api';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
@@ -59,8 +60,9 @@ export default function MatchScreen() {
   async function handleShare() {
     setSharing(true);
     try {
-      await shareConfessionCard(storyRef);
-      analytics.cardShared();
+      await shareConfessionCard(storyRef, 'match');
+      analytics.cardShared('match');
+      if (confessionId) logReadEvent(confessionId, 'share').catch(() => {});
     } catch (err: any) {
       showDialog('Could not share', err.message ?? 'Try again.');
     } finally {
@@ -111,6 +113,7 @@ export default function MatchScreen() {
         themText={themText}
         feltCount={feltCount}
         palette={palette}
+        source="match"
       />
 
       {celebrating && (

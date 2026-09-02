@@ -6,7 +6,9 @@
  *
  * Identity invariant: this function returns only the caller's own confessions.
  * account_id is used server-side and never returned to the client.
- * Response: id, text, felt_count, status, created_at only.
+ * Response: id, text, felt_count, status, created_at, updated_at, can_edit only.
+ *   can_edit = (real_felt_count = 0) — computed server-side; real_felt_count never sent.
+ *   updated_at — NULL until the first edit; displayed as "· edited" in the owner view.
  *
  * Rate limit: 30 requests / account / hour (checked against a lightweight
  * counter stored in the DB; fail open on DB error so the user still gets data).
@@ -36,6 +38,8 @@ export interface OwnConfession {
   id:         string;
   text:       string;
   felt_count: number;
+  can_edit:   boolean;     // server-computed: real_felt_count = 0
+  updated_at: string | null; // null until first edit
   status:     string;
   created_at: string;
 }
@@ -91,9 +95,10 @@ serve(async (req: Request) => {
   // ── Query confessions by account_id ───────────────────────────────────────────
   // Service role bypasses RLS; we still filter by account_id explicitly.
   // account_id is never returned in the response — only ownership-safe fields.
+  // real_felt_count is computed into can_edit; it is NEVER returned to the client.
   const { data: rows, error: queryErr } = await supabase
     .from('confessions')
-    .select('id, text, felt_count, status, created_at')
+    .select('id, text, felt_count, status, created_at, updated_at, real_felt_count')
     .eq('account_id', user.id)
     .in('status', ['live', 'approved', 'under_review', 'removed', 'retired'])
     .order('created_at', { ascending: false })
@@ -104,5 +109,13 @@ serve(async (req: Request) => {
     return json({ error: 'Failed to load confessions.' }, 500);
   }
 
-  return json({ confessions: (rows ?? []) as OwnConfession[] });
+  // Strip real_felt_count; expose only the computed boolean can_edit.
+  const confessions: OwnConfession[] = (rows ?? []).map(
+    ({ real_felt_count, ...rest }) => ({
+      ...rest,
+      can_edit: real_felt_count === 0,
+    }),
+  );
+
+  return json({ confessions });
 });

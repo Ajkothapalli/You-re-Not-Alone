@@ -17,10 +17,13 @@
  */
 
 import ReadCard from '@/components/ReadCard';
+import { StoryCard } from '@/components/StoryCard';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { announce } from '@/lib/a11y';
+import { analytics } from '@/lib/analytics';
 import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
+import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
@@ -33,6 +36,7 @@ import {
   StyleSheet,
   Text,
   View,
+  type ViewStyle,
 } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
@@ -49,6 +53,10 @@ export default function ExploreScreen() {
   const [done,            setDone]            = useState(false);
   const [premiumRequired, setPremiumRequired] = useState(false);
   const [iconSession,     setIconSession]     = useState(() => Math.floor(Math.random() * 102));
+  const [showShareNudge,  setShowShareNudge]  = useState(false);
+  const [sharing,         setSharing]         = useState(false);
+  const storyRef    = useRef<View>(null);
+  const nudgeShown  = useRef(false);  // show at most once per session
 
   // Rotate icons each time the user navigates back to this screen
   useFocusEffect(useCallback(() => {
@@ -119,8 +127,31 @@ export default function ExploreScreen() {
     }
   }
 
+  const SHARE_NUDGE_THRESHOLD = 50;
+
   function handleFelt(confessionId: string) {
     logReadEvent(confessionId, 'felt');
+    // Light share nudge on a strong read (felt ≥ 50), once per session.
+    const c = confessions[index];
+    if (c && c.feltCount >= SHARE_NUDGE_THRESHOLD && !nudgeShown.current) {
+      nudgeShown.current = true;
+      setShowShareNudge(true);
+    }
+  }
+
+  async function handleReadShare() {
+    const currentId = confessions[index]?.id;
+    setSharing(true);
+    try {
+      await shareConfessionCard(storyRef, 'read');
+      analytics.cardShared('read');
+      if (currentId) logReadEvent(currentId, 'share').catch(() => {});
+      setShowShareNudge(false);
+    } catch {
+      setShowShareNudge(false);
+    } finally {
+      setSharing(false);
+    }
   }
 
   function handleReport(confessionId: string) {
@@ -198,6 +229,15 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.root}>
+      {/* Off-screen capture target for felt-share — updates with current card */}
+      <StoryCard
+        ref={storyRef}
+        youText={current.text}
+        feltCount={current.feltCount}
+        palette={palette}
+        source="read"
+      />
+
       {/* Progress + back */}
       <View style={styles.topBar}>
         <Pressable
@@ -237,6 +277,19 @@ export default function ExploreScreen() {
         />
 
         <View style={styles.navRow}>
+          {showShareNudge && (
+            <Pressable
+              onPress={handleReadShare}
+              disabled={sharing}
+              style={styles.shareNudge}
+              accessibilityRole="button"
+              accessibilityLabel="Share this confession"
+            >
+              <Text style={styles.shareNudgeText}>
+                {sharing ? 'Preparing…' : 'This resonated — share it'}
+              </Text>
+            </Pressable>
+          )}
           <PrimaryButton
             label={isLast ? 'Done' : 'Next confession'}
             onPress={handleNext}
@@ -293,6 +346,20 @@ function createStyles(color: ColorSet) {
     },
     navRow: {
       gap: 12,
+    },
+    shareNudge: {
+      alignItems:        'center',
+      paddingVertical:   11,
+      paddingHorizontal: 16,
+      borderRadius:      12,
+      borderWidth:       1,
+      borderColor:       color.line,
+      backgroundColor:   color.ink,
+    } as ViewStyle,
+    shareNudgeText: {
+      fontFamily: fontFamily.sans,
+      fontSize:   14,
+      color:      color.paper,
     },
     endContent: {
       flex:              1,
