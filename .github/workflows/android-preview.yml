@@ -7,7 +7,7 @@ jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     steps:
       - name: Checkout
@@ -19,43 +19,42 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: 'gradle'
-
       - name: Install EAS CLI
         run: npm install -g eas-cli@latest
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Cache Expo prebuild
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            android/.gradle
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
-      - name: Build APK (local — does not use EAS build quota)
+      - name: Build APK via EAS cloud
+        id: eas_build
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          eas build --local \
+          # Run EAS cloud build and capture output; tee so we see logs live
+          eas build \
             --platform android \
             --profile preview \
             --non-interactive \
-            --output ${{ github.workspace }}/app-preview.apk
+            --json 2>&1 | tee eas-output.txt
 
-      - name: Upload APK
+          # Extract the artifact URL from EAS JSON output line
+          ARTIFACT_URL=$(grep -o '"artifactUrl":"[^"]*"' eas-output.txt | tail -1 | cut -d'"' -f4)
+          if [ -z "$ARTIFACT_URL" ]; then
+            # Try alternate key name
+            ARTIFACT_URL=$(grep -o '"url":"[^"]*\.apk[^"]*"' eas-output.txt | tail -1 | cut -d'"' -f4)
+          fi
+          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_OUTPUT
+          echo "APK URL: $ARTIFACT_URL"
+
+      - name: Download APK
+        if: steps.eas_build.outputs.artifact_url != ''
+        run: |
+          curl -L "${{ steps.eas_build.outputs.artifact_url }}" -o app-preview.apk
+          ls -lh app-preview.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-preview-${{ github.run_number }}
-          path: ${{ github.workspace }}/app-preview.apk
+          path: app-preview.apk
           retention-days: 14
