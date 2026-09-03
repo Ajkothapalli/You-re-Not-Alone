@@ -2,7 +2,9 @@
  * Edge Function: get-my-confessions
  *
  * Returns the authenticated user's own confessions, ordered newest-first.
- * Uses account_id (not author_token) for the lookup — cross-device ownership.
+ * Matches both new rows (account_id = user.id) and legacy rows (author_token
+ * = HMAC(user.id, AUTHOR_TOKEN_SECRET)) so pre-account-linking confessions
+ * appear in the owner's history.
  *
  * Identity invariant: this function returns only the caller's own confessions.
  * account_id is used server-side and never returned to the client.
@@ -19,6 +21,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+const AUTHOR_TOKEN_SECRET  = Deno.env.get('AUTHOR_TOKEN_SECRET');
+
+async function hmacSha256(message: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -92,30 +104,61 @@ serve(async (req: Request) => {
     // Fail open — rate limit table may not exist yet; let the request through.
   }
 
-  // ── Query confessions by account_id ───────────────────────────────────────────
-  // Service role bypasses RLS; we still filter by account_id explicitly.
-  // account_id is never returned in the response — only ownership-safe fields.
-  // real_felt_count is computed into can_edit; it is NEVER returned to the client.
-  const { data: rows, error: queryErr } = await supabase
-    .from('confessions')
-    .select('id, text, felt_count, status, created_at, updated_at, real_felt_count')
-    .eq('account_id', user.id)
-    .in('status', ['live', 'approved', 'under_review', 'removed', 'retired'])
-    .order('created_at', { ascending: false })
-    .limit(100);
+  // ── Query confessions by account_id AND/OR legacy author_token ───────────────
+  // Two separate queries to avoid .or() filter parsing ambiguity with UUID values.
+  // New rows: account_id = user.id
+  // Legacy rows (pre-account-linking, 2026-07-05): account_id = NULL, matched by author_token.
+  // account_id and real_felt_count are NEVER returned to the client.
+  const legacyToken = AUTHOR_TOKEN_SECRET
+    ? await hmacSha256(user.id, AUTHOR_TOKEN_SECRET)
+    : null;
 
-  if (queryErr) {
-    console.error('[get-my-confessions] query error:', queryErr.message);
+  const STATUSES = ['live', 'approved', 'under_review', 'removed', 'retired'];
+  const SELECT   = 'id, text, felt_count, status, created_at, updated_at, real_felt_count';
+
+  const [newResult, legacyResult] = await Promise.all([
+    supabase
+      .from('confessions')
+      .select(SELECT)
+      .eq('account_id', user.id)
+      .in('status', STATUSES)
+      .order('created_at', { ascending: false })
+      .limit(100),
+    legacyToken
+      ? supabase
+          .from('confessions')
+          .select(SELECT)
+          .eq('author_token', legacyToken)
+          .in('status', STATUSES)
+          .order('created_at', { ascending: false })
+          .limit(100)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (newResult.error) {
+    console.error('[get-my-confessions] query error (new):', newResult.error.message);
+    return json({ error: 'Failed to load confessions.' }, 500);
+  }
+  if (legacyResult.error) {
+    console.error('[get-my-confessions] query error (legacy):', legacyResult.error.message);
     return json({ error: 'Failed to load confessions.' }, 500);
   }
 
+  // Merge, deduplicate by id, sort newest-first, cap at 100.
+  const seen = new Set<string>();
+  const merged = [...(newResult.data ?? []), ...(legacyResult.data ?? [])]
+    .filter(r => { if (seen.has(r.id)) return false; seen.add(r.id); return true; })
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 100);
+
   // Strip real_felt_count; expose only the computed boolean can_edit.
-  const confessions: OwnConfession[] = (rows ?? []).map(
+  const confessions: OwnConfession[] = merged.map(
     ({ real_felt_count, ...rest }) => ({
       ...rest,
       can_edit: real_felt_count === 0,
     }),
   );
 
+  console.log(`[get-my-confessions] returning ${confessions.length} confessions (${newResult.data?.length ?? 0} new, ${legacyResult.data?.length ?? 0} legacy)`);
   return json({ confessions });
 });

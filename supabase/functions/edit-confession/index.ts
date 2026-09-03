@@ -7,7 +7,7 @@
  *
  * Pipeline (non-bypassable — see CLAUDE.md):
  *   [0] Auth + ban check
- *   [1] Verify ownership (account_id = auth.uid())
+ *   [1] Verify ownership (account_id = auth.uid() OR legacy author_token)
  *   [2] Fast-path seal check — skip expensive safety gate if already sealed
  *   [3] MODERATION gate   (same as submit-confession — fail closed in production)
  *   [4] CRISIS check      (same as submit-confession — keyword list + gpt-4o-mini)
@@ -31,6 +31,16 @@ const MODERATION_API_KEY   = Deno.env.get('MODERATION_API_KEY');
 const OPENAI_API_KEY       = Deno.env.get('OPENAI_API_KEY');
 const EMBEDDING_API_KEY    = Deno.env.get('EMBEDDING_API_KEY');
 const ENVIRONMENT          = Deno.env.get('ENVIRONMENT') ?? 'development';
+const AUTHOR_TOKEN_SECRET  = Deno.env.get('AUTHOR_TOKEN_SECRET');
+
+async function hmacSha256(message: string, secret: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(message));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
 const IS_PRODUCTION = ENVIRONMENT === 'production';
 
@@ -259,11 +269,19 @@ serve(async (req: Request) => {
     if (rawText.length > 2000) return json({ error: 'Confession is too long (max 2000 characters).' }, 400);
 
     // ── [1] Verify ownership ─────────────────────────────────────────────────
+    // Match new rows (account_id) OR legacy rows (author_token, pre-account-linking).
+    const legacyToken = AUTHOR_TOKEN_SECRET
+      ? await hmacSha256(user.id, AUTHOR_TOKEN_SECRET)
+      : null;
+    const ownerFilter = legacyToken
+      ? `account_id.eq.${user.id},author_token.eq.${legacyToken}`
+      : `account_id.eq.${user.id}`;
+
     const { data: existing, error: findErr } = await supabase
       .from('confessions')
       .select('id, real_felt_count, status')
       .eq('id', confessionId)
-      .eq('account_id', user.id)
+      .or(ownerFilter)
       .maybeSingle();
 
     if (findErr) throw findErr;
@@ -307,7 +325,7 @@ serve(async (req: Request) => {
         updated_at: new Date().toISOString(),
       })
       .eq('id', confessionId)
-      .eq('account_id', user.id)
+      .or(ownerFilter)
       .eq('real_felt_count', 0)
       .select('id, text, felt_count, status, created_at, updated_at')
       .maybeSingle();

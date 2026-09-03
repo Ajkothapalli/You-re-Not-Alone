@@ -73,8 +73,9 @@ export default function YouScreen() {
   useEffect(() => { nameRef.current = name; }, [name]);
 
   // My confessions state
-  const [confessions,       setConfessions]       = useState<OwnConfession[]>([]);
+  const [confessions,        setConfessions]        = useState<OwnConfession[]>([]);
   const [confessionsLoading, setConfessionsLoading] = useState(false);
+  const [confessionsError,   setConfessionsError]   = useState<string | null>(null);
 
 
   useEffect(() => {
@@ -95,11 +96,16 @@ export default function YouScreen() {
 
   async function loadConfessions() {
     setConfessionsLoading(true);
+    setConfessionsError(null);
     try {
       const data = await getMyConfessions();
       setConfessions(data);
-    } catch { /* fail silently */ }
-    finally { setConfessionsLoading(false); }
+    } catch (err) {
+      console.error('[you] loadConfessions error:', err);
+      setConfessionsError('Could not load confessions. Tap to retry.');
+    } finally {
+      setConfessionsLoading(false);
+    }
   }
 
   async function handleNameDone() {
@@ -368,6 +374,10 @@ export default function YouScreen() {
       <Text style={styles.sectionLabel}>My confessions</Text>
       {confessionsLoading ? (
         <ActivityIndicator color={color.dim} style={{ marginVertical: 16 }} />
+      ) : confessionsError ? (
+        <Text style={[styles.emptyConfessions, { color: '#E57373' }]} onPress={loadConfessions}>
+          {confessionsError}
+        </Text>
       ) : confessions.length === 0 ? (
         <Text style={styles.emptyConfessions}>
           You haven't written anything yet.{'\n'}Your confessions will appear here.
