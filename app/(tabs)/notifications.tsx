@@ -13,6 +13,7 @@ import { NotificationsEmpty } from '@/components/illustrations';
 import { getNotifications, markNotificationsRead, type AppNotification } from '@/lib/notifications';
 import { useNotificationsContext } from '@/lib/notificationsContext';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
+import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { useFocusEffect } from 'expo-router';
