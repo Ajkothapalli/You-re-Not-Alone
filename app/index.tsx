@@ -20,6 +20,7 @@ import { evaluateRtue } from '@/lib/rtue';
 import { signInWithGoogle } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/withTimeout';
+import { EmptyBench } from '@/components/illustrations';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
 import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
@@ -104,7 +105,12 @@ export default function IndexScreen() {
       if (acctMs > 2_000) console.warn('[boot] acct', acctMs, 'ms');
 
       if (!acct) {
-        await resetFtue().catch(() => {});
+        // resetFtue() is pure on-device AsyncStorage (no network call) so there's
+        // no confirmed hang mechanism here — but it's the one awaited call in this
+        // whole path that had no bound of its own (acctP/prefsP/rtue below all do).
+        // Wrapped for defense-in-depth/consistency: an onboarding-flag reset is
+        // never worth blocking sign-in on, whatever the reason it stalled.
+        await withTimeout(resetFtue(), 3_000, 'resetFtue').catch(() => {});
         setStep('dob');
         return;
       }
@@ -121,7 +127,7 @@ export default function IndexScreen() {
       }
 
       if ((prefs.p?.categories.length ?? 0) === 0) {
-        await resetFtue().catch(() => {});
+        await withTimeout(resetFtue(), 3_000, 'resetFtue').catch(() => {});
         router.replace('/welcome');
         return;
       }
@@ -274,22 +280,48 @@ export default function IndexScreen() {
 
   useEffect(() => {
     void runBoot();
+    const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
+    return () => sub.remove();
+  }, []);
 
-    // Last-resort watchdog: catches any hang not covered by the per-call timeouts
-    // (e.g. getInitialURL wedging, or an unforeseen Expo API freeze).
+  // Last-resort watchdog: catches any hang not covered by the per-call timeouts
+  // (e.g. getInitialURL wedging, exchangeCodeForSession hanging with no timeout
+  // of its own, or an unforeseen Expo API freeze).
+  //
+  // THIRD "stuck on loading spinner" report, root cause: this watchdog used to
+  // be a single setTimeout created once at mount (inside the effect above) —
+  // it fired exactly once, 10s after first render, and then was permanently
+  // spent for the rest of the component's lifetime. Concretely:
+  //   t=0     mount, step='loading' (initial state), one-shot timer armed for t=10s
+  //   t=0.3s  runBoot() finds no session → setStep('email'); user reads the screen
+  //   t=10s   the one-shot timer fires; stepRef.current is 'email', not 'loading'
+  //           → the check is false, nothing happens, and the timer is now gone
+  //           for good — clearTimeout/setTimeout is never called again by that
+  //           effect (empty dep array, runs once).
+  //   t=25s   user taps "Continue with Google" → setStep('loading'). From here
+  //           on, ANY hang in the OAuth → handleDeepLink → routeAfterAuth chain
+  //           (e.g. exchangeCodeForSession, which has no timeout wrapper at all)
+  //           has zero watchdog coverage — the only net left is handleProvider's
+  //           own 15s Android-only timer, which is scoped to "browser dismissed,
+  //           waiting for a deep link", not to however long processing takes
+  //           once the deep link *has* arrived.
+  // Any user who spends more than ~10s on the email screen before signing in
+  // — i.e. reads the copy, thinks about it — silently loses their safety net.
+  //
+  // Fix: re-arm on every transition INTO 'loading' instead of once at mount, so
+  // no entry point (initial boot, OAuth, magic link, retryBoot) can ever sit in
+  // 'loading' unrecovered for more than 10s, regardless of how long the user
+  // dwelled on a prior screen first.
+  useEffect(() => {
+    if (step !== 'loading') return;
     const watchdog = setTimeout(() => {
       if (stepRef.current === 'loading') {
         console.warn('[boot] watchdog fired after 10s');
         setStep('retry');
       }
     }, 10_000);
-
-    const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
-    return () => {
-      clearTimeout(watchdog);
-      sub.remove();
-    };
-  }, []);
+    return () => clearTimeout(watchdog);
+  }, [step]);
 
   // ── Provider sign-in (Google) ─────────────────────────────────────────────────
   async function handleProvider(provider: 'google') {
@@ -398,7 +430,7 @@ export default function IndexScreen() {
       await createOrUpdateAccount(new Date(iso), authProvider);
       // New account row just created — always show FTUE regardless of any
       // stale on-device flag left over from a previous deleted account.
-      await resetFtue().catch(() => {});
+      await withTimeout(resetFtue(), 3_000, 'resetFtue').catch(() => {});
       router.replace('/welcome');
     } catch (err: any) {
       setError(err.message ?? 'Something went wrong. Try again.');
@@ -440,6 +472,22 @@ export default function IndexScreen() {
             <Image source={require('../assets/splash-quote-right.png')} style={styles.logoRight} resizeMode="stretch" />
           </View>
           <Text style={styles.wordmark} accessibilityRole="header">soulyap</Text>
+          {/* First-impression only: EmptyBench ("someone's here, waiting for
+              you") appears on the email step, matching its use at the other
+              two "welcome" moments (onboarding welcome.tsx beat 0, and the
+              empty states in you.tsx/my-confessions.tsx) so it reads as one
+              consistent motif rather than a new illustration. Skipped on
+              otp/dob — those are mid-flow, not first-impression, and the
+              compact header keeps focus on the code/DOB input.
+              Sized by width+aspectRatio (not width+height like welcome.tsx's
+              beat 0): this header sits in a plain ScrollView with natural
+              content flow, not a flex:1 card with overflow:hidden, so there's
+              no fixed-height parent for the box to overflow — the failure
+              mode that pattern guards against doesn't apply here. Deliberately
+              modest (50%, not 100%) — this is a small accent, not a hero. */}
+          {step === 'email' && (
+            <EmptyBench style={styles.illustration} />
+          )}
           <Text style={styles.sub}>
             {step === 'email' && 'A private place to share what you carry.'}
             {step === 'otp'   && `Check your email — we sent a code to ${email}`}
@@ -630,6 +678,12 @@ function createStyles(color: ColorSet) {
     logoLeft: {
       width:  140 * 0.4111,
       height: 140,
+    },
+    illustration: {
+      width:      '50%',
+      aspectRatio: 4 / 3,
+      alignSelf:  'center',
+      marginVertical: 4,
     },
     logoRight: {
       width:  140 * (1 - 0.4111),

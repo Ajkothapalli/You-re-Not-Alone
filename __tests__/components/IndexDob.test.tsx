@@ -40,6 +40,16 @@ jest.mock('@/components/GoogleSignInButton', () => {
   return { __esModule: true, default: () => React.createElement(View, { testID: 'GoogleSignIn' }) };
 });
 
+// EmptyBench (added to the email step's header — see app/index.tsx) pulls in
+// real react-native-reanimated, which the global jest.setup.js mock can't
+// initialize outside a native runtime (see illustrations.test.tsx's own
+// inline reanimated mock for the same reason). This test only cares about
+// DOB-step routing/validation logic, so stub the illustration out entirely
+// rather than duplicating that reanimated workaround here.
+jest.mock('@/components/illustrations', () => ({
+  EmptyBench: () => null,
+}));
+
 jest.mock('@/lib/a11y', () => ({
   announce:         jest.fn(),
   useReducedMotion: jest.fn(() => false),
