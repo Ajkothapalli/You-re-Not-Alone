@@ -124,7 +124,7 @@ function EmptyBenchStill({ style }: { style?: ViewStyle }) {
 
 // ─── Animated component ───────────────────────────────────────────────────────
 
-function EmptyBenchAnimated({ style }: { style?: ViewStyle }) {
+function EmptyBenchAnimated({ style, isActive = true }: { style?: ViewStyle; isActive?: boolean }) {
   // §2 always-on layer (breathe, nod, blink, sympathetic sway)
   const idle = useIdleLayer({ alternate: false });
 
@@ -222,14 +222,25 @@ function EmptyBenchAnimated({ style }: { style?: ViewStyle }) {
     cancelAnimation(leafOp); leafOp.value = 0;
   }
 
+  // Gated on isActive (not just screen focus): useFocusEffect alone fires
+  // when the *screen* (e.g. the welcome onboarding route) is focused, not
+  // when this particular slide is the one currently on screen. On a
+  // multi-slide horizontal pager every slide mounts at once, so without this
+  // gate the leaf-fall/breathe/blink loops kept running full-tilt for a
+  // slide the user had already swiped away from, burning UI-thread time
+  // during the pan gesture on the slide actually being dragged. Passing
+  // isActive={false} for an off-screen slide tears the loops down; the
+  // default (true) preserves prior behaviour for callers with no concept of
+  // "which slide" (my-confessions.tsx, you.tsx — always the whole screen).
   useFocusEffect(useCallback(() => {
+    if (!isActive) return;
     idle.start();
     startScenery();
     return () => {
       idle.stop();
       stopScenery();
     };
-  }, []));
+  }, [isActive]));
 
   return (
     <Svg viewBox="0 0 400 300" width="100%" preserveAspectRatio="xMidYMid meet" style={style}>
@@ -312,9 +323,9 @@ function EmptyBenchAnimated({ style }: { style?: ViewStyle }) {
 
 // ─── Public component ─────────────────────────────────────────────────────────
 
-export function EmptyBench({ style }: { style?: ViewStyle }) {
+export function EmptyBench({ style, isActive = true }: { style?: ViewStyle; isActive?: boolean }) {
   const reduceMotion = useReducedMotion();
   return reduceMotion
     ? <EmptyBenchStill style={style} />
-    : <EmptyBenchAnimated style={style} />;
+    : <EmptyBenchAnimated style={style} isActive={isActive} />;
 }

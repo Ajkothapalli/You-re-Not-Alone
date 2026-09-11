@@ -69,10 +69,20 @@ export default function ExploreScreen() {
   const dwellFired   = useRef(false);
   const mountTimeRef = useRef<number>(Date.now());
 
+  // D7 seamless-queue bookkeeping. Session-scoped only (not persisted) —
+  // just needs to avoid immediate repeats within one continuous sitting.
+  const shownIdsRef      = useRef<Set<string>>(new Set());
+  const confessionsRef   = useRef<Recommendation[]>([]);   // mirrors `confessions`, readable synchronously across awaits
+  const refillPromiseRef = useRef<Promise<void> | null>(null);
+  const REFILL_AT = 3; // trigger the next fetch this many cards before the queue actually runs out
+
   async function fetchRecommendations() {
     setLoading(true);
     setDone(false);
     setIndex(0);
+    shownIdsRef.current      = new Set();
+    confessionsRef.current   = [];
+    refillPromiseRef.current = null;
     const d7 = await isD7().catch(() => false);
     setWithinD7(d7);
     getRecommendations(d7)
@@ -82,6 +92,8 @@ export default function ExploreScreen() {
           setLoading(false);
           return;
         }
+        data.forEach(c => shownIdsRef.current.add(c.id));
+        confessionsRef.current = data;
         setConfessions(data);
         setLoading(false);
         if (data.length === 0) setDone(true);
@@ -90,6 +102,40 @@ export default function ExploreScreen() {
         setLoading(false);
         setDone(true);
       });
+  }
+
+  // Fire-and-forget-able: kicks off a background fetch of more confessions
+  // (excluding everything already shown this session) once the queue is
+  // running low, and appends the result. Returns the in-flight promise so a
+  // caller that's reached the true end can await the SAME fetch rather than
+  // starting a second one or flashing the dead-end screen prematurely.
+  function refillIfNeeded(afterIndex: number): Promise<void> {
+    if (!withinD7) return Promise.resolve();
+    const remaining = confessionsRef.current.length - afterIndex;
+    if (remaining > REFILL_AT) return Promise.resolve();
+    if (refillPromiseRef.current) return refillPromiseRef.current;
+
+    const p = getRecommendations(true, Array.from(shownIdsRef.current))
+      .then(({ confessions: more }) => {
+        if (more.length > 0) {
+          more.forEach(c => shownIdsRef.current.add(c.id));
+          setConfessions(prev => {
+            const merged = [...prev, ...more];
+            confessionsRef.current = merged;
+            return merged;
+          });
+        }
+      })
+      .catch(() => {
+        // Silent — worst case the existing done-screen ("Keep reading")
+        // fallback still catches it.
+      })
+      .finally(() => {
+        refillPromiseRef.current = null;
+      });
+
+    refillPromiseRef.current = p;
+    return p;
   }
 
   // Fetch on mount
@@ -119,7 +165,7 @@ export default function ExploreScreen() {
     };
   }, [index, loading, done]);
 
-  function handleNext() {
+  async function handleNext() {
     const current = confessions[index];
 
     // If dwell threshold wasn't met, it's a skip
@@ -129,7 +175,22 @@ export default function ExploreScreen() {
     if (dwellTimer.current) clearTimeout(dwellTimer.current);
 
     const nextIndex = index + 1;
-    if (nextIndex >= confessions.length) {
+
+    if (withinD7) {
+      // Kick off (or join) a silent refill as the queue runs low — before
+      // the reader ever sees a dead end. Non-blocking when cards remain;
+      // if we've actually hit the end, wait for it so a same-tick refill
+      // lands before deciding whether this is really the end.
+      const refill = refillIfNeeded(nextIndex);
+      if (nextIndex >= confessionsRef.current.length) {
+        await refill;
+      }
+    }
+
+    if (nextIndex >= confessionsRef.current.length) {
+      // Only reachable for D7 users when a fetch genuinely returned nothing
+      // new (pool fully exhausted) — or immediately for non-D7 users at
+      // their hard cap, unchanged from before.
       setDone(true);
     } else {
       setIndex(nextIndex);
@@ -237,7 +298,11 @@ export default function ExploreScreen() {
   const current     = confessions[index];
   const paletteIdx  = index % palettes.length;
   const palette     = palettes[paletteIdx];
-  const isLast      = index === confessions.length - 1;
+  // D7 readers never see "Done" mid-queue — the last visible card of the
+  // current batch usually isn't actually the end (a refill is either already
+  // in flight or about to be triggered by handleNext), so the button always
+  // reads as a continuation. Non-D7 keeps its exact prior hard-cap behavior.
+  const isLast      = !withinD7 && index === confessions.length - 1;
 
   return (
     <View style={styles.root}>

@@ -270,7 +270,20 @@ export interface RecommendationsResult {
   premiumRequired: boolean;
 }
 
-export async function getRecommendations(d7Bypass = false): Promise<RecommendationsResult> {
+/**
+ * @param d7Bypass   — see above; lets D0-7 readers past the premium gate on
+ *                     the client-side preview pool.
+ * @param excludeIds — ids already shown earlier this reading session. Only
+ *                     consumed by the dummy-fallback path below — the real
+ *                     recommend-confessions Edge Function already excludes a
+ *                     reader's seen confessions server-side via read_events
+ *                     (see recommend_confessions SQL RPC), so nothing needs
+ *                     threading into its request body.
+ */
+export async function getRecommendations(
+  d7Bypass = false,
+  excludeIds: string[] = [],
+): Promise<RecommendationsResult> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
@@ -291,7 +304,7 @@ export async function getRecommendations(d7Bypass = false): Promise<Recommendati
   // PREVIEW FALLBACK (also D7 bypass path for premium gate)
   const prefs = await getReaderPreferences();
   return {
-    confessions:    getDummyRecommendations(prefs?.categories ?? []),
+    confessions:    getDummyRecommendations(prefs?.categories ?? [], 10, excludeIds),
     premiumRequired: false,
   };
 }

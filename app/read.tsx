@@ -32,7 +32,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import Svg, { Circle, Path, Ellipse, Line } from 'react-native-svg';
+import { Release } from '@/components/illustrations';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
@@ -215,18 +215,11 @@ function WriteInviteCard({ onPress }: { onPress: () => void }) {
   const color = useThemeColors();
   const { width: screenW } = useWindowDimensions();
   const cardW = screenW - spacing.screenPadding * 2;
-  const illH  = 160;
-
-  function Sparkle({ cx, cy, r, stroke }: { cx: number; cy: number; r: number; stroke: string }) {
-    return (
-      <>
-        <Line x1={cx} y1={cy - r} x2={cx} y2={cy + r} stroke={stroke} strokeWidth={2} strokeLinecap="round" />
-        <Line x1={cx - r} y1={cy} x2={cx + r} y2={cy} stroke={stroke} strokeWidth={2} strokeLinecap="round" />
-        <Line x1={cx - r * 0.65} y1={cy - r * 0.65} x2={cx + r * 0.65} y2={cy + r * 0.65} stroke={stroke} strokeWidth={1.5} strokeLinecap="round" />
-        <Line x1={cx + r * 0.65} y1={cy - r * 0.65} x2={cx - r * 0.65} y2={cy + r * 0.65} stroke={stroke} strokeWidth={1.5} strokeLinecap="round" />
-      </>
-    );
-  }
+  // Release's <Svg viewBox="0 0 400 300"> is 4:3 — matching the hero box to
+  // that ratio (instead of a fixed 160) lets preserveAspectRatio="xMidYMid
+  // meet" fill the box edge-to-edge rather than letterboxing inside a
+  // shallower one.
+  const illH  = Math.round(cardW * (3 / 4));
 
   return (
     <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
@@ -245,63 +238,27 @@ function WriteInviteCard({ onPress }: { onPress: () => void }) {
           borderWidth:     2,
           borderColor:     color.border,
           overflow:        'hidden',
+          backgroundColor: color.ink,
           opacity:         pressed ? 0.9 : 1,
         })}
         accessibilityRole="button"
         accessibilityLabel="Now it's your turn — write a confession"
       >
-        {/* ── Colourful illustration ── */}
-        <Svg width={cardW} height={illH} viewBox={`0 0 ${cardW} ${illH}`}>
-          {/* Dark base */}
-          <Path d={`M0 0 H${cardW} V${illH} H0Z`} fill="#0D0D0D" />
-
-          {/* Three overlapping colour blobs */}
-          <Ellipse cx={cardW * 0.18} cy={illH * 0.45} rx={cardW * 0.30} ry={illH * 0.68} fill="#FF6B6B" opacity={0.82} />
-          <Ellipse cx={cardW * 0.82} cy={illH * 0.45} rx={cardW * 0.30} ry={illH * 0.68} fill="#9B6BFF" opacity={0.82} />
-          <Ellipse cx={cardW * 0.50} cy={illH * 0.80} rx={cardW * 0.28} ry={illH * 0.50} fill="#FFD166" opacity={0.88} />
-
-          {/* Small accent dots */}
-          <Circle cx={cardW * 0.08} cy={illH * 0.18} r={5} fill="#72D9C7" opacity={0.9} />
-          <Circle cx={cardW * 0.92} cy={illH * 0.22} r={4} fill="#FFE500" opacity={0.9} />
-          <Circle cx={cardW * 0.15} cy={illH * 0.82} r={3.5} fill="#FFE500" opacity={0.8} />
-          <Circle cx={cardW * 0.85} cy={illH * 0.78} r={4} fill="#72D9C7" opacity={0.8} />
-          <Circle cx={cardW * 0.50} cy={illH * 0.12} r={3} fill="#FF6B6B" opacity={0.7} />
-
-          {/* Heart — centred, proportional (width≈1.25× height) */}
-          <Path
-            d={`
-              M ${cardW * 0.50} ${illH * 0.65}
-              C ${cardW * 0.43} ${illH * 0.46}
-                ${cardW * 0.36} ${illH * 0.38}
-                ${cardW * 0.36} ${illH * 0.31}
-              C ${cardW * 0.36} ${illH * 0.24}
-                ${cardW * 0.43} ${illH * 0.15}
-                ${cardW * 0.50} ${illH * 0.24}
-              C ${cardW * 0.57} ${illH * 0.15}
-                ${cardW * 0.64} ${illH * 0.24}
-                ${cardW * 0.64} ${illH * 0.31}
-              C ${cardW * 0.64} ${illH * 0.38}
-                ${cardW * 0.57} ${illH * 0.46}
-                ${cardW * 0.50} ${illH * 0.65}
-              Z
-            `}
-            fill="white"
-            opacity={0.95}
-          />
-
-          {/* Sparkles */}
-          <Sparkle cx={cardW * 0.20} cy={illH * 0.30} r={8}  stroke="white" />
-          <Sparkle cx={cardW * 0.80} cy={illH * 0.32} r={7}  stroke="white" />
-          <Sparkle cx={cardW * 0.50} cy={illH * 0.72} r={6}  stroke="white" />
-          <Sparkle cx={cardW * 0.12} cy={illH * 0.62} r={5}  stroke="#FFE500" />
-          <Sparkle cx={cardW * 0.88} cy={illH * 0.60} r={5}  stroke="#FFE500" />
-        </Svg>
+        {/* Paper/ink hero scene — a person releasing their confession into
+            the air, in the same illustration language as the rest of the
+            app (EmptyBench, NotificationsEmpty). Replaces a one-off flat SVG
+            hero (colour blobs, a heart, sparkles) that didn't share any
+            visual language with the app. Release draws no background of its
+            own — like EmptyBench elsewhere, it's meant to float directly on
+            the card's own ink surface, so the card keeps ONE continuous
+            background (set on the Pressable itself) instead of a separate
+            dark rect behind just the illustration. */}
+        <Release style={{ width: '100%', height: illH }} />
 
         {/* ── Text area ── */}
         <View style={{
-          backgroundColor:   color.ink,
-          padding:           20,
-          gap:               6,
+          padding: 20,
+          gap:     6,
         }}>
           <Text style={{
             fontFamily: fontFamily.sansBold,

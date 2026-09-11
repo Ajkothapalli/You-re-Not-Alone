@@ -335,9 +335,29 @@ function matchingPool(categories: string[]): Dummy[] {
 /**
  * Preview recommendations filtered to the reader's chosen categories.
  * With no categories chosen, returns the full pool.
+ *
+ * @param excludeIds — ids already shown earlier this reading session (e.g.
+ *   D7's seamless queue refill in explore.tsx). Filtered out before
+ *   shuffling/slicing so repeated calls surface fresh confessions instead of
+ *   reshuffling the same ~20-per-category pool. Once every matching
+ *   confession has actually been shown at least once, falls back to
+ *   allowing repeats (from the full matching pool) rather than starving the
+ *   caller with an empty/shrinking result — the point of D7 is "read as
+ *   much as you want," not a hard stop the moment the seed pool is seen once.
  */
-export function getDummyRecommendations(categories: string[], limit = 10): Recommendation[] {
-  return shuffle(matchingPool(categories)).slice(0, limit);
+export function getDummyRecommendations(
+  categories:  string[],
+  limit        = 10,
+  excludeIds: string[] = [],
+): Recommendation[] {
+  const pool = matchingPool(categories);
+  if (excludeIds.length > 0) {
+    const excluded = new Set(excludeIds);
+    const unseen   = pool.filter((c) => !excluded.has(c.id));
+    if (unseen.length > 0) return shuffle(unseen).slice(0, limit);
+    // Every matching confession has been shown — repeat, reshuffled.
+  }
+  return shuffle(pool).slice(0, limit);
 }
 
 /** How many confessions match the reader's categories (preview count). */

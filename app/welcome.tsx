@@ -55,7 +55,7 @@ import { markFtueDone } from '@/lib/onboarding';
 import { setProfilePersona, setProfileName } from '@/lib/profile';
 import { saveReaderPreferences } from '@/lib/api';
 import { announce, useReducedMotion } from '@/lib/a11y';
-import { randomPersona, type Persona, Bust, PERSONAS } from '@/components/Persona';
+import { randomPersona, type Persona, PersonaBadge, getPersonaById } from '@/components/Persona';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { color, fontFamily, radius } from '@/theme/tokens';
@@ -73,14 +73,19 @@ const LEFT_R = 0.4111; // splash-quote-left width ratio
 
 // ─── FtueBust ─────────────────────────────────────────────────────────────────
 
-function FtueBust({ persona, bustScale }: { persona: Persona; bustScale: SharedValue<number> }) {
+function FtueBust({ persona, bustScale, isActive = true }: { persona: Persona; bustScale: SharedValue<number>; isActive?: boolean }) {
   const [, skin, hair] = persona.colors;
   const reduceMotion  = useReducedMotion();
   const blinkRy       = useSharedValue(5);
 
-  // Start blink loop on mount, cancel on unmount
+  // Start blink loop only while this slide is the active one. All 6 onboarding
+  // beats mount at once inside the horizontal pager (RN's ScrollView isn't
+  // virtualized), and this component's blink loop otherwise keeps ticking on
+  // the UI thread for as long as the /welcome screen has focus — including
+  // while the user has swiped away to a different beat — competing with the
+  // pan gesture's own per-frame interpolation for UI-thread time.
   React.useEffect(() => {
-    if (reduceMotion) return;
+    if (reduceMotion || !isActive) { blinkRy.value = 5; return; }
     const BLINK_INTERVAL = 3800;
     const BLINK_DUR      = 80;
     blinkRy.value = withRepeat(
@@ -91,7 +96,7 @@ function FtueBust({ persona, bustScale }: { persona: Persona; bustScale: SharedV
       -1,
     );
     return () => { blinkRy.value = 5; };
-  }, [reduceMotion]);
+  }, [reduceMotion, isActive]);
 
   const eyeProps = useAnimatedProps(() => ({ ry: blinkRy.value }));
   const aStyle   = useAnimatedStyle(() => ({ transform: [{ scale: bustScale.value }] }));
@@ -114,35 +119,18 @@ function FtueBust({ persona, bustScale }: { persona: Persona; bustScale: SharedV
   );
 }
 
-// ─── PersonaCircle — shared across illustrations ──────────────────────────────
-
-function PersonaCircle({ id, size }: { id: string; size: number }) {
-  const persona = PERSONAS.find(p => p.id === id) ?? PERSONAS[0];
-  return (
-    <View style={{
-      width:           size,
-      height:          size,
-      borderRadius:    size / 2,
-      backgroundColor: persona.colors[0] + '30',
-      alignItems:      'center',
-      justifyContent:  'center',
-      overflow:        'hidden',
-      borderWidth:     2,
-      borderColor:     BORDER,
-    }}>
-      <Svg width={size * 1.25} height={size * 1.25} viewBox="0 0 24 24">
-        <Bust id={id} skin={persona.colors[1]} hair={persona.colors[2]} />
-      </Svg>
-    </View>
-  );
-}
-
 // ─── IllustrationConnect (beat 0) — two people finding each other ─────────────
+// Persona avatars render through the single shared PersonaBadge component
+// (components/Persona.tsx) everywhere in the app — same border/tint/sizing
+// math as you.tsx, ProfileButton.tsx, and ReadCard.tsx. welcome.tsx used to
+// keep its own near-duplicate ("PersonaCircle") with slightly different tint
+// opacity math (+'30' vs PersonaBadge's +'38'), which is why avatars used to
+// look subtly different depending on which screen drew them.
 
 function IllustrationConnect() {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <PersonaCircle id="cove"  size={92} />
+      <PersonaBadge persona={getPersonaById('cove')} size={92} showName={false} />
       {/* Brand quote marks = the shared confession linking them */}
       <View style={{ alignItems: 'center' }}>
         <View style={{ flexDirection: 'row', width: 48, height: 48, marginBottom: -Math.round(48 * 0.28) }}>
@@ -150,7 +138,7 @@ function IllustrationConnect() {
           <Image source={require('../assets/splash-quote-right.png')} style={{ width: 48 * (1 - LEFT_R),  height: 48 }} resizeMode="stretch" />
         </View>
       </View>
-      <PersonaCircle id="miles" size={92} />
+      <PersonaBadge persona={getPersonaById('miles')} size={92} showName={false} />
     </View>
   );
 }
@@ -163,13 +151,13 @@ function MiniCard() {
       <View pointerEvents="none" style={mc.shadow} />
       <View style={mc.card}>
         <View style={mc.labelRow}>
-          <PersonaCircle id="max"   size={22} />
+          <PersonaBadge persona={getPersonaById('max')} size={22} showName={false} />
           <Text style={mc.labelW}>You wrote</Text>
         </View>
         <Text style={mc.confText}>"i smile all day so nobody worries."</Text>
         <View style={mc.seam} />
         <View style={mc.labelRow}>
-          <PersonaCircle id="river" size={22} />
+          <PersonaBadge persona={getPersonaById('river')} size={22} showName={false} />
           <Text style={mc.labelC}>They wrote</Text>
         </View>
         <Text style={mc.confText}>"everyone thinks i'm fine. i'm barely holding on."</Text>
@@ -255,10 +243,10 @@ const mc = StyleSheet.create({
 
 // ─── Safety icons ─────────────────────────────────────────────────────────────
 
-function ShieldIcon() {
+function ShieldIcon({ size = 22, strokeWidth = 2.2 }: { size?: number; strokeWidth?: number }) {
   return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z" stroke={BORDER} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <Path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z" stroke={BORDER} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -485,6 +473,7 @@ export default function WelcomeScreen() {
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         bounces={false}
+        decelerationRate="fast"
         onScroll={scrollHandler}
         scrollEventThrottle={1}
         style={{ flex: 1 }}
@@ -501,9 +490,21 @@ export default function WelcomeScreen() {
               </View>
               <Text style={s.wordmark}>soulyap</Text>
             </View>
-            {/* Animated two-person illustration */}
+            {/* Animated two-person illustration.
+                Sized by BOTH axes (not width+aspectRatio) — heroCenter's height
+                here is flex-resolved (a share of the card's remaining space
+                after the logo/tagline/button siblings claim theirs), and can
+                be shorter than a 4:3-from-width box on short screens or with
+                Dynamic Type scaling the siblings taller. EmptyBench's own
+                <Svg preserveAspectRatio="xMidYMid meet"> already knows how to
+                letterbox-fit a 400x300 scene into an arbitrary box without
+                cropping — width+aspectRatio defeated that by forcing the outer
+                box to exactly the 4:3 viewBox shape, so "meet" never had
+                anything to reconcile and the box just grew past its flex
+                allowance, silently clipped by the card's overflow:hidden
+                (leaf sits near y=64, the first thing lost off the top). */}
             <View style={s.heroCenter}>
-              <EmptyBench style={{ width: '100%', aspectRatio: 4 / 3 }} />
+              <EmptyBench style={{ width: '100%', height: '100%' }} isActive={page === 0} />
             </View>
             <Text style={s.tagline}>
               Say the things you can't say out loud — and meet the one person who felt the same.
@@ -539,8 +540,13 @@ export default function WelcomeScreen() {
             </View>
             <Text style={s.kick}>You're safe here</Text>
             <Text style={s.title}>Nothing here{'\n'}can reach you</Text>
-            <View style={{ alignItems: 'center', marginVertical: 4 }}>
-              <PersonaCircle id="sage" size={80} />
+            {/* Hero glyph, not a persona avatar — this beat is about safety
+                promises, not "which face is mine" (that's beat 3). A persona
+                circle here read as a second illustration language dropped
+                next to beat 0's paper/ink scene; a big ink-line shield in the
+                same stroke style as the ticks below reads as one language. */}
+            <View style={{ alignItems: 'center', marginVertical: 8 }}>
+              <ShieldIcon size={68} strokeWidth={1.7} />
             </View>
             <View style={s.ticks}>
               <View style={s.tick}>
@@ -581,7 +587,7 @@ export default function WelcomeScreen() {
               accessibilityLabel={`Your persona: ${name || persona.name}. Tap to change.`}
               accessibilityHint="Double-tap to shuffle to a different persona"
             >
-              <FtueBust persona={persona} bustScale={bustScale} />
+              <FtueBust persona={persona} bustScale={bustScale} isActive={page === 3} />
             </Pressable>
 
             {renaming ? (
@@ -613,16 +619,25 @@ export default function WelcomeScreen() {
             <View style={{ flex: 1 }} />
 
             <View style={s.ghostRow}>
-              <Pressable onPress={shufflePersona} hitSlop={10} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                <ScrawlIcon name="arrow_loop" size={16} color={BORDER} roughen={false} strokeWidth={2.5} />
-                <Text style={s.ghostLink}>Shuffle</Text>
+              <Pressable
+                onPress={shufflePersona}
+                hitSlop={8}
+                style={({ pressed }) => [s.pillBtn, pressed && s.pillBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Shuffle to a different persona"
+              >
+                <ScrawlIcon name="arrow_loop" size={14} color={BORDER} roughen={false} strokeWidth={2.5} />
+                <Text style={s.pillBtnText}>Shuffle</Text>
               </Pressable>
-              <Text style={s.ghostDot}> · </Text>
               <Pressable
                 onPress={() => { setRenaming(true); if (!name) setName(persona.name); }}
-                hitSlop={10}
+                hitSlop={8}
+                style={({ pressed }) => [s.pillBtn, pressed && s.pillBtnPressed]}
+                accessibilityRole="button"
+                accessibilityLabel="Rename your persona"
               >
-                <Text style={s.ghostLink}>Rename</Text>
+                <ScrawlIcon name="pencil" size={14} color={BORDER} roughen={false} strokeWidth={2.5} />
+                <Text style={s.pillBtnText}>Rename</Text>
               </Pressable>
             </View>
 
@@ -700,7 +715,7 @@ export default function WelcomeScreen() {
                       <ScrawlIcon
                         name={icon}
                         size={32}
-                        color={active ? '#FFFFFF' : dynColor.dim}
+                        color={active ? BORDER : dynColor.dim}
                         roughen={false}
                         strokeWidth={2.5}
                       />
@@ -715,18 +730,18 @@ export default function WelcomeScreen() {
             </View>
 
             <PrimaryButton
-              label="Say your first thing"
-              onPress={() => handleFinish('/write')}
+              label="Read a few first"
+              onPress={() => handleFinish('/read')}
               disabled={saving}
             />
             <Pressable
-              onPress={() => handleFinish('/read')}
+              onPress={() => handleFinish('/write')}
               disabled={saving}
               hitSlop={10}
               style={{ marginTop: 12, alignSelf: 'center' }}
               accessibilityRole="button"
             >
-              <Text style={[s.ghostLink, { color: dynColor.dim }]}>Or read a few first</Text>
+              <Text style={[s.ghostLink, { color: dynColor.dim }]}>Or say your first thing</Text>
             </Pressable>
           </View>
         </BeatSlide>
@@ -917,6 +932,7 @@ const s = StyleSheet.create({
     flexDirection:  'row',
     justifyContent: 'center',
     alignItems:     'center',
+    gap:            10,
     marginBottom:   4,
   },
   ghostLink: {
@@ -924,10 +940,28 @@ const s = StyleSheet.create({
     fontSize:   12,
     color:      color.dim,
   },
-  ghostDot: {
-    fontFamily: fontFamily.sans,
+  // Shuffle/Rename — light outline pill chips (same neo-brutal chip contract
+  // as s.chip/s.chipOn below), so they read as tappable instead of inline
+  // text. Kept visually secondary (outline, not filled) — "That's me" is
+  // still the only solid CTA on this beat.
+  pillBtn: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    gap:               6,
+    borderWidth:       2,
+    borderColor:       BORDER,
+    borderRadius:      999,
+    paddingVertical:   6,
+    paddingHorizontal: 12,
+    backgroundColor:   'rgba(26,26,26,0.04)',
+  },
+  pillBtnPressed: {
+    backgroundColor: 'rgba(26,26,26,0.12)',
+  },
+  pillBtnText: {
+    fontFamily: fontFamily.sansBold,
     fontSize:   12,
-    color:      color.dim,
+    color:      BORDER,
   },
 
   // Category chips (beat 4) — neo-brutal flat, yellow when selected
@@ -994,7 +1028,9 @@ const s = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   themeOptActive: {
-    backgroundColor: '#E53935',
+    // Selection convention app-wide is yellow (see chipOn below), not red —
+    // red reads as danger/destructive, not "chosen."
+    backgroundColor: '#FFE500',
     borderColor:     '#000000',
   },
   themeOptLabel: {
@@ -1005,7 +1041,7 @@ const s = StyleSheet.create({
     color:         color.dim,
   },
   themeOptLabelActive: {
-    color: '#FFFFFF',
+    color: BORDER,
   },
   themeHint: {
     fontFamily: fontFamily.sans,

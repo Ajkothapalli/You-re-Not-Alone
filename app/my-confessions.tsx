@@ -17,7 +17,7 @@ import { GhostButton, PrimaryButton } from '@/components/Buttons';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
-import { NotificationsEmpty } from '@/components/illustrations';
+import { EmptyBench } from '@/components/illustrations';
 import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -220,13 +220,14 @@ export default function MyConfessionsScreen() {
           <View style={styles.emptyCard}>
             <View pointerEvents="none" style={styles.emptyCardShadow} />
             <View style={styles.emptyCardInner}>
-              <NotificationsEmpty style={{ width: '100%', aspectRatio: 4 / 3 }} />
-              <Text style={styles.emptyHeading}>Nothing here yet</Text>
+              <EmptyBench style={{ width: '100%', aspectRatio: 4 / 3 }} />
+              <Text style={styles.emptyHeading}>Say the one true thing</Text>
               <Text style={styles.emptyText}>
-                Write your first confession and come back to see it here.
+                Somewhere out there, someone is carrying the exact same thing —
+                write it down, anonymously, and this is where you'll watch it land.
               </Text>
               <PrimaryButton
-                label="Write now"
+                label="Write it now"
                 onPress={() => router.back()}
               />
             </View>

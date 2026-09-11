@@ -466,7 +466,7 @@ export default function YouScreen() {
             <ScrawlIcon
               name={icon}
               size={22}
-              color={active ? '#FFFFFF' : color.dim}
+              color={active ? '#1A1A1A' : color.dim}
               roughen={false}
               strokeWidth={2.5}
             />
@@ -570,9 +570,11 @@ function createStyles(color: ColorSet) {
     // Appearance
     themeRow:            { flexDirection: 'row', gap: 10 },
     themeChip:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: radius.pill, borderWidth: 2, borderColor: color.border, backgroundColor: 'transparent' },
-    themeChipActive:     { backgroundColor: '#E53935', borderColor: '#000000' },
+    // Selection convention app-wide is yellow (see welcome.tsx's category
+    // chips / theme picker), not red — red reads as danger, not "chosen."
+    themeChipActive:     { backgroundColor: '#FFE500', borderColor: '#000000' },
     themeChipText:       { fontFamily: fontFamily.sansBold, fontSize: 13, letterSpacing: 0.18 * 13, textTransform: 'uppercase', color: color.dim },
-    themeChipTextActive: { color: '#FFFFFF' },
+    themeChipTextActive: { color: '#1A1A1A' },
 
     // Actions
     actions:    { gap: 12, marginTop: 8 },
