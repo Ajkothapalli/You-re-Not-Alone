@@ -10,6 +10,7 @@
  */
 
 import { EmptyBench } from '@/components/illustrations';
+import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { GhostButton } from '@/components/Buttons';
 import { showDialog } from '@/components/AppDialog';
 import { PERSONAS, PersonaBadge, getPersonaById } from '@/components/Persona';
@@ -64,6 +65,7 @@ export default function YouScreen() {
   const insets                 = useSafeAreaInsets();
   const { colors: color, setTheme, isDark } = useTheme();
   const styles                 = useMemo(() => createStyles(color), [color]);
+  const emptyBenchFit          = useAspectFitWidth(4 / 3);
 
   // Profile state
   const [personaId, setPersonaId] = useState<string | null>(null);
@@ -381,7 +383,11 @@ export default function YouScreen() {
         </Text>
       ) : confessions.length === 0 ? (
         <View style={{ gap: 12 }}>
-          <EmptyBench style={{ width: '100%', aspectRatio: 4 / 3 }} />
+          <View style={{ width: '100%' }} onLayout={emptyBenchFit.onLayout}>
+            {emptyBenchFit.ready && (
+              <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+            )}
+          </View>
           <Text style={styles.emptyConfessions}>
             You haven't written anything yet.{'\n'}Your confessions will appear here.
           </Text>

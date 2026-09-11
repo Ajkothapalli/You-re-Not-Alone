@@ -18,6 +18,7 @@ import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { EmptyBench } from '@/components/illustrations';
+import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -115,6 +116,7 @@ export default function MyConfessionsScreen() {
   const insets = useSafeAreaInsets();
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
+  const emptyBenchFit = useAspectFitWidth(4 / 3);
 
   const [confessions, setConfessions] = useState<OwnConfession[]>([]);
   const [loading, setLoading]         = useState(true);
@@ -220,7 +222,11 @@ export default function MyConfessionsScreen() {
           <View style={styles.emptyCard}>
             <View pointerEvents="none" style={styles.emptyCardShadow} />
             <View style={styles.emptyCardInner}>
-              <EmptyBench style={{ width: '100%', aspectRatio: 4 / 3 }} />
+              <View style={{ width: '100%' }} onLayout={emptyBenchFit.onLayout}>
+                {emptyBenchFit.ready && (
+                  <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+                )}
+              </View>
               <Text style={styles.emptyHeading}>Say the one true thing</Text>
               <Text style={styles.emptyText}>
                 Somewhere out there, someone is carrying the exact same thing —

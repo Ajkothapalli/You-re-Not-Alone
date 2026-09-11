@@ -92,7 +92,14 @@ const PATTERN: Array<{ name: string; top: string; left: string; size: number; ro
   { name: 'fingerprint', top: '87%', left: '93%', size: 22, rotate: 10  },
 ];
 
-export function BackgroundPattern() {
+// Memoized: this renders 72 individual <Svg> icons (one native view tree
+// each) purely for decoration (pointerEvents="none", 10% opacity) — it takes
+// no props and its output depends only on the theme's `paper` colour, so
+// without memoization it re-renders (re-executing all 72 ScrawlIcon calls)
+// every time its parent screen re-renders for any unrelated reason, e.g. an
+// async focus-triggered fetch resolving. It's mounted on every tab screen
+// (write/you/notifications) plus read.tsx and my-confessions.tsx.
+export const BackgroundPattern = React.memo(function BackgroundPattern() {
   const color = useThemeColors();
   return (
     <View style={[StyleSheet.absoluteFill, styles.wrapper]} pointerEvents="none">
@@ -106,7 +113,7 @@ export function BackgroundPattern() {
       ))}
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrapper: { opacity: 0.10 },

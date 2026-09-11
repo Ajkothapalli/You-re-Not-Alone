@@ -50,7 +50,8 @@ import { router } from 'expo-router';
 import { CATEGORIES, type CategoryId } from '@/lib/categories';
 import { HeartIcon } from '@/components/HeartIcon';
 import { CategoryBadge } from '@/components/CategoryGlyph';
-import { EmptyBench } from '@/components/illustrations';
+import { EmptyBench, Sanctuary } from '@/components/illustrations';
+import { useAspectFit } from '@/hooks/useAspectFit';
 import { markFtueDone } from '@/lib/onboarding';
 import { setProfilePersona, setProfileName } from '@/lib/profile';
 import { saveReaderPreferences } from '@/lib/api';
@@ -387,17 +388,56 @@ export default function WelcomeScreen() {
   const [page,         setPage]         = useState(0);
   const [chosenTheme,  setChosenTheme]  = useState<'light' | 'dark' | null>(null);
 
+  // Drives EmptyBench/Sanctuary/FtueBust's `isActive` — separate from `page`
+  // (which only updates on onMomentumEnd, i.e. after a swipe fully settles).
+  // Investigating the reported swipe jank found that gating a slide's idle
+  // animation loop on `page` means, mid-drag from beat 0 to beat 1, beat 0's
+  // breathe/nod/blink/leaf loops keep running full-tilt for the ENTIRE drag
+  // (page is still 0 until the gesture ends) — directly competing with the
+  // pan gesture's own per-frame work on the UI thread. activeBeat instead
+  // updates from the continuous onScroll handler below (already firing every
+  // frame via scrollEventThrottle=1), flipping as soon as scrollX crosses the
+  // halfway point to the next slide — roughly mid-drag, not after release.
+  const [activeBeat, setActiveBeat] = useState(0);
+  const lastActiveBeat = useSharedValue(0);
+
   const scrollX    = useSharedValue(0);
   const bustScale  = useSharedValue(1);
   const aScrollRef = useAnimatedRef<Animated.ScrollView>();
 
+  // Measured-fit boxes for the two hero illustrations — see hooks/useAspectFit.ts.
+  // Both sit inside a flex:1 heroCenter competing for height with sibling
+  // copy/buttons, so their available box isn't a simple width-derived shape.
+  const bench0Fit    = useAspectFit(4 / 3);
+  const sanctuaryFit = useAspectFit(4 / 3);
+
   const scrollHandler = useAnimatedScrollHandler({
-    onScroll:      (e) => { scrollX.value = e.contentOffset.x; },
+    onScroll: (e) => {
+      scrollX.value = e.contentOffset.x;
+      const nearest = Math.round(e.contentOffset.x / W);
+      // Guarded so runOnJS only fires on an actual change (typically once per
+      // swipe direction, at the halfway crossing) rather than every frame.
+      if (nearest !== lastActiveBeat.value) {
+        lastActiveBeat.value = nearest;
+        runOnJS(setActiveBeat)(nearest);
+      }
+    },
     onMomentumEnd: (e) => {
       const p = Math.round(e.contentOffset.x / W);
       runOnJS(onPageSnap)(p);
     },
   });
+
+  // Slides more than one page away from the current scroll position render a
+  // cheap empty placeholder instead of their full content below — all 6
+  // beats mount at once in this unvirtualized ScrollView, and a fully static
+  // (non-animated) SVG scene still costs paint/composite time once mounted.
+  // Bounded by activeBeat (not the settled `page`) so a slide's content is
+  // already there by the time a swipe brings it on screen, never popping in
+  // mid-gesture.
+  function isNearBeat(index: number) {
+    return Math.abs(index - activeBeat) <= 1;
+  }
 
   function onPageSnap(p: number) {
     if (p === page) return;
@@ -491,20 +531,29 @@ export default function WelcomeScreen() {
               <Text style={s.wordmark}>soulyap</Text>
             </View>
             {/* Animated two-person illustration.
-                Sized by BOTH axes (not width+aspectRatio) — heroCenter's height
-                here is flex-resolved (a share of the card's remaining space
-                after the logo/tagline/button siblings claim theirs), and can
-                be shorter than a 4:3-from-width box on short screens or with
-                Dynamic Type scaling the siblings taller. EmptyBench's own
-                <Svg preserveAspectRatio="xMidYMid meet"> already knows how to
-                letterbox-fit a 400x300 scene into an arbitrary box without
-                cropping — width+aspectRatio defeated that by forcing the outer
-                box to exactly the 4:3 viewBox shape, so "meet" never had
-                anything to reconcile and the box just grew past its flex
-                allowance, silently clipped by the card's overflow:hidden
-                (leaf sits near y=64, the first thing lost off the top). */}
-            <View style={s.heroCenter}>
-              <EmptyBench style={{ width: '100%', height: '100%' }} isActive={page === 0} />
+                heroCenter's height here is flex-resolved (a share of the
+                card's remaining space after the logo/tagline/button siblings
+                claim theirs) — it is NOT a simple width-derived box, so
+                neither `aspectRatio` nor `width:'100%',height:'100%'` can be
+                trusted to produce a clean 4:3 shape (both were tried and
+                both put the falling leaf in the wrong place — see
+                hooks/useAspectFit.ts for the full explanation). useAspectFit
+                measures the actual resolved box via onLayout and hands
+                EmptyBench an exact, pre-computed 4:3 pixel size that is
+                mathematically guaranteed to fit both axes, so
+                preserveAspectRatio="xMidYMid meet" never has anything left
+                to reconcile. */}
+            <View style={s.heroCenter} onLayout={bench0Fit.onLayout}>
+              {bench0Fit.ready && (
+                isNearBeat(0) ? (
+                  <EmptyBench
+                    style={{ width: bench0Fit.width, height: bench0Fit.height }}
+                    isActive={activeBeat === 0}
+                  />
+                ) : (
+                  <View style={{ width: bench0Fit.width, height: bench0Fit.height }} />
+                )
+              )}
             </View>
             <Text style={s.tagline}>
               Say the things you can't say out loud — and meet the one person who felt the same.
@@ -540,13 +589,25 @@ export default function WelcomeScreen() {
             </View>
             <Text style={s.kick}>You're safe here</Text>
             <Text style={s.title}>Nothing here{'\n'}can reach you</Text>
-            {/* Hero glyph, not a persona avatar — this beat is about safety
-                promises, not "which face is mine" (that's beat 3). A persona
-                circle here read as a second illustration language dropped
-                next to beat 0's paper/ink scene; a big ink-line shield in the
-                same stroke style as the ticks below reads as one language. */}
-            <View style={{ alignItems: 'center', marginVertical: 8 }}>
-              <ShieldIcon size={68} strokeWidth={1.7} />
+            {/* Full paper/ink illustration, not a line icon — a persona-less
+                figure wrapped to the chin in a blanket, in the same visual
+                language as beat 0's EmptyBench (see Sanctuary.tsx). Sized the
+                same measured way as beat 0: heroCenter is flex:1, so its
+                available box is whatever's left after the kick/title/ticks/
+                button siblings claim theirs, not a fixed or width-derived
+                shape — useAspectFit measures it and hands Sanctuary an exact
+                4:3 pixel box that's guaranteed to fit. */}
+            <View style={s.heroCenter} onLayout={sanctuaryFit.onLayout}>
+              {sanctuaryFit.ready && (
+                isNearBeat(2) ? (
+                  <Sanctuary
+                    style={{ width: sanctuaryFit.width, height: sanctuaryFit.height }}
+                    isActive={activeBeat === 2}
+                  />
+                ) : (
+                  <View style={{ width: sanctuaryFit.width, height: sanctuaryFit.height }} />
+                )
+              )}
             </View>
             <View style={s.ticks}>
               <View style={s.tick}>
@@ -587,7 +648,7 @@ export default function WelcomeScreen() {
               accessibilityLabel={`Your persona: ${name || persona.name}. Tap to change.`}
               accessibilityHint="Double-tap to shuffle to a different persona"
             >
-              <FtueBust persona={persona} bustScale={bustScale} isActive={page === 3} />
+              <FtueBust persona={persona} bustScale={bustScale} isActive={activeBeat === 3} />
             </Pressable>
 
             {renaming ? (

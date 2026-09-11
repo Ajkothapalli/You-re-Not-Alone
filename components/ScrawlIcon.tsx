@@ -188,7 +188,14 @@ interface Props {
   strokeWidth?: number;
 }
 
-export function ScrawlIcon({ name, size = 48, color = '#F5F5F5', roughen = true, strokeWidth = 2.5 }: Props) {
+// Memoized: ScrawlIcon is a pure function of its props (no internal state or
+// context reads), and it's mounted in bulk — BackgroundPattern alone renders
+// 72 of them on every screen that uses it (write/you/notifications/read).
+// Without memoization, any unrelated re-render of an ancestor (e.g. a screen
+// re-rendering after an async focus-triggered fetch resolves) re-executes
+// every one of those 72 render functions and rebuilds their SVG element
+// trees from scratch, even though none of their actual props changed.
+export const ScrawlIcon = React.memo(function ScrawlIcon({ name, size = 48, color = '#F5F5F5', roughen = true, strokeWidth = 2.5 }: Props) {
   const paths = ICON_PATHS[name] ?? ICON_PATHS['heart'];
 
   return (
@@ -227,4 +234,4 @@ export function ScrawlIcon({ name, size = 48, color = '#F5F5F5', roughen = true,
       </G>
     </Svg>
   );
-}
+});

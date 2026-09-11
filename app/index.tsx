@@ -21,6 +21,7 @@ import { signInWithGoogle } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/withTimeout';
 import { EmptyBench } from '@/components/illustrations';
+import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
 import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
@@ -60,6 +61,13 @@ export default function IndexScreen() {
   const color   = useThemeColors();
   const styles  = useMemo(() => createStyles(color), [color]);
   const { order: dobOrder, placeholder: dobPlaceholder } = useMemo(() => getDobOrder(), []);
+
+  // Width-anchored measured fit (hooks/useAspectFit.ts) — this header sits in
+  // a plain ScrollView with natural content flow, so only the width is known
+  // up front (50% of the screen); height is derived arithmetically rather
+  // than via RN's own `aspectRatio` style prop, for consistency with every
+  // other illustration mount site in the app.
+  const emptyBenchFit = useAspectFitWidth(4 / 3);
 
   const [step,           setStep]           = useState<Step>('loading');
   const [email,          setEmail]          = useState('');
@@ -479,14 +487,14 @@ export default function IndexScreen() {
               consistent motif rather than a new illustration. Skipped on
               otp/dob — those are mid-flow, not first-impression, and the
               compact header keeps focus on the code/DOB input.
-              Sized by width+aspectRatio (not width+height like welcome.tsx's
-              beat 0): this header sits in a plain ScrollView with natural
-              content flow, not a flex:1 card with overflow:hidden, so there's
-              no fixed-height parent for the box to overflow — the failure
-              mode that pattern guards against doesn't apply here. Deliberately
-              modest (50%, not 100%) — this is a small accent, not a hero. */}
+              Deliberately modest (50%, not 100%) — this is a small accent,
+              not a hero. */}
           {step === 'email' && (
-            <EmptyBench style={styles.illustration} />
+            <View style={styles.illustrationWrap} onLayout={emptyBenchFit.onLayout}>
+              {emptyBenchFit.ready && (
+                <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+              )}
+            </View>
           )}
           <Text style={styles.sub}>
             {step === 'email' && 'A private place to share what you carry.'}
@@ -679,9 +687,8 @@ function createStyles(color: ColorSet) {
       width:  140 * 0.4111,
       height: 140,
     },
-    illustration: {
+    illustrationWrap: {
       width:      '50%',
-      aspectRatio: 4 / 3,
       alignSelf:  'center',
       marginVertical: 4,
     },

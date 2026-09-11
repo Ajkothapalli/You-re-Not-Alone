@@ -40,7 +40,10 @@ const CY_NECK = 128;
 const CY_HEAD = 112;
 // Shrub origin: base of bush (approximately 330, 244)
 const CX_SWAY = 330, CY_SWAY = 244;
-// Leaf origin (absolute): (300, 64) — the group translates the leaf here
+// Leaf origin (absolute): (300, 64). Folded into leafProps' own transform
+// string below rather than a separate static `transform` prop on the same
+// <AnimatedG> — see the leafProps comment for why that combination is broken.
+const LEAF_X = 300, LEAF_Y = 64;
 // Eye centres: (194, 114) and (206, 114) — midpoint (200, 114)
 const CY_EYES = 114;
 
@@ -180,9 +183,24 @@ function EmptyBenchAnimated({ style, isActive = true }: { style?: ViewStyle; isA
     };
   });
 
+  // Root cause of the "leaf disconnected near the top-left" bug: this used to
+  // return only `translate(${x},${y})` (the animated drift), while the JSX
+  // below carried a SEPARATE static `transform="translate(300, 64)"` prop on
+  // the same <AnimatedG> to place the leaf at its absolute scene position —
+  // unlike every other animated group in this file, the leaf's own path data
+  // is authored in LOCAL coordinates near (0,0), so it has no baked-in
+  // absolute position of its own and depends entirely on an external offset.
+  // Reanimated's `animatedProps` fully owns the native `transform` value for
+  // any key it returns: once the worklet starts running (immediately on
+  // mount), its `translate(x,y)` — with leafX/leafY both starting at 0 —
+  // overwrites the static "translate(300, 64)" outright rather than composing
+  // with it. The leaf rendered at the SVG's literal (0,0) origin plus its
+  // small ±20/0–196 drift, i.e. pinned near the top-left of the whole scene,
+  // regardless of any outer sizing fix. Folding the fixed origin into this
+  // same transform string (the only thing driving the prop) fixes it for good.
   const leafProps = useAnimatedProps(() => {
     'worklet';
-    const x = leafX.value, y = leafY.value;
+    const x = LEAF_X + leafX.value, y = LEAF_Y + leafY.value;
     return {
       opacity:   leafOp.value,
       transform: `translate(${x},${y})`,
@@ -312,8 +330,10 @@ function EmptyBenchAnimated({ style, isActive = true }: { style?: ViewStyle; isA
         </AnimatedG>
       </AnimatedG>
 
-      {/* Leaf — falling clock (group at absolute SVG position, animation applies inner translate) */}
-      <AnimatedG animatedProps={leafProps} transform="translate(300, 64)">
+      {/* Leaf — falling clock. animatedProps.transform above carries BOTH the
+          absolute origin and the animated drift in one string — no separate
+          static `transform` prop here, see the leafProps comment. */}
+      <AnimatedG animatedProps={leafProps}>
         <Path fill={ILL_COLOR.sage} d="M0 0C6-9 18-9 20 0C18 9 6 9 0 0Z" transform="translate(3,2)" stroke="none" />
         <G {...STROKE.ink2}><Path d="M0 0C6-9 18-9 20 0C18 9 6 9 0 0Z" /><Path d="M3 0H17" /></G>
       </AnimatedG>

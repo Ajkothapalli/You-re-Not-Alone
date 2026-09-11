@@ -36,6 +36,11 @@ const CY_NECK = 112;
 // Arm pivot shoulders: L (183, 132), R (217, 132)
 const ARM_L = { x: 183, y: 132 };
 const ARM_R = { x: 217, y: 132 };
+// Scrap origin (absolute): (200, 148). Folded into noteProps' own transform
+// string rather than a separate static `transform` prop on the same
+// <AnimatedG> — see the noteProps comment (and EmptyBench.tsx's leafProps)
+// for why that combination silently discards the fixed origin.
+const NOTE_X = 200, NOTE_Y = 148;
 
 // Release keyframes (12s)
 // note: 0→6% appear, 22% held, 54% translate(-40,-88) rotate(-10°), 62% translate(-46,-104) rotate(-12°) opacity 0
@@ -144,11 +149,18 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     return { transform: `translate(${ARM_R.x},${ARM_R.y}) scale(${1 + armLR.value / 40}) translate(-${ARM_R.x},-${ARM_R.y})` };
   });
 
+  // Same bug class as EmptyBench.tsx's leafProps: the scrap's path data is
+  // authored in local coordinates near (0,0), so it depends entirely on an
+  // external offset to sit at its scene position (200, 148). That offset
+  // MUST live inside this same transform string — a separate static
+  // `transform` prop on the <AnimatedG> below would be overwritten by this
+  // worklet's own translate() the instant it starts running (noteX/noteY
+  // both start at 0), pinning the scrap to the SVG's top-left origin instead.
   const noteProps = useAnimatedProps(() => {
     'worklet';
     return {
       opacity:   noteO.value,
-      transform: `translate(${noteX.value},${noteY.value})`,
+      transform: `translate(${NOTE_X + noteX.value},${NOTE_Y + noteY.value})`,
     };
   });
 
@@ -299,8 +311,10 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
         <G {...STROKE.ink2}><Path d="M190 90q3-2 7 0M203 90q4-2 7 0M191 98q3 3 6 0M203 98q3 3 6 0M195 106q5 3 10 0" /></G>
       </AnimatedG>
 
-      {/* Scrap — release clock */}
-      <AnimatedG animatedProps={noteProps} transform="translate(200, 148)">
+      {/* Scrap — release clock. animatedProps.transform above carries BOTH
+          the absolute origin and the animated lift in one string — no
+          separate static `transform` prop here, see the noteProps comment. */}
+      <AnimatedG animatedProps={noteProps}>
         <Path fill={ILL_COLOR.light} d="M-13-8L-10-11L8-11L13-6L12 8L-12 10L-14 2Z" transform="translate(3,2)" stroke="none" />
         <G {...STROKE.ink2}><Path d="M-13-8L-10-11L8-11L13-6L12 8L-12 10L-14 2Z" strokeWidth={2.6} /><Path d="M-7-3q3-3 6 0t6 0M-7 3h9" /></G>
       </AnimatedG>

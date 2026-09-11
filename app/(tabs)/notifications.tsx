@@ -10,6 +10,7 @@
  */
 
 import { NotificationsEmpty } from '@/components/illustrations';
+import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { getNotifications, markNotificationsRead, type AppNotification } from '@/lib/notifications';
 import { useNotificationsContext } from '@/lib/notificationsContext';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
@@ -146,9 +147,14 @@ export default function NotificationsScreen() {
 
 function AlertsEmptyState() {
   const color = useThemeColors();
+  const fit   = useAspectFitWidth(4 / 3);
   return (
     <View style={emptyStyles.root}>
-      <NotificationsEmpty style={{ width: '100%', aspectRatio: 4 / 3 }} />
+      <View style={{ width: '100%' }} onLayout={fit.onLayout}>
+        {fit.ready && (
+          <NotificationsEmpty style={{ width: fit.width, height: fit.height }} />
+        )}
+      </View>
       <Text style={[emptyStyles.headline, { color: color.paper }]}>Still quiet</Text>
       <Text style={[emptyStyles.sub, { color: color.dim }]}>
         you'll hear it here when{'\n'}someone feels what you wrote

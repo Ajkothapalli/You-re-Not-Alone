@@ -33,6 +33,7 @@ import {
   View,
 } from 'react-native';
 import { Release } from '@/components/illustrations';
+import { deriveHeightFromWidth } from '@/hooks/useAspectFit';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
@@ -218,8 +219,11 @@ function WriteInviteCard({ onPress }: { onPress: () => void }) {
   // Release's <Svg viewBox="0 0 400 300"> is 4:3 — matching the hero box to
   // that ratio (instead of a fixed 160) lets preserveAspectRatio="xMidYMid
   // meet" fill the box edge-to-edge rather than letterboxing inside a
-  // shallower one.
-  const illH  = Math.round(cardW * (3 / 4));
+  // shallower one. cardW is already known synchronously here (derived from
+  // useWindowDimensions, not a layout measurement), so this uses the same
+  // pure arithmetic hooks/useAspectFit.ts exports for every other
+  // illustration mount site, without needing an onLayout pass.
+  const illH  = deriveHeightFromWidth(cardW, 4 / 3);
 
   return (
     <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
