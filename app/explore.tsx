@@ -23,6 +23,7 @@ import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
+import { isD7 } from '@/lib/d7';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
@@ -52,6 +53,7 @@ export default function ExploreScreen() {
   const [loading,         setLoading]         = useState(true);
   const [done,            setDone]            = useState(false);
   const [premiumRequired, setPremiumRequired] = useState(false);
+  const [withinD7,        setWithinD7]        = useState(false);
   const [iconSession,     setIconSession]     = useState(() => Math.floor(Math.random() * 102));
   const [showShareNudge,  setShowShareNudge]  = useState(false);
   const [sharing,         setSharing]         = useState(false);
@@ -67,9 +69,13 @@ export default function ExploreScreen() {
   const dwellFired   = useRef(false);
   const mountTimeRef = useRef<number>(Date.now());
 
-  // Fetch on mount
-  useEffect(() => {
-    getRecommendations()
+  async function fetchRecommendations() {
+    setLoading(true);
+    setDone(false);
+    setIndex(0);
+    const d7 = await isD7().catch(() => false);
+    setWithinD7(d7);
+    getRecommendations(d7)
       .then(({ confessions: data, premiumRequired: gated }) => {
         if (gated) {
           setPremiumRequired(true);
@@ -84,7 +90,10 @@ export default function ExploreScreen() {
         setLoading(false);
         setDone(true);
       });
-  }, []);
+  }
+
+  // Fetch on mount
+  useEffect(() => { fetchRecommendations(); }, []);
 
   // Track dwell time per card
   useEffect(() => {
@@ -215,6 +224,9 @@ export default function ExploreScreen() {
               ? 'Add more reading categories or check back soon — more people are sharing every day.'
               : 'Come back later. New confessions are matched to your taste as they arrive.'}
           </Text>
+          {withinD7 && (
+            <PrimaryButton label="Keep reading" onPress={fetchRecommendations} />
+          )}
           <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
           <GhostButton label="Write your own" onPress={() => router.replace('/write')} />
         </View>

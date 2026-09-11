@@ -25,16 +25,20 @@ import {
   View,
 } from 'react-native';
 import Animated, {
+  Easing,
   Extrapolation,
   interpolate,
   runOnJS,
   runOnUI,
   scrollTo,
   type SharedValue,
+  useAnimatedProps,
   useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withRepeat,
   withSequence,
   withSpring,
   withTiming,
@@ -46,6 +50,7 @@ import { router } from 'expo-router';
 import { CATEGORIES, type CategoryId } from '@/lib/categories';
 import { HeartIcon } from '@/components/HeartIcon';
 import { CategoryBadge } from '@/components/CategoryGlyph';
+import { EmptyBench } from '@/components/illustrations';
 import { markFtueDone } from '@/lib/onboarding';
 import { setProfilePersona, setProfileName } from '@/lib/profile';
 import { saveReaderPreferences } from '@/lib/api';
@@ -55,6 +60,8 @@ import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { color, fontFamily, radius } from '@/theme/tokens';
 import { useTheme, useThemeColors } from '@/theme/ThemeProvider';
+
+const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
 
 // ─── Design constants ─────────────────────────────────────────────────────────
 
@@ -68,15 +75,35 @@ const LEFT_R = 0.4111; // splash-quote-left width ratio
 
 function FtueBust({ persona, bustScale }: { persona: Persona; bustScale: SharedValue<number> }) {
   const [, skin, hair] = persona.colors;
-  const aStyle = useAnimatedStyle(() => ({ transform: [{ scale: bustScale.value }] }));
+  const reduceMotion  = useReducedMotion();
+  const blinkRy       = useSharedValue(5);
+
+  // Start blink loop on mount, cancel on unmount
+  React.useEffect(() => {
+    if (reduceMotion) return;
+    const BLINK_INTERVAL = 3800;
+    const BLINK_DUR      = 80;
+    blinkRy.value = withRepeat(
+      withSequence(
+        withDelay(BLINK_INTERVAL, withTiming(0.2, { duration: BLINK_DUR, easing: Easing.in(Easing.quad) })),
+        withTiming(5,             { duration: BLINK_DUR * 1.5, easing: Easing.out(Easing.quad) }),
+      ),
+      -1,
+    );
+    return () => { blinkRy.value = 5; };
+  }, [reduceMotion]);
+
+  const eyeProps = useAnimatedProps(() => ({ ry: blinkRy.value }));
+  const aStyle   = useAnimatedStyle(() => ({ transform: [{ scale: bustScale.value }] }));
+
   return (
     <Animated.View style={aStyle}>
       <Svg width={120} height={126} viewBox="0 0 80 84">
         <Circle cx="40" cy="38" r="33" fill={hair} />
         <Circle cx="40" cy="44" r="24" fill={skin} />
         <Path d="M16 36 Q40 6 64 36 Q56 22 40 21 Q24 22 16 36 Z" fill={hair} />
-        <Ellipse cx="31" cy="44" rx="4" ry="5" fill={EYE_W} />
-        <Ellipse cx="49" cy="44" rx="4" ry="5" fill={EYE_W} />
+        <AnimatedEllipse cx="31" cy="44" rx={4} animatedProps={eyeProps} fill={EYE_W} />
+        <AnimatedEllipse cx="49" cy="44" rx={4} animatedProps={eyeProps} fill={EYE_W} />
         <Circle cx="31.6" cy="44.8" r="2.3" fill={INK2} />
         <Circle cx="49.6" cy="44.8" r="2.3" fill={INK2} />
         <Ellipse cx="26" cy="52" rx="4" ry="2.6" fill="#F0837A" fillOpacity="0.55" />
@@ -474,9 +501,9 @@ export default function WelcomeScreen() {
               </View>
               <Text style={s.wordmark}>soulyap</Text>
             </View>
-            {/* Illustration fills the flex center */}
+            {/* Animated two-person illustration */}
             <View style={s.heroCenter}>
-              <IllustrationConnect />
+              <EmptyBench style={{ width: '100%', aspectRatio: 4 / 3 }} />
             </View>
             <Text style={s.tagline}>
               Say the things you can't say out loud — and meet the one person who felt the same.
@@ -673,7 +700,7 @@ export default function WelcomeScreen() {
                       <ScrawlIcon
                         name={icon}
                         size={32}
-                        color={active ? '#1A1A1A' : dynColor.dim}
+                        color={active ? '#FFFFFF' : dynColor.dim}
                         roughen={false}
                         strokeWidth={2.5}
                       />
@@ -967,7 +994,8 @@ const s = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   themeOptActive: {
-    backgroundColor: '#FFE500',
+    backgroundColor: '#E53935',
+    borderColor:     '#000000',
   },
   themeOptLabel: {
     fontFamily:    fontFamily.sansBold,
@@ -977,7 +1005,7 @@ const s = StyleSheet.create({
     color:         color.dim,
   },
   themeOptLabelActive: {
-    color: BORDER,
+    color: '#FFFFFF',
   },
   themeHint: {
     fontFamily: fontFamily.sans,

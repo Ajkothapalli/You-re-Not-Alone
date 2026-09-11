@@ -13,10 +13,11 @@
  * unaffected: no other users' confessions appear here.
  */
 
-import { GhostButton } from '@/components/Buttons';
+import { GhostButton, PrimaryButton } from '@/components/Buttons';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
+import { NotificationsEmpty } from '@/components/illustrations';
 import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -216,10 +217,20 @@ export default function MyConfessionsScreen() {
         </View>
       ) : !hasSomething ? (
         <View style={styles.center}>
-          <Text style={styles.emptyText}>
-            you haven't written anything yet.{'\n'}
-            your confessions will appear here.
-          </Text>
+          <View style={styles.emptyCard}>
+            <View pointerEvents="none" style={styles.emptyCardShadow} />
+            <View style={styles.emptyCardInner}>
+              <NotificationsEmpty style={{ width: '100%', aspectRatio: 4 / 3 }} />
+              <Text style={styles.emptyHeading}>Nothing here yet</Text>
+              <Text style={styles.emptyText}>
+                Write your first confession and come back to see it here.
+              </Text>
+              <PrimaryButton
+                label="Write now"
+                onPress={() => router.back()}
+              />
+            </View>
+          </View>
         </View>
       ) : (
         <FlatList
@@ -265,6 +276,35 @@ function createStyles(color: ColorSet) {
       alignItems:     'center',
       justifyContent: 'center',
       padding:        spacing.screenPadding,
+    },
+    emptyCard: {
+      width:         '100%',
+      paddingRight:  SHADOW,
+      paddingBottom: SHADOW,
+    },
+    emptyCardShadow: {
+      position:        'absolute',
+      top:             SHADOW,
+      left:            SHADOW,
+      right:           0,
+      bottom:          0,
+      borderRadius:    radius.card,
+      backgroundColor: color.border,
+    },
+    emptyCardInner: {
+      backgroundColor: color.ink,
+      borderRadius:    radius.card,
+      borderWidth:     2,
+      borderColor:     color.border,
+      padding:         20,
+      gap:             12,
+      alignItems:      'center',
+    },
+    emptyHeading: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   18,
+      color:      color.paper,
+      textAlign:  'center',
     },
     emptyText: {
       fontFamily: fontFamily.sans,

@@ -9,6 +9,7 @@
  * Edit re-runs the full safety pipeline — no bypass.
  */
 
+import { EmptyBench } from '@/components/illustrations';
 import { GhostButton } from '@/components/Buttons';
 import { showDialog } from '@/components/AppDialog';
 import { PERSONAS, PersonaBadge, getPersonaById } from '@/components/Persona';
@@ -379,9 +380,12 @@ export default function YouScreen() {
           {confessionsError}
         </Text>
       ) : confessions.length === 0 ? (
-        <Text style={styles.emptyConfessions}>
-          You haven't written anything yet.{'\n'}Your confessions will appear here.
-        </Text>
+        <View style={{ gap: 12 }}>
+          <EmptyBench style={{ width: '100%', aspectRatio: 4 / 3 }} />
+          <Text style={styles.emptyConfessions}>
+            You haven't written anything yet.{'\n'}Your confessions will appear here.
+          </Text>
+        </View>
       ) : (
         <View style={{ gap: 12 }}>
           {[...liveConfessions, ...otherConfessions].map((item) => {
@@ -462,7 +466,7 @@ export default function YouScreen() {
             <ScrawlIcon
               name={icon}
               size={22}
-              color={active ? '#1A1A1A' : color.dim}
+              color={active ? '#FFFFFF' : color.dim}
               roughen={false}
               strokeWidth={2.5}
             />
@@ -566,9 +570,9 @@ function createStyles(color: ColorSet) {
     // Appearance
     themeRow:            { flexDirection: 'row', gap: 10 },
     themeChip:           { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: radius.pill, borderWidth: 2, borderColor: color.border, backgroundColor: 'transparent' },
-    themeChipActive:     { backgroundColor: '#FFE500', borderColor: '#1A1A1A' },
+    themeChipActive:     { backgroundColor: '#E53935', borderColor: '#000000' },
     themeChipText:       { fontFamily: fontFamily.sansBold, fontSize: 13, letterSpacing: 0.18 * 13, textTransform: 'uppercase', color: color.dim },
-    themeChipTextActive: { color: '#1A1A1A' },
+    themeChipTextActive: { color: '#FFFFFF' },
 
     // Actions
     actions:    { gap: 12, marginTop: 8 },

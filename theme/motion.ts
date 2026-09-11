@@ -134,3 +134,26 @@ export const OPACITY = {
   /** Loading pulse range — high end. */
   breathHi: 1.00,
 } as const;
+
+// ─── Illustration idle-loop clocks (ms) ───────────────────────────────────────
+// Two periods per clock: primary / alternate (second figure uses alternate so
+// no two clocks in a scene share a period — the scene never visibly "beats").
+// From docs/design/illustration.md §6.
+export const ILLUSTRATION = {
+  /** Chest breathing — [primary, alternate] */
+  breathe:   [5200, 6100] as const,
+  /** Head nod — [primary, alternate] */
+  nod:       [7000, 7600] as const,
+  /** Eye blink — single period; blink occurs in last 9% of the cycle */
+  blink:     6100,
+  /** Shrub / plant sway */
+  sway:      6400,
+  /** Leaf fall cycle (initial phase: start -4s into cycle) */
+  leaf:      13000,
+  /** Scrap release cycle */
+  release:   12000,
+  /** Resonance heartbeat (decorative — real haptic belongs to the match moment) */
+  heartbeat: 4800,
+  /** Steam wisp rise (second wisp: -1.4s offset) */
+  steam:     3800,
+} as const;

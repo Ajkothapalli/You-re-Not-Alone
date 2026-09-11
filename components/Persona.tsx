@@ -402,7 +402,9 @@ const styles = StyleSheet.create({
     borderRadius:   radius.pill,
     alignItems:     'center',
     justifyContent: 'center',
-    overflow:       'hidden',   // bust crops at the badge edge — neck ends here
+    overflow:       'hidden',
+    borderWidth:    2,
+    borderColor:    '#1A1A1A',
   },
   name: {
     fontFamily:    fontFamily.sansBold,

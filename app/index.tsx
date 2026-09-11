@@ -11,6 +11,7 @@
  */
 
 import { announce } from '@/lib/a11y';
+import { markInstall } from '@/lib/d7';
 import { getDobOrder, maskDob, dobToISO, isAdultISO } from '@/lib/dobFormat';
 import { createOrUpdateAccount, getReaderPreferences } from '@/lib/api';
 import { resetFtue } from '@/lib/onboarding';
@@ -82,8 +83,8 @@ export default function IndexScreen() {
     const t0 = Date.now();
 
     try {
-      // Non-blocking — failure is irrelevant to the routing decision.
       void hydrateProfile().catch(() => {});
+      void markInstall().catch(() => {});
 
       // Fire both queries in parallel so acct lookup doesn't gate prefs.
       const acctP = withTimeout(
@@ -163,6 +164,11 @@ export default function IndexScreen() {
         if (!session?.user) {
           setError(err.message ?? 'Sign-in failed. Try again.');
           setStep('email');
+        } else {
+          // Session is valid but routing queries failed (network blip).
+          // Don't leave the user on a permanent loading spinner — show retry.
+          routingRef.current = false;
+          setStep('retry');
         }
       } finally {
         setBusy(false);

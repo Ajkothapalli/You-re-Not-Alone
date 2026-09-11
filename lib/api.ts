@@ -270,7 +270,7 @@ export interface RecommendationsResult {
   premiumRequired: boolean;
 }
 
-export async function getRecommendations(): Promise<RecommendationsResult> {
+export async function getRecommendations(d7Bypass = false): Promise<RecommendationsResult> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
@@ -280,18 +280,15 @@ export async function getRecommendations(): Promise<RecommendationsResult> {
       { body: { action: 'recommend' } },
     );
     if (error) throw error;
-    // Server enforced the paywall — respect it, never fall back to dummy
-    // (dummy data would defeat the gate in production).
-    if (data?.premiumRequired) return { confessions: [], premiumRequired: true };
+    // Server enforced the paywall. For D7 users fall through to preview pool;
+    // for everyone else respect the gate — never use dummy data to defeat it.
+    if (data?.premiumRequired && !d7Bypass) return { confessions: [], premiumRequired: true };
     if (data?.confessions?.length) return { confessions: data.confessions, premiumRequired: false };
   } catch {
-    // Edge Function not deployed — fall through to preview data so the
-    // feature is still usable before billing/backend are wired.
+    // Edge Function not deployed — fall through to preview data.
   }
 
-  // PREVIEW FALLBACK — dummy confessions across the reader's chosen
-  // categories. Remove once the recommend-confessions function and a
-  // real pool are live.
+  // PREVIEW FALLBACK (also D7 bypass path for premium gate)
   const prefs = await getReaderPreferences();
   return {
     confessions:    getDummyRecommendations(prefs?.categories ?? []),
