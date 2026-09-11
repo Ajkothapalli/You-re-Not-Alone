@@ -13,10 +13,12 @@ export async function getNotifications(): Promise<{
   notifications: AppNotification[];
   unreadCount:   number;
 }> {
+  // functions.invoke() defaults to POST; get-notifications only accepts GET
+  // (405s anything else) — same bug class as get-my-confessions.
   const { data, error } = await supabase.functions.invoke<{
     notifications: AppNotification[];
     unreadCount:   number;
-  }>('get-notifications');
+  }>('get-notifications', { method: 'GET' });
 
   if (error || !data) return { notifications: [], unreadCount: 0 };
   return data;

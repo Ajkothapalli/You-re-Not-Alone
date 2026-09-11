@@ -197,8 +197,13 @@ export async function getMyConfessions(): Promise<OwnConfession[]> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
+  // supabase-js's functions.invoke() defaults to POST when no method is given,
+  // but the get-my-confessions Edge Function only accepts GET (405s anything
+  // else) — every call was failing before this was made explicit, which is
+  // why confession history never loaded regardless of what was in the DB.
   const { data, error } = await supabase.functions.invoke<{ confessions: OwnConfession[] }>(
     'get-my-confessions',
+    { method: 'GET' },
   );
   if (error) throw error;
   return data?.confessions ?? [];
