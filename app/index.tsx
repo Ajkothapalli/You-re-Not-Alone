@@ -69,6 +69,10 @@ export default function IndexScreen() {
 
   const stepRef     = useRef(step);
   const routingRef  = useRef(false);   // prevents concurrent routeAfterAuth calls
+  // De-dupes a PKCE code / access token seen via BOTH runBoot()'s
+  // Linking.getInitialURL() check and the 'url' event listener — see
+  // handleDeepLink below for why the same deep link can reach it twice.
+  const handledDeepLinksRef = useRef<Set<string>>(new Set());
   useEffect(() => { stepRef.current = step; }, [step]);
 
   // Announce errors to the screen reader as they appear.
@@ -135,18 +139,37 @@ export default function IndexScreen() {
   }
 
   // ── Deep link handler (magic-link + Google OAuth PKCE redirect) ──────────────
+  //
+  // Root cause of the Android "stuck loading" bug: this function can be invoked
+  // TWICE, concurrently, for the exact same URL — once from runBoot() via
+  // Linking.getInitialURL() (when the OAuth redirect cold-starts the app) and
+  // once from the Linking 'url' event listener registered in the same effect
+  // (the native side doesn't suppress the event just because getInitialURL()
+  // already returned it). Both calls raced to exchange the SAME single-use
+  // PKCE code: whichever lost threw "code already used", landed in the catch
+  // block, and reset routingRef/step — stomping the winner's in-flight routing.
+  // This was most visible for brand-new users, where routing after auth is a
+  // local setStep('dob') rather than a router.replace, so there was nothing
+  // to protect it from being overwritten by the loser's setStep('retry').
+  //
+  // Fix: claim the code/token synchronously (before any await) so only the
+  // first call ever attempts the exchange — JS's single-threaded execution
+  // guarantees this check-and-claim can't itself race. The second call becomes
+  // a true no-op instead of racing the exchange and clobbering state.
   async function handleDeepLink(url: string) {
     // PKCE code flow — Google OAuth on Android fires this BEFORE (or instead of)
     // openAuthSessionAsync resolving. Dismiss the browser first so it doesn't
     // block, then exchange the code for a session.
     const codeMatch = url.match(/[?&#]code=([^&#]+)/);
     if (codeMatch) {
+      const code = decodeURIComponent(codeMatch[1]);
+      if (handledDeepLinksRef.current.has(code)) return;
+      handledDeepLinksRef.current.add(code);
+
       WebBrowser.dismissBrowser();
       setBusy(true);
       try {
-        const { error: exchErr } = await supabase.auth.exchangeCodeForSession(
-          decodeURIComponent(codeMatch[1]),
-        );
+        const { error: exchErr } = await supabase.auth.exchangeCodeForSession(code);
         if (exchErr) throw exchErr;
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('No user after sign-in');
@@ -154,10 +177,17 @@ export default function IndexScreen() {
         // This replaces the frozen-button-spinner the user would otherwise see.
         setStep('loading');
         setBusy(false);
+        // A deep-link-driven sign-in is the freshest, most authoritative signal
+        // we'll get — it must always route, regardless of any stale routingRef
+        // left by runBoot's own (now-irrelevant) session check.
+        routingRef.current = false;
         await routeAfterAuth(user.id);
       } catch (err: any) {
-        // Code may have already been exchanged by openAuthSessionAsync path —
-        // check for an existing session before surfacing an error.
+        // With the de-dupe above, reaching here means a genuine failure (expired
+        // code, network error) — not a duplicate-code race. A session may still
+        // exist (e.g. a prior attempt already succeeded), so try to route once
+        // more before giving up — the retry screen should be a last resort, not
+        // the primary recovery path.
         const { data: { session } } = await supabase.auth.getSession().catch(
           () => ({ data: { session: null } }),
         );
@@ -165,10 +195,12 @@ export default function IndexScreen() {
           setError(err.message ?? 'Sign-in failed. Try again.');
           setStep('email');
         } else {
-          // Session is valid but routing queries failed (network blip).
-          // Don't leave the user on a permanent loading spinner — show retry.
           routingRef.current = false;
-          setStep('retry');
+          try {
+            await routeAfterAuth(session.user.id);
+          } catch {
+            setStep('retry');
+          }
         }
       } finally {
         setBusy(false);
@@ -180,6 +212,11 @@ export default function IndexScreen() {
     const { accessToken, refreshToken } = parseAuthTokens(url);
     if (!accessToken || !refreshToken) return;
 
+    // Same double-dispatch risk as the PKCE branch above (a magic link can
+    // also cold-start the app) — de-dupe by the access token.
+    if (handledDeepLinksRef.current.has(accessToken)) return;
+    handledDeepLinksRef.current.add(accessToken);
+
     setBusy(true);
     try {
       const { error: err } = await supabase.auth.setSession({
@@ -190,6 +227,7 @@ export default function IndexScreen() {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('No user after setSession');
+      routingRef.current = false;
       await routeAfterAuth(user.id);
     } catch (err: any) {
       setError(err.message ?? 'Sign-in failed. Try again.');
@@ -495,13 +533,13 @@ export default function IndexScreen() {
               placeholder={dobPlaceholder}
               placeholderTextColor={color.dim}
               keyboardType="number-pad"
-              maxLength={10}
+              maxLength={8}
               autoFocus
               onSubmitEditing={handleDob}
               returnKeyType="done"
               accessibilityLabel="Date of birth"
               accessibilityHint={
-                dobOrder.map(p => p === 'year' ? 'four digit year' : `two digit ${p}`).join(', ') +
+                dobOrder.map(p => `two digit ${p}`).join(', ') +
                 '. Dashes are added automatically.'
               }
             />

@@ -25,8 +25,8 @@ import { Svg, G, Path, Rect, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
 
 import { useReducedMotion } from '@/lib/a11y';
-import { ILL_COLOR, STROKE } from '@/theme/illustration';
-import { ILLUSTRATION, EASING } from '@/theme/motion';
+import { ILL_COLOR, STROKE, EASING_WORKLET } from '@/theme/illustration';
+import { ILLUSTRATION } from '@/theme/motion';
 import { useIdleLayer } from '@/components/illustrations/behaviours';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
@@ -143,11 +143,23 @@ function EmptyBenchAnimated({ style }: { style?: ViewStyle }) {
     };
   });
 
+  // NOTE — rotate() is deliberately not used in any transform string below.
+  // react-native-svg's native <G>/<Ellipse> transform prop expects a raw SVG
+  // transform string (unitless rotate, e.g. "rotate(5)"), but Reanimated 4's
+  // useAnimatedProps forces every "transform" update through its own
+  // CSS-style processor (updateProps.ts — unconditional for isAnimatedProps),
+  // which requires a unit suffix ("5deg") or throws "invalidTransform". Once
+  // suffixed, the string round-trips back out with that "deg" suffix intact,
+  // which react-native-svg's native PEG parser then rejects as invalid SVG
+  // syntax ("Expected ... but 'd' found'). There is no rotate() string that
+  // survives both parsers in this react-native-reanimated + react-native-svg
+  // version combination, so rotation-based motion here is approximated with
+  // translate/scale instead — this is what fixed the welcome-screen crash.
   const headProps = useAnimatedProps(() => {
     'worklet';
-    const ty = idle.nodY.value, r = idle.nodR.value;
+    const ty = idle.nodY.value;
     return {
-      transform: `translate(${CX},${CY_NECK}) rotate(${r}) translate(-${CX},-${CY_NECK}) translate(0,${ty})`,
+      transform: `translate(0,${ty})`,
     };
   });
 
@@ -155,23 +167,25 @@ function EmptyBenchAnimated({ style }: { style?: ViewStyle }) {
     'worklet';
     const s = idle.blinkS.value;
     return {
-      transform: `translate(${CX},${CY_EYES}) scaleY(${s}) translate(-${CX},-${CY_EYES})`,
+      transform: `translate(${CX},${CY_EYES}) scale(1,${s}) translate(-${CX},-${CY_EYES})`,
     };
   });
 
   const swayProps = useAnimatedProps(() => {
     'worklet';
+    // Was a ±1.6° rotate around the shrub base; substituted with an
+    // equally subtle horizontal scale pulse to keep a "breeze" feel.
     return {
-      transform: `rotate(${swayR.value},${CX_SWAY},${CY_SWAY})`,
+      transform: `translate(${CX_SWAY},${CY_SWAY}) scale(${1 + swayR.value / 80},1) translate(-${CX_SWAY},-${CY_SWAY})`,
     };
   });
 
   const leafProps = useAnimatedProps(() => {
     'worklet';
-    const x = leafX.value, y = leafY.value, r = leafR.value;
+    const x = leafX.value, y = leafY.value;
     return {
       opacity:   leafOp.value,
-      transform: `translate(${x},${y}) rotate(${r})`,
+      transform: `translate(${x},${y})`,
     };
   });
 
@@ -179,7 +193,7 @@ function EmptyBenchAnimated({ style }: { style?: ViewStyle }) {
     const HALF = (ms: number) => Math.round(ms / 2);
 
     // Sway — shrub rotates ±1.6° from base (330, 244), 6.4s period
-    swayR.value = withRepeat(withTiming(1.6, { duration: HALF(ILLUSTRATION.sway), easing: EASING.breathe }), -1, true);
+    swayR.value = withRepeat(withTiming(1.6, { duration: HALF(ILLUSTRATION.sway), easing: EASING_WORKLET.breathe }), -1, true);
 
     // Leaf — 13s fall with two drifts and slow turn, fades at both ends
     const T = ILLUSTRATION.leaf;
@@ -187,9 +201,9 @@ function EmptyBenchAnimated({ style }: { style?: ViewStyle }) {
     const hold    = Math.round(T * 0.72);
     const fadeOut = T - fadeIn - hold;
     leafX.value  = withDelay(0, withRepeat(withSequence(
-      withTiming(-20, { duration: Math.round(T * 0.45), easing: EASING.breathe }),
-      withTiming(+12, { duration: Math.round(T * 0.45), easing: EASING.breathe }),
-      withTiming(0,   { duration: Math.round(T * 0.10), easing: EASING.breathe }),
+      withTiming(-20, { duration: Math.round(T * 0.45), easing: EASING_WORKLET.breathe }),
+      withTiming(+12, { duration: Math.round(T * 0.45), easing: EASING_WORKLET.breathe }),
+      withTiming(0,   { duration: Math.round(T * 0.10), easing: EASING_WORKLET.breathe }),
     ), -1, false));
     leafY.value  = withRepeat(withTiming(196, { duration: T, easing: Easing.linear }), -1, false);
     leafR.value  = withRepeat(withTiming(-30, { duration: T, easing: Easing.linear }), -1, false);

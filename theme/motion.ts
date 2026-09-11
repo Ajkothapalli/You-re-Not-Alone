@@ -12,6 +12,20 @@
  * Resonance (match arrives + ripple + heartbeat). Everything else is chrome-quiet.
  */
 
+// NOTE: this EASING token set is built on RN core's Easing (react-native),
+// on purpose — most consumers of this file (AnimatedSplash, Buttons,
+// ConfessionCard, ReadCard, CounterPill, WriteFAB, GoogleSignInButton,
+// AppDialog, Celebration, ProfileButton, confession/[id]) animate with RN
+// core's `Animated` API, not Reanimated, and importing react-native-reanimated
+// here would pull it (and its test-mock brittleness) into every one of their
+// test files. Reanimated's own Easing is NOT a drop-in for RN's here: a plain
+// RN Easing function fed into Reanimated's withTiming()/withRepeat() throws
+// "[Reanimated] The easing function is not a worklet" — the files that
+// actually need Reanimated-worklet easings (the illustration behaviour hooks,
+// EmptyBench, NotificationsEmpty, Release, Resonance) already import
+// react-native-reanimated directly for useSharedValue/withTiming, so they
+// build their own worklet-safe easing constants locally from that import
+// instead of reading EASING.enter/breathe/exit from here.
 import { Easing } from 'react-native';
 
 // ─── Durations (ms) ───────────────────────────────────────────────────────────

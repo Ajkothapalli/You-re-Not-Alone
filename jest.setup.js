@@ -10,12 +10,18 @@ jest.mock('expo-secure-store', () => ({
   deleteItemAsync: jest.fn().mockResolvedValue(undefined),
 }));
 
-// react-native-svg — return plain Views so renders don't crash
+// react-native-svg — return plain Views so renders don't crash.
+// testID is forwarded when explicitly set; falls back to the element name.
 jest.mock('react-native-svg', () => {
-  const React   = require('react');
+  const React    = require('react');
   const { View } = require('react-native');
   const mock = (name) => {
-    const C = ({ children }) => React.createElement(View, { testID: name }, children);
+    const C = ({ children, testID, transform, style, ...rest }) =>
+      React.createElement(
+        View,
+        { testID: testID !== undefined ? testID : name, transform, style },
+        children,
+      );
     C.displayName = name;
     return C;
   };

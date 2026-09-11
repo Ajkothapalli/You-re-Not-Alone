@@ -24,8 +24,8 @@ import { Svg, G, Path, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
 
 import { useReducedMotion } from '@/lib/a11y';
-import { ILL_COLOR, STROKE } from '@/theme/illustration';
-import { ILLUSTRATION, EASING } from '@/theme/motion';
+import { ILL_COLOR, STROKE, EASING_WORKLET } from '@/theme/illustration';
+import { ILLUSTRATION } from '@/theme/motion';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 
@@ -117,28 +117,38 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     };
   });
 
+  // NOTE — rotate() is deliberately not used below. See EmptyBench.tsx for
+  // the full explanation: no rotate() string survives both Reanimated 4's
+  // transform-string processor (requires a "deg" unit) and react-native-svg's
+  // native SVG transform parser (rejects a "deg" unit) at once, so
+  // rotation-based motion is approximated with translate/scale instead.
+  // TODO before mounting this component: the arm-open gesture (armLProps/
+  // armRProps) has been reduced to a scale pulse placeholder — it will read
+  // as a life-like "breathe" rather than a deliberate "opening" motion until
+  // it's redesigned (e.g. as a wrapping Animated.View over a nested <Svg>,
+  // which correctly consumes Reanimated's processed transform array).
   const headProps = useAnimatedProps(() => {
     'worklet';
     return {
-      transform: `translate(${CX},${CY_NECK}) rotate(${nodR.value}) translate(-${CX},-${CY_NECK}) translate(0,${nodY.value})`,
+      transform: `translate(0,${nodY.value})`,
     };
   });
 
   const armLProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${-armLR.value},${ARM_L.x},${ARM_L.y})` };
+    return { transform: `translate(${ARM_L.x},${ARM_L.y}) scale(${1 + armLR.value / 40}) translate(-${ARM_L.x},-${ARM_L.y})` };
   });
 
   const armRProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${armLR.value},${ARM_R.x},${ARM_R.y})` };
+    return { transform: `translate(${ARM_R.x},${ARM_R.y}) scale(${1 + armLR.value / 40}) translate(-${ARM_R.x},-${ARM_R.y})` };
   });
 
   const noteProps = useAnimatedProps(() => {
     'worklet';
     return {
       opacity:   noteO.value,
-      transform: `translate(${noteX.value},${noteY.value}) rotate(${noteR.value})`,
+      transform: `translate(${noteX.value},${noteY.value})`,
     };
   });
 
@@ -151,12 +161,12 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     const HALF = (ms: number) => Math.round(ms / 2);
 
     // Breathe (c2) — alternate period
-    breathX.value = withRepeat(withTiming(1.008, { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING.breathe }), -1, true);
-    breathY.value = withRepeat(withTiming(1.02,  { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING.breathe }), -1, true);
+    breathX.value = withRepeat(withTiming(1.008, { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING_WORKLET.breathe }), -1, true);
+    breathY.value = withRepeat(withTiming(1.02,  { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING_WORKLET.breathe }), -1, true);
 
     // Nod (h2) — alternate period
-    nodY.value = withRepeat(withTiming(-1.2, { duration: HALF(ILLUSTRATION.nod[1]), easing: EASING.breathe }), -1, true);
-    nodR.value = withRepeat(withTiming(0.8,  { duration: HALF(ILLUSTRATION.nod[1]), easing: EASING.breathe }), -1, true);
+    nodY.value = withRepeat(withTiming(-1.2, { duration: HALF(ILLUSTRATION.nod[1]), easing: EASING_WORKLET.breathe }), -1, true);
+    nodR.value = withRepeat(withTiming(0.8,  { duration: HALF(ILLUSTRATION.nod[1]), easing: EASING_WORKLET.breathe }), -1, true);
 
     // Arms: open ∓6° at 34% (4080ms), back by 58% (6960ms)
     // Implemented as a sequence within the 12s release cycle
@@ -166,9 +176,9 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     armLR.value = withRepeat(
       withSequence(
         withTiming(0, { duration: armOpen }),
-        withTiming(6, { duration: Math.round(armOpen * 0.2), easing: EASING.enter }),
+        withTiming(6, { duration: Math.round(armOpen * 0.2), easing: EASING_WORKLET.enter }),
         withTiming(6, { duration: armHold }),
-        withTiming(0, { duration: armClose, easing: EASING.breathe }),
+        withTiming(0, { duration: armClose, easing: EASING_WORKLET.breathe }),
       ),
       -1, false,
     );
@@ -180,9 +190,9 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     const hold2  = T - appear - hold1 - rise;
     noteO.value = withRepeat(
       withSequence(
-        withTiming(1, { duration: appear, easing: EASING.enter }),
+        withTiming(1, { duration: appear, easing: EASING_WORKLET.enter }),
         withTiming(1, { duration: hold1 }),
-        withTiming(0, { duration: rise, easing: EASING.exit }),
+        withTiming(0, { duration: rise, easing: EASING_WORKLET.exit }),
         withTiming(0, { duration: hold2 }),
       ),
       -1, false,
@@ -190,7 +200,7 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     noteX.value = withRepeat(
       withSequence(
         withTiming(0,   { duration: appear + hold1 }),
-        withTiming(-46, { duration: rise, easing: EASING.exit }),
+        withTiming(-46, { duration: rise, easing: EASING_WORKLET.exit }),
         withTiming(-46, { duration: hold2 }),
       ),
       -1, false,
@@ -198,7 +208,7 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     noteY.value = withRepeat(
       withSequence(
         withTiming(0,    { duration: appear + hold1 }),
-        withTiming(-104, { duration: rise, easing: EASING.exit }),
+        withTiming(-104, { duration: rise, easing: EASING_WORKLET.exit }),
         withTiming(-104, { duration: hold2 }),
       ),
       -1, false,
@@ -206,7 +216,7 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     noteR.value = withRepeat(
       withSequence(
         withTiming(0,   { duration: appear + hold1 }),
-        withTiming(-12, { duration: rise, easing: EASING.exit }),
+        withTiming(-12, { duration: rise, easing: EASING_WORKLET.exit }),
         withTiming(-12, { duration: hold2 }),
       ),
       -1, false,
@@ -220,8 +230,8 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     dotO.value = withRepeat(
       withSequence(
         withTiming(0, { duration: dotStart }),
-        withTiming(1, { duration: dotIn, easing: EASING.enter }),
-        withTiming(0, { duration: dotOut, easing: EASING.exit }),
+        withTiming(1, { duration: dotIn, easing: EASING_WORKLET.enter }),
+        withTiming(0, { duration: dotOut, easing: EASING_WORKLET.exit }),
         withTiming(0, { duration: dotRest }),
       ),
       -1, false,
@@ -229,7 +239,7 @@ function ReleaseAnimated({ style }: { style?: ViewStyle }) {
     dotY.value = withRepeat(
       withSequence(
         withTiming(0,   { duration: dotStart }),
-        withTiming(-40, { duration: dotIn + dotOut, easing: EASING.exit }),
+        withTiming(-40, { duration: dotIn + dotOut, easing: EASING_WORKLET.exit }),
         withTiming(-40, { duration: dotRest }),
       ),
       -1, false,

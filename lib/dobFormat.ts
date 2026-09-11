@@ -18,18 +18,19 @@ export function getDobOrder(): DobOrder {
     if (order.length !== 3) throw new Error('unexpected parts');
 
     const placeholder = order
-      .map(p => p === 'year' ? 'YYYY' : p === 'month' ? 'MM' : 'DD')
+      .map(p => p === 'year' ? 'YY' : p === 'month' ? 'MM' : 'DD')
       .join('-');
 
     return { order, placeholder };
   } catch {
-    return { order: ['day', 'month', 'year'], placeholder: 'DD-MM-YYYY' };
+    return { order: ['day', 'month', 'year'], placeholder: 'DD-MM-YY' };
   }
 }
 
 export function maskDob(raw: string, prev: string, order: DobPart[]): string {
   const prevDigits = prev.replace(/\D/g, '');
-  let digits = raw.replace(/\D/g, '').slice(0, 8);
+  // Day, month, and year are all 2 digits now — 6 digits total.
+  let digits = raw.replace(/\D/g, '').slice(0, 6);
 
   const typingForward = digits.length > prevDigits.length;
 
@@ -39,7 +40,7 @@ export function maskDob(raw: string, prev: string, order: DobPart[]): string {
     digits = digits.slice(0, -1);
   }
 
-  const lengths = order.map(p => p === 'year' ? 4 : 2);
+  const lengths = order.map(() => 2);
 
   const chunks: string[] = [];
   let pos = 0;
@@ -62,11 +63,22 @@ export function maskDob(raw: string, prev: string, order: DobPart[]): string {
   return out;
 }
 
+/**
+ * Expand a 2-digit year into a 4-digit one, pivoting on the current year:
+ * YY ≤ (current year mod 100) → 2000+YY, else → 1900+YY.
+ * E.g. in 2026: 26 → 2026, 27 → 1927, 00 → 2000, 99 → 1999.
+ * This produces a sliding 100-year window that always ends at the current year.
+ */
+function expandYear(yy: number): number {
+  const currentYY = new Date().getFullYear() % 100;
+  return yy <= currentYY ? 2000 + yy : 1900 + yy;
+}
+
 export function dobToISO(masked: string, order: DobPart[]): string | null {
   const digits = masked.replace(/\D/g, '');
-  if (digits.length !== 8) return null;
+  if (digits.length !== 6) return null;
 
-  const lengths = order.map(p => p === 'year' ? 4 : 2);
+  const lengths = order.map(() => 2);
   const map: Record<DobPart, string> = { day: '', month: '', year: '' };
   let pos = 0;
   for (let i = 0; i < order.length; i++) {
@@ -74,13 +86,15 @@ export function dobToISO(masked: string, order: DobPart[]): string | null {
     pos += lengths[i];
   }
 
-  const year  = parseInt(map.year,  10);
+  const yy    = parseInt(map.year,  10);
   const month = parseInt(map.month, 10);
   const day   = parseInt(map.day,   10);
 
+  if (isNaN(yy) || isNaN(month) || isNaN(day)) return null;
+
+  const year        = expandYear(yy);
   const currentYear = new Date().getFullYear();
 
-  if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
   if (month < 1 || month > 12) return null;
   if (day < 1) return null;
   if (year < currentYear - 120) return null;

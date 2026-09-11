@@ -183,17 +183,29 @@ export function AnimatedArm({
   const dx2 = wrist[0] - elbow[0];
   const dy2 = wrist[1] - elbow[1];
 
+  // KNOWN BROKEN, DO NOT MOUNT YET: appending "deg" (below) fixes Reanimated's
+  // JS-side "invalidTransform" check, but the resulting string then round-trips
+  // out with that "deg" suffix still attached, which react-native-svg's native
+  // SVG transform parser rejects as invalid syntax ("Expected ... but 'd'
+  // found"). There is no rotate() string that satisfies both parsers at once
+  // in this react-native-reanimated + react-native-svg version combination —
+  // see EmptyBench.tsx's useIdleLayer-driven props for the same issue, fixed
+  // there by dropping rotation in favour of translate/scale. A rigged joint
+  // genuinely needs rotation, so AnimatedArm/AnimatedLeg need a real redesign
+  // (e.g. a wrapping Animated.View + useAnimatedStyle over a nested <Svg> per
+  // segment, since RN Views DO correctly consume Reanimated's processed
+  // transform array) before any behaviour hook that uses them is ever mounted.
   const upperProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${upperRot.value})` };
+    return { transform: `rotate(${upperRot.value}deg)` };
   });
   const foreProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${foreRot.value})` };
+    return { transform: `rotate(${foreRot.value}deg)` };
   });
   const handProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${handRot.value})` };
+    return { transform: `rotate(${handRot.value}deg)` };
   });
 
   return (
@@ -245,11 +257,11 @@ export function AnimatedLeg({
 
   const thighProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${thighRot.value})` };
+    return { transform: `rotate(${thighRot.value}deg)` };
   });
   const shinProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${shinRot.value})` };
+    return { transform: `rotate(${shinRot.value}deg)` };
   });
 
   return (

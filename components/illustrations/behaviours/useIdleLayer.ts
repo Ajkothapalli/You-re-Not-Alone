@@ -15,8 +15,8 @@ import {
   Easing,
   type SharedValue,
 } from 'react-native-reanimated';
-import { ILLUSTRATION, EASING } from '@/theme/motion';
-import { BEHAVIOUR } from '@/theme/illustration';
+import { ILLUSTRATION } from '@/theme/motion';
+import { BEHAVIOUR, EASING_WORKLET } from '@/theme/illustration';
 
 export interface IdleLayerValues {
   breathX:  SharedValue<number>;
@@ -72,8 +72,8 @@ export function useIdleLayer({ alternate = false } = {}): IdleLayerValues & {
     blinkS.value = withRepeat(
       withSequence(
         withTiming(1,    { duration: openDur,   easing: Easing.linear }),
-        withTiming(0.08, { duration: halfBlink, easing: EASING.enter }),
-        withTiming(1,    { duration: halfBlink, easing: EASING.enter }),
+        withTiming(0.08, { duration: halfBlink, easing: EASING_WORKLET.enter }),
+        withTiming(1,    { duration: halfBlink, easing: EASING_WORKLET.enter }),
       ),
       -1, false,
     );

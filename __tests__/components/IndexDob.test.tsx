@@ -3,12 +3,12 @@
  * invalid-date error, valid adult calls createOrUpdateAccount.
  */
 
-// Pin getDobOrder to DD-MM-YYYY so tests are locale-independent.
+// Pin getDobOrder to DD-MM-YY so tests are locale-independent.
 jest.mock('@/lib/dobFormat', () => {
   const actual = jest.requireActual('@/lib/dobFormat');
   return {
     ...actual,
-    getDobOrder: () => ({ order: ['day', 'month', 'year'], placeholder: 'DD-MM-YYYY' }),
+    getDobOrder: () => ({ order: ['day', 'month', 'year'], placeholder: 'DD-MM-YY' }),
   };
 });
 
@@ -48,6 +48,7 @@ jest.mock('@/lib/a11y', () => ({
 jest.mock('@/theme/ThemeProvider', () => ({
   usePalette:      () => ({ name: 'test', you: '#F5996E', them: '#FBBF24', bands: ['#4C40A4'] }),
   useThemeColors:  () => ({ bg: '#0A0A0A', ink: '#141414', paper: '#F5F5F5', dim: '#888888', line: '#2A2A2A', border: '#3A3A3A', accent: '#9C8BF6', feltText: '#A3A3A3', youreNotAlone: '#606060' }),
+  useTheme:        () => ({ isDark: true, theme: 'dark', setTheme: jest.fn(), colors: {} }),
 }));
 
 import React from 'react';
@@ -86,14 +87,14 @@ async function renderAtDob() {
 describe('DOB step', () => {
   beforeEach(() => { jest.clearAllMocks(); });
 
-  it('renders the locale placeholder DD-MM-YYYY', async () => {
+  it('renders the locale placeholder DD-MM-YY', async () => {
     const { getByPlaceholderText } = await renderAtDob();
-    expect(getByPlaceholderText('DD-MM-YYYY')).toBeTruthy();
+    expect(getByPlaceholderText('DD-MM-YY')).toBeTruthy();
   });
 
   it('typing digits shows auto-hyphens', async () => {
     const { getByPlaceholderText } = await renderAtDob();
-    const input = getByPlaceholderText('DD-MM-YYYY');
+    const input = getByPlaceholderText('DD-MM-YY');
 
     await act(async () => { fireEvent.changeText(input, '14'); });
     expect(input.props.value).toBe('14-');
@@ -101,31 +102,31 @@ describe('DOB step', () => {
     await act(async () => { fireEvent.changeText(input, '14-07'); });
     expect(input.props.value).toBe('14-07-');
 
-    await act(async () => { fireEvent.changeText(input, '14-07-1999'); });
-    expect(input.props.value).toBe('14-07-1999');
+    await act(async () => { fireEvent.changeText(input, '14-07-99'); });
+    expect(input.props.value).toBe('14-07-99');
   });
 
   it('invalid date shows placeholder-specific error', async () => {
     const { getByPlaceholderText, getByText } = await renderAtDob();
-    const input = getByPlaceholderText('DD-MM-YYYY');
+    const input = getByPlaceholderText('DD-MM-YY');
 
-    await act(async () => { fireEvent.changeText(input, '31-02-2000'); });
+    await act(async () => { fireEvent.changeText(input, '31-02-00'); });
     await act(async () => { fireEvent.press(getByText('Enter')); });
 
-    expect(getByText('Enter your date of birth as DD-MM-YYYY.')).toBeTruthy();
+    expect(getByText('Enter your date of birth as DD-MM-YY.')).toBeTruthy();
   });
 
   it('underage date shows 18+ error', async () => {
     const { getByPlaceholderText, getByText } = await renderAtDob();
-    const input = getByPlaceholderText('DD-MM-YYYY');
+    const input = getByPlaceholderText('DD-MM-YY');
 
     const d = new Date();
     d.setFullYear(d.getFullYear() - 17);
-    const dd   = String(d.getDate()).padStart(2, '0');
-    const mm   = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = String(d.getFullYear());
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yy = String(d.getFullYear() % 100).padStart(2, '0');
 
-    await act(async () => { fireEvent.changeText(input, `${dd}-${mm}-${yyyy}`); });
+    await act(async () => { fireEvent.changeText(input, `${dd}-${mm}-${yy}`); });
     await act(async () => { fireEvent.press(getByText('Enter')); });
 
     expect(getByText('You must be 18 or older to use this app.')).toBeTruthy();
@@ -133,9 +134,9 @@ describe('DOB step', () => {
 
   it('valid adult date calls createOrUpdateAccount with the correct Date', async () => {
     const { getByPlaceholderText, getByText } = await renderAtDob();
-    const input = getByPlaceholderText('DD-MM-YYYY');
+    const input = getByPlaceholderText('DD-MM-YY');
 
-    await act(async () => { fireEvent.changeText(input, '14-07-1999'); });
+    await act(async () => { fireEvent.changeText(input, '14-07-99'); });
     await act(async () => { fireEvent.press(getByText('Enter')); });
 
     expect(createOrUpdateAccount).toHaveBeenCalledWith(

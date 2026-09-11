@@ -13,6 +13,24 @@
 
 export { ILLUSTRATION } from './motion';
 
+// ─── Worklet-safe easings ──────────────────────────────────────────────────────
+// Mirrors theme/motion.ts's EASING.enter/breathe/exit, but built from
+// react-native-reanimated's own Easing rather than RN core's. Reanimated's
+// withTiming()/withRepeat() require a worklet-flagged easing function — a
+// plain RN core Easing function throws "[Reanimated] The easing function is
+// not a worklet" at runtime. theme/motion.ts intentionally stays on RN core's
+// Easing (it's imported by many RN-core-`Animated`-driven components whose
+// tests would otherwise pull in react-native-reanimated's jest mock), so the
+// files that actually animate with Reanimated (this illustration system)
+// import their worklet-safe easings from here instead.
+import { Easing as ReanimatedEasing } from 'react-native-reanimated';
+
+export const EASING_WORKLET = {
+  enter:   ReanimatedEasing.out(ReanimatedEasing.cubic),
+  breathe: ReanimatedEasing.inOut(ReanimatedEasing.sin),
+  exit:    ReanimatedEasing.in(ReanimatedEasing.quad),
+} as const;
+
 // ─── Palette ──────────────────────────────────────────────────────────────────
 
 export const ILL_COLOR = {

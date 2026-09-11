@@ -11,7 +11,7 @@
 
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { useThemeColors } from '@/theme/ThemeContext';
+import { useThemeColors } from '@/theme/ThemeProvider';
 import { radius } from '@/theme/tokens';
 import { ILL_COLOR } from '@/theme/illustration';
 

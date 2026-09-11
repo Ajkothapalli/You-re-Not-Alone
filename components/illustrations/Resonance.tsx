@@ -20,14 +20,13 @@ import Animated, {
   withSequence,
   withDelay,
   cancelAnimation,
-  Easing,
 } from 'react-native-reanimated';
 import { Svg, G, Path, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
 
 import { useReducedMotion } from '@/lib/a11y';
-import { ILL_COLOR, STROKE } from '@/theme/illustration';
-import { ILLUSTRATION, EASING, HEARTBEAT } from '@/theme/motion';
+import { ILL_COLOR, STROKE, EASING_WORKLET } from '@/theme/illustration';
+import { ILLUSTRATION } from '@/theme/motion';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
 
@@ -150,19 +149,24 @@ function ResonanceAnimated({ style }: { style?: ViewStyle }) {
 
   const blinkBProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `translate(180,145) scaleY(${blinkB.value}) translate(-180,-145)` };
+    return { transform: `translate(180,145) scale(1,${blinkB.value}) translate(-180,-145)` };
   });
 
   const blinkCProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `translate(170,145) scaleY(${blinkC.value}) translate(-170,-145)` };
+    return { transform: `translate(170,145) scale(1,${blinkC.value}) translate(-170,-145)` };
   });
 
+  // NOTE — rotate() is deliberately not used below. See EmptyBench.tsx for
+  // the full explanation: no rotate() string survives both Reanimated 4's
+  // transform-string processor (requires a "deg" unit) and react-native-svg's
+  // native SVG transform parser (rejects a "deg" unit) at once, so
+  // rotation-based motion is approximated with translate instead.
   // B's head lifts at the heartbeat
   const liftBProps = useAnimatedProps(() => {
     'worklet';
     return {
-      transform: `translate(${CX_B},${CY_B_NECK}) rotate(${liftBR.value}) translate(-${CX_B},-${CY_B_NECK}) translate(0,${liftBY.value})`,
+      transform: `translate(0,${liftBY.value})`,
     };
   });
 
@@ -170,7 +174,7 @@ function ResonanceAnimated({ style }: { style?: ViewStyle }) {
   const liftCProps = useAnimatedProps(() => {
     'worklet';
     return {
-      transform: `translate(${CX_C},${CY_C_NECK}) rotate(${liftCR.value}) translate(-${CX_C},-${CY_C_NECK}) translate(0,${liftCY.value})`,
+      transform: `translate(0,${liftCY.value})`,
     };
   });
 
@@ -184,8 +188,8 @@ function ResonanceAnimated({ style }: { style?: ViewStyle }) {
     yVal.value = withDelay(delayMs, withRepeat(
       withSequence(
         withTiming(0,    { duration: preHold }),
-        withTiming(-1.5, { duration: lift, easing: EASING.enter }),
-        withTiming(0,    { duration: settle, easing: EASING.breathe }),
+        withTiming(-1.5, { duration: lift, easing: EASING_WORKLET.enter }),
+        withTiming(0,    { duration: settle, easing: EASING_WORKLET.breathe }),
         withTiming(0,    { duration: postHold }),
       ),
       -1, false,
@@ -193,8 +197,8 @@ function ResonanceAnimated({ style }: { style?: ViewStyle }) {
     rVal.value = withDelay(delayMs, withRepeat(
       withSequence(
         withTiming(0,  { duration: preHold }),
-        withTiming(-5, { duration: lift, easing: EASING.enter }),
-        withTiming(0,  { duration: settle, easing: EASING.breathe }),
+        withTiming(-5, { duration: lift, easing: EASING_WORKLET.enter }),
+        withTiming(0,  { duration: settle, easing: EASING_WORKLET.breathe }),
         withTiming(0,  { duration: postHold }),
       ),
       -1, false,
@@ -205,21 +209,21 @@ function ResonanceAnimated({ style }: { style?: ViewStyle }) {
     const HALF = (ms: number) => Math.round(ms / 2);
 
     // B's breath — primary period 5.2s
-    breathBX.value = withRepeat(withTiming(1.008, { duration: HALF(ILLUSTRATION.breathe[0]), easing: EASING.breathe }), -1, true);
-    breathBY.value = withRepeat(withTiming(1.02,  { duration: HALF(ILLUSTRATION.breathe[0]), easing: EASING.breathe }), -1, true);
+    breathBX.value = withRepeat(withTiming(1.008, { duration: HALF(ILLUSTRATION.breathe[0]), easing: EASING_WORKLET.breathe }), -1, true);
+    breathBY.value = withRepeat(withTiming(1.02,  { duration: HALF(ILLUSTRATION.breathe[0]), easing: EASING_WORKLET.breathe }), -1, true);
 
     // C's breath — alternate period 6.1s
-    breathCX.value = withRepeat(withTiming(1.008, { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING.breathe }), -1, true);
-    breathCY.value = withRepeat(withTiming(1.02,  { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING.breathe }), -1, true);
+    breathCX.value = withRepeat(withTiming(1.008, { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING_WORKLET.breathe }), -1, true);
+    breathCY.value = withRepeat(withTiming(1.02,  { duration: HALF(ILLUSTRATION.breathe[1]), easing: EASING_WORKLET.breathe }), -1, true);
 
     // Heartbeat — scrap lub-dub scale sequence
     const HB = ILLUSTRATION.heartbeat;
     beatScale.value = withRepeat(
       withSequence(
-        withTiming(1.14, { duration: 100, easing: EASING.enter }),
-        withTiming(0.88, { duration: 80,  easing: EASING.exit }),
-        withTiming(1.05, { duration: 90,  easing: EASING.enter }),
-        withTiming(1,    { duration: 150, easing: EASING.breathe }),
+        withTiming(1.14, { duration: 100, easing: EASING_WORKLET.enter }),
+        withTiming(0.88, { duration: 80,  easing: EASING_WORKLET.exit }),
+        withTiming(1.05, { duration: 90,  easing: EASING_WORKLET.enter }),
+        withTiming(1,    { duration: 150, easing: EASING_WORKLET.breathe }),
         withTiming(1,    { duration: HB - 420 }), // hold at rest for remainder
       ),
       -1, false,
@@ -234,8 +238,8 @@ function ResonanceAnimated({ style }: { style?: ViewStyle }) {
     const halfBlink = Math.round(ILLUSTRATION.blink * 0.045);
     const blinkSeq  = withSequence(
       withTiming(1,    { duration: openDur }),
-      withTiming(0.08, { duration: halfBlink, easing: EASING.enter }),
-      withTiming(1,    { duration: halfBlink, easing: EASING.enter }),
+      withTiming(0.08, { duration: halfBlink, easing: EASING_WORKLET.enter }),
+      withTiming(1,    { duration: halfBlink, easing: EASING_WORKLET.enter }),
     );
     blinkB.value = withRepeat(blinkSeq, -1, false);
     // C's blink — same period but 2.5s offset (different phase)

@@ -9,18 +9,15 @@
  * On focus: fetch notifications, mark all unread as read, clear badge.
  */
 
+import { NotificationsEmpty } from '@/components/illustrations';
 import { getNotifications, markNotificationsRead, type AppNotification } from '@/lib/notifications';
 import { useNotificationsContext } from '@/lib/notificationsContext';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
-import { DURATION, EASING } from '@/theme/motion';
-import { useReducedMotion } from '@/lib/a11y';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import {
-  Animated,
   ActivityIndicator,
   ScrollView,
   StyleSheet,
@@ -147,39 +144,15 @@ export default function NotificationsScreen() {
 // ─── Empty state ──────────────────────────────────────────────────────────────
 
 function AlertsEmptyState() {
-  const color        = useThemeColors();
-  const reduceMotion = useReducedMotion();
-  const fadeAnim     = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (reduceMotion) { fadeAnim.setValue(1); return; }
-    Animated.timing(fadeAnim, {
-      toValue:         1,
-      duration:        DURATION.entrance,
-      delay:           180,
-      easing:          EASING.enter,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
+  const color = useThemeColors();
   return (
-    <Animated.View style={[emptyStyles.root, { opacity: fadeAnim }]}>
-
-      {/* Focal illustration — bell with floating accent heart */}
-      <View style={emptyStyles.focal}>
-        <ScrawlIcon name="bell" size={80} color={color.dim} roughen strokeWidth={2.2} />
-        <View style={emptyStyles.heartFloat} pointerEvents="none">
-          <ScrawlIcon name="heart" size={20} color={color.accent} roughen={false} strokeWidth={3} />
-        </View>
-      </View>
-
-      {/* Copy */}
+    <View style={emptyStyles.root}>
+      <NotificationsEmpty style={{ width: '100%', aspectRatio: 4 / 3 }} />
       <Text style={[emptyStyles.headline, { color: color.paper }]}>Still quiet</Text>
       <Text style={[emptyStyles.sub, { color: color.dim }]}>
         you'll hear it here when{'\n'}someone feels what you wrote
       </Text>
-
-    </Animated.View>
+    </View>
   );
 }
 
@@ -188,22 +161,8 @@ const emptyStyles = StyleSheet.create({
     flex:              1,
     alignItems:        'center',
     justifyContent:    'center',
-    paddingHorizontal: 40,
-    gap:               10,
-  },
-  // Focal zone: bell centered with room for the floating heart
-  focal: {
-    width:          96,
-    height:         96,
-    alignItems:     'center',
-    justifyContent: 'center',
-    marginBottom:   8,
-  },
-  // Heart floats upper-right, outside the focal bounds
-  heartFloat: {
-    position: 'absolute',
-    top:      6,
-    right:    -12,
+    paddingHorizontal: 32,
+    gap:               12,
   },
   headline: {
     fontFamily: fontFamily.sansBold,

@@ -25,8 +25,8 @@ import { Svg, G, Path, Rect, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
 
 import { useReducedMotion } from '@/lib/a11y';
-import { ILL_COLOR, STROKE } from '@/theme/illustration';
-import { ILLUSTRATION, EASING } from '@/theme/motion';
+import { ILL_COLOR, STROKE, EASING_WORKLET } from '@/theme/illustration';
+import { ILLUSTRATION } from '@/theme/motion';
 import { useIdleLayer } from '@/components/illustrations/behaviours';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
@@ -136,17 +136,24 @@ function NotificationsEmptyAnimated({ style }: { style?: ViewStyle }) {
     };
   });
 
+  // NOTE — rotate() is deliberately not used below. See EmptyBench.tsx for
+  // the full explanation: no rotate() string survives both Reanimated 4's
+  // transform-string processor (requires a "deg" unit) and react-native-svg's
+  // native SVG transform parser (rejects a "deg" unit) at once, so
+  // rotation-based motion is approximated with translate/scale instead.
   const headProps = useAnimatedProps(() => {
     'worklet';
-    const ty = idle.nodY.value, r = idle.nodR.value;
+    const ty = idle.nodY.value;
     return {
-      transform: `translate(${CX},${CY_NECK}) rotate(${r}) translate(-${CX},-${CY_NECK}) translate(0,${ty})`,
+      transform: `translate(0,${ty})`,
     };
   });
 
   const swayProps = useAnimatedProps(() => {
     'worklet';
-    return { transform: `rotate(${swayR.value},${CX_SWAY},${CY_SWAY})` };
+    // Was a ±1.6° rotate around the plant base; substituted with an
+    // equally subtle horizontal scale pulse to keep a "breeze" feel.
+    return { transform: `translate(${CX_SWAY},${CY_SWAY}) scale(${1 + swayR.value / 80},1) translate(-${CX_SWAY},-${CY_SWAY})` };
   });
 
   const steam1Props = useAnimatedProps(() => {
@@ -177,7 +184,7 @@ function NotificationsEmptyAnimated({ style }: { style?: ViewStyle }) {
 
   function startScenery() {
     const HALF = (ms: number) => Math.round(ms / 2);
-    swayR.value = withRepeat(withTiming(1.6, { duration: HALF(ILLUSTRATION.sway), easing: EASING.breathe }), -1, true);
+    swayR.value = withRepeat(withTiming(1.6, { duration: HALF(ILLUSTRATION.sway), easing: EASING_WORKLET.breathe }), -1, true);
     startSteam(steam1Y, steam1O, 0);
     startSteam(steam2Y, steam2O, 1400);
   }
