@@ -20,7 +20,7 @@ import { evaluateRtue } from '@/lib/rtue';
 import { signInWithGoogle } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/withTimeout';
-import { EmptyBench } from '@/components/illustrations';
+import { Lantern } from '@/components/illustrations';
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
@@ -67,7 +67,7 @@ export default function IndexScreen() {
   // up front (50% of the screen); height is derived arithmetically rather
   // than via RN's own `aspectRatio` style prop, for consistency with every
   // other illustration mount site in the app.
-  const emptyBenchFit = useAspectFitWidth(4 / 3);
+  const lanternFit = useAspectFitWidth(4 / 3);
 
   const [step,           setStep]           = useState<Step>('loading');
   const [email,          setEmail]          = useState('');
@@ -480,19 +480,19 @@ export default function IndexScreen() {
             <Image source={require('../assets/splash-quote-right.png')} style={styles.logoRight} resizeMode="stretch" />
           </View>
           <Text style={styles.wordmark} accessibilityRole="header">soulyap</Text>
-          {/* First-impression only: EmptyBench ("someone's here, waiting for
-              you") appears on the email step, matching its use at the other
-              two "welcome" moments (onboarding welcome.tsx beat 0, and the
-              empty states in you.tsx/my-confessions.tsx) so it reads as one
-              consistent motif rather than a new illustration. Skipped on
-              otp/dob — those are mid-flow, not first-impression, and the
-              compact header keeps focus on the code/DOB input.
-              Deliberately modest (50%, not 100%) — this is a small accent,
-              not a hero. */}
+          {/* First-impression-on-return only: Lantern ("come in, we're
+              listening") appears on the email step — a calmer, single-figure
+              return-visitor moment, distinct from Threshold's grand two-figure
+              first impression on onboarding beat 0 and from EmptyBench's
+              empty-inbox mood (reserved for you.tsx's My Confessions empty
+              state). Skipped on otp/dob — those are mid-flow, not
+              first-impression, and the compact header keeps focus on the
+              code/DOB input. Deliberately modest (50%, not 100%) — this is a
+              small accent, not a hero. */}
           {step === 'email' && (
-            <View style={styles.illustrationWrap} onLayout={emptyBenchFit.onLayout}>
-              {emptyBenchFit.ready && (
-                <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+            <View style={styles.illustrationWrap} onLayout={lanternFit.onLayout}>
+              {lanternFit.ready && (
+                <Lantern style={{ width: lanternFit.width, height: lanternFit.height }} />
               )}
             </View>
           )}

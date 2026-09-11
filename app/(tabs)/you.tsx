@@ -382,15 +382,35 @@ export default function YouScreen() {
           {confessionsError}
         </Text>
       ) : confessions.length === 0 ? (
-        <View style={{ gap: 12 }}>
-          <View style={{ width: '100%' }} onLayout={emptyBenchFit.onLayout}>
-            {emptyBenchFit.ready && (
-              <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
-            )}
-          </View>
-          <Text style={styles.emptyConfessions}>
-            You haven't written anything yet.{'\n'}Your confessions will appear here.
-          </Text>
+        // Conversion moment: zero confessions is our one chance to turn a
+        // reader into a writer. The whole card is one Pressable (illustration
+        // + heading + body), same neo-brutal chrome + tap pattern as
+        // read.tsx's WriteInviteCard — not a small button buried below text.
+        <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
+          <View pointerEvents="none" style={styles.emptyCardShadow} />
+          <Pressable
+            onPress={() => router.navigate('/(tabs)/write')}
+            style={({ pressed }) => [styles.emptyCard, pressed && styles.emptyCardPressed]}
+            accessibilityRole="button"
+            accessibilityLabel="Write your first confession"
+          >
+            <View style={{ width: '100%' }} onLayout={emptyBenchFit.onLayout}>
+              {emptyBenchFit.ready && (
+                <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+              )}
+            </View>
+            <View style={styles.emptyCardText}>
+              <Text style={styles.emptyCardHeading}>Say the one true thing</Text>
+              <Text style={styles.emptyCardBody}>
+                You haven't written anything yet — someone out there is carrying
+                the exact same thing. This is where you'll watch it land.
+              </Text>
+              <View style={styles.emptyCardCta}>
+                <Text style={styles.emptyCardCtaText}>Write it now</Text>
+                <ScrawlIcon name="arrow_right" size={14} color={color.paper} roughen={false} strokeWidth={2.5} />
+              </View>
+            </View>
+          </Pressable>
         </View>
       ) : (
         <View style={{ gap: 12 }}>
@@ -551,6 +571,14 @@ function createStyles(color: ColorSet) {
 
     // My confessions
     emptyConfessions: { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim, lineHeight: 22 },
+    emptyCardShadow:  { position: 'absolute', top: SHADOW, left: SHADOW, right: 0, bottom: 0, borderRadius: radius.card, backgroundColor: color.border },
+    emptyCard:        { borderRadius: radius.card, borderWidth: 2, borderColor: color.border, overflow: 'hidden', backgroundColor: color.ink },
+    emptyCardPressed: { opacity: 0.9 },
+    emptyCardText:    { padding: 20, gap: 6 },
+    emptyCardHeading: { fontFamily: fontFamily.sansBold, fontSize: 18, color: color.paper, lineHeight: 24 },
+    emptyCardBody:    { fontFamily: fontFamily.sans, fontSize: 13, color: color.dim, lineHeight: 19 },
+    emptyCardCta:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+    emptyCardCtaText: { fontFamily: fontFamily.sansBold, fontSize: 13, color: color.paper, letterSpacing: 0.3 },
     confessionOuter:  { paddingRight: SHADOW, paddingBottom: SHADOW },
     confessionShadow: { position: 'absolute', top: SHADOW, left: SHADOW, right: 0, bottom: 0, borderRadius: radius.card, backgroundColor: color.border },
     confessionCard:   { backgroundColor: color.ink, borderRadius: radius.card, borderWidth: 2, borderColor: color.border, padding: 16, gap: 10 },

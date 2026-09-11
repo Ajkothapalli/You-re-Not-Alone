@@ -1,7 +1,18 @@
 /**
  * Owner confession detail screen — view + edit with atomic seal guard.
  *
- * Route params (from my-confessions.tsx):
+ * NOT CURRENTLY REACHABLE FROM ANY LIVE SCREEN. It used to be pushed from
+ * app/my-confessions.tsx (deleted — that screen was itself dead: nothing
+ * navigated to it either). app/(tabs)/you.tsx's own inline "My confessions"
+ * list has its own, different Edit flow (handleEdit) that does NOT push
+ * here — it retires the confession and reuses the write tab with
+ * prefillText instead, resetting felt_count rather than editing in place.
+ * This screen's sealed-edit behaviour (edit in place while unfelt,
+ * felt_count preserved) and editConfession() in lib/api.ts are therefore
+ * unreached in the shipped app pending a decision on which edit flow is
+ * canonical — flagged for the owner rather than silently wired or deleted.
+ *
+ * Route params it still expects (if a caller is ever wired up):
  *   id, text, feltCount, canEdit, createdAt, updatedAt, status
  *
  * States:

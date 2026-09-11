@@ -98,7 +98,7 @@ const PATTERN: Array<{ name: string; top: string; left: string; size: number; ro
 // without memoization it re-renders (re-executing all 72 ScrawlIcon calls)
 // every time its parent screen re-renders for any unrelated reason, e.g. an
 // async focus-triggered fetch resolving. It's mounted on every tab screen
-// (write/you/notifications) plus read.tsx and my-confessions.tsx.
+// (write/you/notifications) plus read.tsx, read-detail.tsx, and confession/[id].tsx.
 export const BackgroundPattern = React.memo(function BackgroundPattern() {
   const color = useThemeColors();
   return (

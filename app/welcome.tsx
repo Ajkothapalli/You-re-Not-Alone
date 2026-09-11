@@ -50,7 +50,7 @@ import { router } from 'expo-router';
 import { CATEGORIES, type CategoryId } from '@/lib/categories';
 import { HeartIcon } from '@/components/HeartIcon';
 import { CategoryBadge } from '@/components/CategoryGlyph';
-import { EmptyBench, Sanctuary } from '@/components/illustrations';
+import { Threshold, Sanctuary } from '@/components/illustrations';
 import { useAspectFit } from '@/hooks/useAspectFit';
 import { markFtueDone } from '@/lib/onboarding';
 import { setProfilePersona, setProfileName } from '@/lib/profile';
@@ -388,11 +388,11 @@ export default function WelcomeScreen() {
   const [page,         setPage]         = useState(0);
   const [chosenTheme,  setChosenTheme]  = useState<'light' | 'dark' | null>(null);
 
-  // Drives EmptyBench/Sanctuary/FtueBust's `isActive` — separate from `page`
+  // Drives Threshold/Sanctuary/FtueBust's `isActive` — separate from `page`
   // (which only updates on onMomentumEnd, i.e. after a swipe fully settles).
   // Investigating the reported swipe jank found that gating a slide's idle
   // animation loop on `page` means, mid-drag from beat 0 to beat 1, beat 0's
-  // breathe/nod/blink/leaf loops keep running full-tilt for the ENTIRE drag
+  // breathe/nod/blink loops keep running full-tilt for the ENTIRE drag
   // (page is still 0 until the gesture ends) — directly competing with the
   // pan gesture's own per-frame work on the UI thread. activeBeat instead
   // updates from the continuous onScroll handler below (already firing every
@@ -408,7 +408,7 @@ export default function WelcomeScreen() {
   // Measured-fit boxes for the two hero illustrations — see hooks/useAspectFit.ts.
   // Both sit inside a flex:1 heroCenter competing for height with sibling
   // copy/buttons, so their available box isn't a simple width-derived shape.
-  const bench0Fit    = useAspectFit(4 / 3);
+  const thresholdFit = useAspectFit(4 / 3);
   const sanctuaryFit = useAspectFit(4 / 3);
 
   const scrollHandler = useAnimatedScrollHandler({
@@ -530,28 +530,31 @@ export default function WelcomeScreen() {
               </View>
               <Text style={s.wordmark}>soulyap</Text>
             </View>
-            {/* Animated two-person illustration.
-                heroCenter's height here is flex-resolved (a share of the
-                card's remaining space after the logo/tagline/button siblings
-                claim theirs) — it is NOT a simple width-derived box, so
-                neither `aspectRatio` nor `width:'100%',height:'100%'` can be
-                trusted to produce a clean 4:3 shape (both were tried and
-                both put the falling leaf in the wrong place — see
+            {/* Threshold — two people about to connect across an open
+                doorway, distinct from EmptyBench's solitary "waiting" park
+                bench (which stays reserved for you.tsx's My Confessions
+                empty state, per EmptyBench's own file header). heroCenter's
+                height here is flex-resolved (a share of the card's remaining
+                space after the logo/tagline/button siblings claim theirs) —
+                it is NOT a simple width-derived box, so neither `aspectRatio`
+                nor `width:'100%',height:'100%'` can be trusted to produce a
+                clean 4:3 shape (both were tried against EmptyBench here and
+                both put its falling leaf in the wrong place — see
                 hooks/useAspectFit.ts for the full explanation). useAspectFit
                 measures the actual resolved box via onLayout and hands
-                EmptyBench an exact, pre-computed 4:3 pixel size that is
+                Threshold an exact, pre-computed 4:3 pixel size that is
                 mathematically guaranteed to fit both axes, so
                 preserveAspectRatio="xMidYMid meet" never has anything left
                 to reconcile. */}
-            <View style={s.heroCenter} onLayout={bench0Fit.onLayout}>
-              {bench0Fit.ready && (
+            <View style={s.heroCenter} onLayout={thresholdFit.onLayout}>
+              {thresholdFit.ready && (
                 isNearBeat(0) ? (
-                  <EmptyBench
-                    style={{ width: bench0Fit.width, height: bench0Fit.height }}
+                  <Threshold
+                    style={{ width: thresholdFit.width, height: thresholdFit.height }}
                     isActive={activeBeat === 0}
                   />
                 ) : (
-                  <View style={{ width: bench0Fit.width, height: bench0Fit.height }} />
+                  <View style={{ width: thresholdFit.width, height: thresholdFit.height }} />
                 )
               )}
             </View>
@@ -591,7 +594,7 @@ export default function WelcomeScreen() {
             <Text style={s.title}>Nothing here{'\n'}can reach you</Text>
             {/* Full paper/ink illustration, not a line icon — a persona-less
                 figure wrapped to the chin in a blanket, in the same visual
-                language as beat 0's EmptyBench (see Sanctuary.tsx). Sized the
+                language as beat 0's Threshold (see Sanctuary.tsx). Sized the
                 same measured way as beat 0: heroCenter is flex:1, so its
                 available box is whatever's left after the kick/title/ticks/
                 button siblings claim theirs, not a fixed or width-derived

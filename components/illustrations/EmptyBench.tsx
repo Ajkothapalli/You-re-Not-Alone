@@ -249,7 +249,8 @@ function EmptyBenchAnimated({ style, isActive = true }: { style?: ViewStyle; isA
   // during the pan gesture on the slide actually being dragged. Passing
   // isActive={false} for an off-screen slide tears the loops down; the
   // default (true) preserves prior behaviour for callers with no concept of
-  // "which slide" (my-confessions.tsx, you.tsx — always the whole screen).
+  // "which slide" — you.tsx is the only mount site and is always the whole
+  // screen, so the default (true) is always correct there.
   useFocusEffect(useCallback(() => {
     if (!isActive) return;
     idle.start();
