@@ -38,10 +38,12 @@ import React, { useCallback } from 'react';
 import { ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedProps,
+  useSharedValue,
   withRepeat,
   withTiming,
   withSequence,
   cancelAnimation,
+  Easing,
 } from 'react-native-reanimated';
 import { Svg, G, Path, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
@@ -164,10 +166,39 @@ function ThresholdAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
     };
   });
 
+  // ── Content-driven clocks (beat 0: "meet the one who felt the same") ───────────
+  // The doorway breathes a warm invitation, and the figure waiting inside gently
+  // bobs so they read as a living presence, not a static silhouette.
+  const glowT = useSharedValue(0); // doorway glow driver, 0..1
+  const bobY  = useSharedValue(0); // distant figure vertical bob
+
+  const glowProps = useAnimatedProps(() => {
+    'worklet';
+    const t = glowT.value;
+    return {
+      opacity:   0.14 + 0.22 * t,
+      transform: `translate(300,145) scale(${1 + 0.10 * t}) translate(-300,-145)`,
+    };
+  });
+
+  const bobProps = useAnimatedProps(() => {
+    'worklet';
+    return { transform: `translate(0,${bobY.value})` };
+  });
+
   useFocusEffect(useCallback(() => {
     if (!isActive) return;
     idle.start();
-    return () => { idle.stop(); };
+
+    const EIO = Easing.inOut(Easing.sin);
+    glowT.value = withRepeat(withTiming(1, { duration: 1900, easing: EIO }), -1, true);
+    bobY.value  = withRepeat(withTiming(-2.5, { duration: 1600, easing: EIO }), -1, true);
+
+    return () => {
+      idle.stop();
+      [glowT, bobY].forEach(sv => cancelAnimation(sv));
+      glowT.value = 0; bobY.value = 0;
+    };
   }, [isActive]));
 
   return (
@@ -180,9 +211,20 @@ function ThresholdAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
       <Path fill={ILL_COLOR.sand} d={ARCH_D} transform="translate(3,2)" stroke="none" />
       <G {...STROKE.ink}><Path d={ARCH_D} /></G>
 
-      {/* The one waiting on the other side — static prop, no clock */}
-      <Path fill={ILL_COLOR.ink} d={DISTANT_D} stroke="none" />
-      <Circle fill={ILL_COLOR.ink} cx={300} cy={188} r={7} stroke="none" />
+      {/* Warm invitation glow inside the doorway — pulses opacity + scale.
+          Drawn after the arch fill, behind the waiting figure, so it reads as
+          light spilling from the far side. Uses `light` (the scene carries no
+          confession scrap, so it's the one warm accent — same rationale as
+          Lantern's glow). */}
+      <AnimatedG animatedProps={glowProps}>
+        <Circle cx={300} cy={145} r={34} fill={ILL_COLOR.light} stroke="none" />
+      </AnimatedG>
+
+      {/* The one waiting on the other side — gently bobs (a living presence). */}
+      <AnimatedG animatedProps={bobProps}>
+        <Path fill={ILL_COLOR.ink} d={DISTANT_D} stroke="none" />
+        <Circle fill={ILL_COLOR.ink} cx={300} cy={188} r={7} stroke="none" />
+      </AnimatedG>
 
       {/* Character A — static positioning wrapper (see file header: this G
           carries ONLY the fixed placement translate, never an animatedProps
