@@ -38,7 +38,14 @@ const CY_NECK = 142, CY_HEAD = 126;
 // Sway: plant base at (312, 112) — connects to shelf
 const CX_SWAY = 312, CY_SWAY = 112;
 // Steam path origins at roughly (195, 176) and (204, 176)
-const STEAM_RISE = 18; // SVG units
+// Steam must stay BELOW the face. The head is cx200/cy126/r16 (spans y=110–142)
+// and the eyes sit at y=128, while the two wisps are at x=195/x=204 — i.e.
+// directly under each eye. With the old values (32-unit-tall path topping out at
+// y=144, rising by 18) the wisps animated straight up THROUGH the face, crossing
+// at exactly eye level, which read as tears streaming from the eyes. The path is
+// now 18 units tall (tops at y=158) and rises only 6, so its highest point is
+// y=152 — a 10-unit gap below the chin. Keep that gap if you retune these.
+const STEAM_RISE = 6; // SVG units
 
 // ─── Designed still positions ─────────────────────────────────────────────────
 const STEAM_STILL_TRANSFORM = `translate(0, -6)`;
@@ -109,10 +116,10 @@ function NotificationsEmptyStill({ style }: { style?: ViewStyle }) {
 
       {/* Steam — still poses */}
       <G {...STROKE.ink2} opacity={STEAM_STILL_OPACITY} transform={STEAM_STILL_TRANSFORM}>
-        <Path d="M195 176c-5-6 5-10 0-18c-4-5 3-8 0-14" />
+        <Path d="M195 176c-4-5 4-8 0-12c-3-4 2-5 0-6" />
       </G>
       <G {...STROKE.ink2} opacity={STEAM_STILL_OPACITY} transform={STEAM_STILL_TRANSFORM}>
-        <Path d="M204 176c-5-6 5-10 0-18c-4-5 3-8 0-14" />
+        <Path d="M204 176c-4-5 4-8 0-12c-3-4 2-5 0-6" />
       </G>
     </Svg>
   );
@@ -267,12 +274,12 @@ function NotificationsEmptyAnimated({ style }: { style?: ViewStyle }) {
 
       {/* Steam 1 — primary clock */}
       <AnimatedG animatedProps={steam1Props}>
-        <G {...STROKE.ink2}><Path d="M195 176c-5-6 5-10 0-18c-4-5 3-8 0-14" /></G>
+        <G {...STROKE.ink2}><Path d="M195 176c-4-5 4-8 0-12c-3-4 2-5 0-6" /></G>
       </AnimatedG>
 
       {/* Steam 2 — secondary clock, 1.4s offset */}
       <AnimatedG animatedProps={steam2Props}>
-        <G {...STROKE.ink2}><Path d="M204 176c-5-6 5-10 0-18c-4-5 3-8 0-14" /></G>
+        <G {...STROKE.ink2}><Path d="M204 176c-4-5 4-8 0-12c-3-4 2-5 0-6" /></G>
       </AnimatedG>
     </Svg>
   );
