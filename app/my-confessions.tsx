@@ -20,10 +20,11 @@ import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { EmptyBench } from '@/components/illustrations';
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
+import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
-import { router } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -122,7 +123,9 @@ export default function MyConfessionsScreen() {
   const [loading, setLoading]         = useState(true);
   const [error,   setError]           = useState<string | null>(null);
 
-  useEffect(() => { load(); }, []);
+  // Reload on focus, not just mount — returning from an edit must show the
+  // new text rather than the copy we loaded before navigating away.
+  useFocusEffect(useCallback(() => { load(); }, []));
 
   async function load() {
     setLoading(true);
@@ -146,6 +149,16 @@ export default function MyConfessionsScreen() {
   }
 
   function handleEdit(item: OwnConfession) {
+    // Route params strip newlines (see lib/confessionHandoff.ts). That matters
+    // more here than anywhere else: the edit composer seeds from this text, so
+    // a flattened copy would be written straight back to the database and the
+    // author's paragraphs lost for good.
+    setConfessionHandoff({
+      id:           item.id,
+      text:         item.text,
+      feltCount:    item.felt_count,
+      paletteIndex: 0,
+    });
     router.push({
       pathname: '/confession/[id]',
       params:   {

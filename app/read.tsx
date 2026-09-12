@@ -39,6 +39,7 @@ import { deriveHeightFromWidth } from '@/hooks/useAspectFit';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
+import { WriteInviteCard } from '@/components/EndOfReadingCards';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 
 const SHADOW = 4;
@@ -253,91 +254,6 @@ export default function ReadScreen() {
 }
 
 // ── WriteInviteCard ────────────────────────────────────────────────────────────
-
-function WriteInviteCard({ onPress }: { onPress: () => void }) {
-  const color = useThemeColors();
-  const { width: screenW } = useWindowDimensions();
-  const cardW = screenW - spacing.screenPadding * 2;
-  // Release's <Svg viewBox="0 0 400 300"> is 4:3 — matching the hero box to
-  // that ratio (instead of a fixed 160) lets preserveAspectRatio="xMidYMid
-  // meet" fill the box edge-to-edge rather than letterboxing inside a
-  // shallower one. cardW is already known synchronously here (derived from
-  // useWindowDimensions, not a layout measurement), so this uses the same
-  // pure arithmetic hooks/useAspectFit.ts exports for every other
-  // illustration mount site, without needing an onLayout pass.
-  const illH  = deriveHeightFromWidth(cardW, 4 / 3);
-
-  return (
-    <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
-      {/* Neo-brutal hard shadow */}
-      <View style={{
-        position: 'absolute', top: SHADOW, left: SHADOW,
-        right: 0, bottom: 0,
-        borderRadius: 20,
-        backgroundColor: color.border,
-      }} />
-
-      <Pressable
-        onPress={onPress}
-        style={({ pressed }) => ({
-          borderRadius:    20,
-          borderWidth:     2,
-          borderColor:     color.border,
-          overflow:        'hidden',
-          backgroundColor: color.ink,
-          opacity:         pressed ? 0.9 : 1,
-        })}
-        accessibilityRole="button"
-        accessibilityLabel="Now it's your turn — write a confession"
-      >
-        {/* Paper/ink hero scene — a person releasing their confession into
-            the air, in the same illustration language as the rest of the
-            app (EmptyBench, NotificationsEmpty). Replaces a one-off flat SVG
-            hero (colour blobs, a heart, sparkles) that didn't share any
-            visual language with the app. Release draws no background of its
-            own — like EmptyBench elsewhere, it's meant to float directly on
-            the card's own ink surface, so the card keeps ONE continuous
-            background (set on the Pressable itself) instead of a separate
-            dark rect behind just the illustration. */}
-        <Release style={{ width: '100%', height: illH }} />
-
-        {/* ── Text area ── */}
-        <View style={{
-          padding: 20,
-          gap:     6,
-        }}>
-          <Text style={{
-            fontFamily: fontFamily.sansBold,
-            fontSize:   20,
-            color:      color.paper,
-            lineHeight: 27,
-          }}>
-            Now it's your turn
-          </Text>
-          <Text style={{
-            fontFamily: fontFamily.sans,
-            fontSize:   13,
-            color:      color.dim,
-            lineHeight: 19,
-          }}>
-            Whenever you're ready — one true thing gets you a match
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
-            <Text style={{
-              fontFamily: fontFamily.sansBold,
-              fontSize:   13,
-              color:      color.paper,
-              letterSpacing: 0.3,
-            }}>
-              Write yours
-            </Text>
-            <ScrawlIcon name="arrow_right" size={14} color={color.paper} roughen={false} strokeWidth={2.5} />
-          </View>
-        </View>
-      </Pressable>
-    </View>
-  );
-}
 
 function createStyles(color: ColorSet) {
   return StyleSheet.create({

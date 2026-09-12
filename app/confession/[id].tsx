@@ -1,19 +1,15 @@
 /**
  * Owner confession detail screen — view + edit with atomic seal guard.
  *
- * NOT CURRENTLY REACHABLE FROM ANY LIVE SCREEN. It used to be pushed from
- * app/my-confessions.tsx (deleted — that screen was itself dead: nothing
- * navigated to it either). app/(tabs)/you.tsx's own inline "My confessions"
- * list has its own, different Edit flow (handleEdit) that does NOT push
- * here — it retires the confession and reuses the write tab with
- * prefillText instead, resetting felt_count rather than editing in place.
- * This screen's sealed-edit behaviour (edit in place while unfelt,
- * felt_count preserved) and editConfession() in lib/api.ts are therefore
- * unreached in the shipped app pending a decision on which edit flow is
- * canonical — flagged for the owner rather than silently wired or deleted.
+ * Reached from app/my-confessions.tsx (the "edit" action on a confession you
+ * own). Editing in place preserves felt_count while the confession is unfelt;
+ * once someone has felt it the confession seals and only deletion remains.
  *
- * Route params it still expects (if a caller is ever wired up):
- *   id, text, feltCount, canEdit, createdAt, updatedAt, status
+ * Route params: id, text, feltCount, canEdit, createdAt, updatedAt, status.
+ * The BODY, though, comes from lib/confessionHandoff — route params strip
+ * newlines, and this screen seeds the edit composer, so a flattened copy would
+ * be saved back over the author's own paragraphs. Params are the deep-link
+ * fallback only.
  *
  * States:
  *   View — shows text, date, felt count, actions.
@@ -33,6 +29,7 @@ import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
+import { getConfessionHandoff } from '@/lib/confessionHandoff';
 import { editConfession, retireConfession } from '@/lib/api';
 import { useReducedMotion } from '@/lib/a11y';
 import { useThemeColors } from '@/theme/ThemeProvider';
@@ -87,10 +84,15 @@ export default function ConfessionDetailScreen() {
 
   // ── Mutable UI state ─────────────────────────────────────────────────────────
   const [mode,       setMode]       = useState<Mode>('view');
-  const [text,       setText]       = useState(params.text ?? '');
+  // Prefer the in-memory handoff: route params lose newlines, and this screen
+  // seeds the edit composer — a flattened copy here gets saved back over the
+  // author's real text. Params remain the deep-link fallback.
+  const initialText = getConfessionHandoff(params.id)?.text ?? params.text ?? '';
+
+  const [text,       setText]       = useState(initialText);
   const [canEdit,    setCanEdit]    = useState(params.canEdit === 'true');
   const [updatedAt,  setUpdatedAt]  = useState<string | null>(params.updatedAt || null);
-  const [draftText,  setDraftText]  = useState(params.text ?? '');
+  const [draftText,  setDraftText]  = useState(initialText);
   const [saving,     setSaving]     = useState(false);
   const [blockedMsg, setBlockedMsg] = useState<string | null>(null);
   const [sealedRace, setSealedRace] = useState(false);
@@ -170,8 +172,19 @@ export default function ConfessionDetailScreen() {
         setText(result.confession.text);
         setUpdatedAt(result.confession.updated_at);
         setCanEdit(result.confession.can_edit);
-        crossFadeTo('view');
-        showToast('Updated.');
+        showToast('Successfully edited');
+        // Return to the list — the edit is done, there's nothing left to do
+        // here. my-confessions reloads on focus so the new text shows.
+        //
+        // Navigation gets its own try: the save has already succeeded at this
+        // point, so a routing problem must never fall through to the outer
+        // catch and tell the author their edit failed when it didn't.
+        try {
+          if (router.canGoBack?.()) router.back();
+          else router.replace('/my-confessions');
+        } catch {
+          router.replace('/my-confessions');
+        }
       }
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -213,8 +226,10 @@ export default function ConfessionDetailScreen() {
 
   const blockedCopy = blockedMsg === 'crisis' ? BLOCK_CRISIS_COPY : BLOCK_POLICY_COPY;
 
+  // No paddingTop on root: both panes are position:absolute and would ignore
+  // it. The safe-area inset goes on each pane's top bar instead.
   return (
-    <View style={[styles.root, { paddingTop: insets.top }]} testID="detail-root">
+    <View style={styles.root} testID="detail-root">
       <BackgroundPattern />
 
       {/* ── VIEW PANE ─────────────────────────────────────────────────────────── */}
@@ -224,7 +239,7 @@ export default function ConfessionDetailScreen() {
         testID="view-pane"
       >
         {/* Top bar */}
-        <View style={styles.topBar}>
+        <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
           <Pressable
             onPress={() => router.back()}
             hitSlop={12}
@@ -306,7 +321,7 @@ export default function ConfessionDetailScreen() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           {/* Cancel */}
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
             <Pressable
               onPress={handleCancel}
               hitSlop={12}

@@ -29,7 +29,8 @@
 import ReadCard from '@/components/ReadCard';
 import { StoryCard } from '@/components/StoryCard';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
-import { PrimaryButton, GhostButton } from '@/components/Buttons';
+import { GhostButton } from '@/components/Buttons';
+import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
 import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
@@ -323,15 +324,31 @@ export default function ExploreScreen() {
                 ? 'You\'ve read every confession matching your categories. Add more, or write your own.'
                 : 'Come back later. New confessions are matched to your taste as they arrive.'}
             </Text>
+
+            {/* Deliberately quiet — loading another batch is a small continuation,
+                not the thing we're asking of anyone here. The cards below are. */}
             {withinD7 && !exhausted && (
-              <PrimaryButton
-                label={loadingMore ? 'Loading…' : 'Keep reading'}
+              <Pressable
                 onPress={loadMore}
                 disabled={loadingMore}
-              />
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Load more confessions"
+                style={{ alignSelf: 'flex-start' }}
+              >
+                <Text style={styles.loadMoreLink}>
+                  {loadingMore ? 'Loading…' : 'Keep reading'}
+                </Text>
+              </Pressable>
             )}
+
+            {/* The two asks that actually matter at the end of a read. */}
+            <View style={styles.footerCards}>
+              <WriteInviteCard onPress={() => router.replace('/write')} />
+              <PremiumCard onPress={() => router.push('/plans')} />
+            </View>
+
             <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
-            <GhostButton label="Write your own" onPress={() => router.replace('/write')} />
           </View>
         }
       />
@@ -396,8 +413,18 @@ function createStyles(color: ColorSet) {
       gap:           16,
     },
     footer: {
-      gap:       12,
+      gap:        12,
       paddingTop: 8,
+    },
+    footerCards: {
+      gap:       16,
+      marginTop: 4,
+    },
+    loadMoreLink: {
+      fontFamily:         fontFamily.sansBold,
+      fontSize:           14,
+      color:              color.dim,
+      textDecorationLine: 'underline',
     },
     nudgeDock: {
       position: 'absolute',

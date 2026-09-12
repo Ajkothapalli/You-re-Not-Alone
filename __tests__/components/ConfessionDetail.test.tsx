@@ -45,7 +45,7 @@ jest.mock('@/theme/motion', () => ({
 }));
 
 jest.mock('expo-router', () => ({
-  router:               { back: jest.fn(), push: jest.fn() },
+  router:               { back: jest.fn(), push: jest.fn(), replace: jest.fn(), canGoBack: jest.fn(() => true) },
   useLocalSearchParams: jest.fn(),
 }));
 
@@ -256,13 +256,15 @@ describe('Edit → Save: success path', () => {
     );
   });
 
-  it('shows "Updated." toast on success', async () => {
+  it('confirms the edit and returns to the list on success', async () => {
     const { getByTestId } = await renderDetail();
     await fireEvent.press(getByTestId('edit-btn'));
     await fireEvent.changeText(getByTestId('confession-input'), 'A refined version of what I meant to say.');
     await fireEvent.press(getByTestId('save-btn'));
 
-    expect(mockShowToast).toHaveBeenCalledWith('Updated.');
+    expect(mockShowToast).toHaveBeenCalledWith('Successfully edited');
+    // The author lands back on their list rather than sitting on the detail screen.
+    expect(router.back).toHaveBeenCalled();
   });
 
   it('fires Success haptic on save', async () => {
