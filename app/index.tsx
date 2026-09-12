@@ -4,14 +4,15 @@
  *        OR: apple/google → dob (new user) / /write (existing user)
  *
  * Age gate: ALL auth paths land on the DOB step for new users.
- * An existing account row bypasses DOB and routes directly to /read.
- * Owner decision 2026-06-12: read screen shows every launch (see CLAUDE.md §2).
+ * An existing account row bypasses DOB and routes straight to the reading
+ * surface: /explore inside the first 7 days, /read after that
+ * (owner decisions 2026-06-12 and 2026-09-12 — see CLAUDE.md §2).
  *
  * App Store guideline 4.8: Apple Sign-In is offered whenever Google is offered on iOS.
  */
 
 import { announce } from '@/lib/a11y';
-import { markInstall } from '@/lib/d7';
+import { isD7, markInstall } from '@/lib/d7';
 import { getDobOrder, maskDob, dobToISO, isAdultISO } from '@/lib/dobFormat';
 import { createOrUpdateAccount, getReaderPreferences } from '@/lib/api';
 import { resetFtue } from '@/lib/onboarding';
@@ -144,7 +145,14 @@ export default function IndexScreen() {
       const rtueMs = Date.now() - t0;
       if (rtueMs > 2_000) console.warn('[boot] rtue', rtueMs, 'ms');
 
-      router.replace(rtue ? '/rtue' : '/read');
+      if (rtue) { router.replace('/rtue'); return; }
+
+      // Owner decision 2026-09-12: inside the first 7 days, launch lands on the
+      // scrollable feed, not the 2-card onboarding read screen. Reading is the
+      // habit we're building first, and two cards is not a reading session.
+      // Outside D7 the original every-launch read screen is unchanged.
+      const d7 = await isD7().catch(() => false);
+      router.replace(d7 ? '/explore' : '/read');
     } catch (err) {
       // Reset so a retry attempt can call routeAfterAuth again.
       routingRef.current = false;

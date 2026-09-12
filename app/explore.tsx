@@ -53,8 +53,23 @@ import {
 } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
+import { session } from '@/lib/sessionFlags';
 
 const DWELL_THRESHOLD_MS = 5_000;
+
+/**
+ * write.tsx won't open until the reader has been shown someone else's
+ * confession this session, and read.tsx was the only screen that set the flag.
+ * Inside D7 the launch destination is this feed instead, so without this,
+ * tapping Write bounces the reader straight back to the 2-card read screen
+ * they were deliberately routed past.
+ *
+ * Only counts when confessions actually rendered — an empty or failed feed
+ * has shown the reader nothing, and the gate exists to guarantee otherwise.
+ */
+function markReadShown(count: number): void {
+  if (count > 0) session.readShown = true;
+}
 
 export default function ExploreScreen() {
   const color  = useThemeColors();
@@ -106,6 +121,7 @@ export default function ExploreScreen() {
       }
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
+      markReadShown(data.length);
     } catch (e) {
       setLoadError(isAuthError(e) ? 'auth' : 'load');
       setConfessions([]);

@@ -264,6 +264,39 @@ describe('No reply surface in API exports (CLAUDE.md §2)', () => {
   });
 });
 
+describe('D7 launch route + the write gate it must not break (CLAUDE.md §2)', () => {
+  const fs   = require('fs');
+  const path = require('path');
+  const read = (...p: string[]) =>
+    fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
+
+  it('index.tsx routes into the feed inside D7 and the read screen outside it', () => {
+    const src = read('app', 'index.tsx');
+    expect(src).toMatch(/isD7\(\)/);
+    expect(src).toMatch(/router\.replace\(\s*d7\s*\?\s*'\/explore'\s*:\s*'\/read'\s*\)/);
+  });
+
+  it('explore.tsx satisfies the write gate, so Write cannot bounce D7 readers back to /read', () => {
+    // write.tsx refuses to open until session.readShown is set, and read.tsx
+    // used to be the only screen that set it. Routing D7 launches past /read
+    // without this makes Write throw the reader back at the 2-card screen.
+    const src = read('app', 'explore.tsx');
+    expect(src).toContain('session.readShown = true');
+  });
+
+  it('the write gate itself is still in place — the feed satisfies it, never removes it', () => {
+    const src = read('app', 'write.tsx');
+    expect(src).toContain('session.readShown');
+    expect(src).toMatch(/router\.replace\('\/read'\)/);
+  });
+
+  it('the read screen keeps its hard 2-cap — only the launch route moved', () => {
+    // The owner decision changed where launch lands, not this surface.
+    const src = read('app', 'read.tsx');
+    expect(src).not.toMatch(/FlatList|onEndReached|RefreshControl/);
+  });
+});
+
 // ─── §Lang / companion generation invariants ──────────────────────────────────
 
 describe('Language-aware matching — source invariants', () => {

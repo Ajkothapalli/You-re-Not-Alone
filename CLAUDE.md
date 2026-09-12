@@ -20,9 +20,17 @@
    persona, so author-identity separation is unaffected.)
    **Two sanctioned read surfaces only:**
    - The onboarding read screen (`app/read.tsx`): hard-capped at 2 confessions
-     (enforced server-side in `get_onboarding_confessions`), shown every launch,
-     with a report control on every card. Never expand into a feed, add pagination,
-     add a refresh gesture, or raise the cap.
+     (enforced server-side in `get_onboarding_confessions`), with a report
+     control on every card. Never expand into a feed, add pagination, add a
+     refresh gesture, or raise the cap.
+     *Owner decision 2026-09-12:* "shown every launch" (owner decision
+     2026-06-12) now applies only OUTSIDE the first 7 days. Inside D7, launch
+     routes to `app/explore.tsx` instead — reading is the habit being built
+     first, and two cards is not a reading session. What changed is the launch
+     route, NOT this surface: the 2-cap, the report control, and the ban on
+     expanding it into a feed all stand unchanged. The session gate in
+     `write.tsx` (no writing until the reader has been shown someone else's
+     confession) is satisfied by the feed instead — never removed.
    - The explore screen (`app/explore.tsx`): owner-approved, personalized,
      capped at 10 confessions per batch, no infinite scroll, no refresh
      gesture, nothing loads on scroll. Safety filters in

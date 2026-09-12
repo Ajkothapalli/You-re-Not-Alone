@@ -5,6 +5,9 @@
  * Hard cap of 2: server enforces it via get_onboarding_confessions(); the
  * client-side fallback below is also exactly 2 entries.
  * Owner decision 2026-06-12: shown every launch (not once per install).
+ * Owner decision 2026-09-12: that now means every launch OUTSIDE the first
+ * 7 days — inside D7 the launch destination is the explore feed instead.
+ * This screen and its 2-cap are unchanged; only the launch route moved.
  * Both cards visible simultaneously — not paginated, not a feed.
  * Report control present on every card (CLAUDE.md §2 requirement).
  *
