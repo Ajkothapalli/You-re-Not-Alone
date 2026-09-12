@@ -78,7 +78,9 @@ export default function WriteFAB() {
   const isWrite  = pathname === '/write';
   const isAlerts = pathname === '/notifications';
 
-  const activeIndex = isRead ? 0 : isYou ? 1 : isWrite ? 2 : isAlerts ? 3 : -1;
+  // Tab order: Read, Write, You, Alerts — indices must match the JSX order
+  // below so the sliding indicator lands under the active tab.
+  const activeIndex = isRead ? 0 : isWrite ? 1 : isYou ? 2 : isAlerts ? 3 : -1;
 
   // Single animated value — the whole indicator slides, nothing per-tab.
   const slideX = useRef(
@@ -118,8 +120,8 @@ export default function WriteFAB() {
           />
 
           <TabItem icon="book"   label="Read"   active={isRead}   onPress={() => router.navigate('/read')} />
-          <TabItem icon="person" label="You"    active={isYou}    onPress={() => router.navigate('/(tabs)/you')} />
           <TabItem icon="pencil" label="Write"  active={isWrite}  onPress={() => router.navigate('/(tabs)/write')} />
+          <TabItem icon="person" label="You"    active={isYou}    onPress={() => router.navigate('/(tabs)/you')} />
           <TabItem icon="bell"   label="Alerts" active={isAlerts} onPress={() => router.navigate('/(tabs)/notifications')} badge={unreadCount} />
 
         </View>
