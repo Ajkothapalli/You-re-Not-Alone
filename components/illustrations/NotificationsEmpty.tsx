@@ -101,8 +101,11 @@ function NotificationsEmptyStill({ style }: { style?: ViewStyle }) {
       {/* Hair */}
       <Path fill={ILL_COLOR.ink} d="M184 122C182 110 190 104 196 108C200 102 210 104 212 110C218 108 220 118 216 124C212 116 204 114 200 116C196 112 188 114 184 122Z" transform="translate(-2.6,2.4)" stroke="none" />
       <G {...STROKE.ink}><Path d="M184 122C182 110 190 104 196 108C200 102 210 104 212 110C218 108 220 118 216 124C212 116 204 114 200 116C196 112 188 114 184 122Z" /></G>
-      {/* Content expression — closed arcs for eyes */}
-      <G {...STROKE.ink2}><Path d="M190 121q3-1 7 0M203 121q4-1 7 0M191 128q3 3 6 0M203 128q3 3 6 0M196 135q4 2 8 0" /></G>
+      {/* Serene/meditative expression — gentle closed lids (convex-up so they
+          read calm, not the downward wince that looked like crying) + a soft
+          smile. No brows: relaxed, quiet, at peace — this is the "Still quiet"
+          empty state, not a sad one. */}
+      <G {...STROKE.ink2}><Path d="M191 128q3.5 -1.5 7 0M202 128q3.5 -1.5 7 0M196 135q4 2 8 0" /></G>
 
       {/* Steam — still poses */}
       <G {...STROKE.ink2} opacity={STEAM_STILL_OPACITY} transform={STEAM_STILL_TRANSFORM}>
@@ -259,7 +262,7 @@ function NotificationsEmptyAnimated({ style }: { style?: ViewStyle }) {
         <Circle cx={200} cy={126} r={16} {...STROKE.press} transform="translate(1,1.1)" />
         <Path fill={ILL_COLOR.ink} d="M184 122C182 110 190 104 196 108C200 102 210 104 212 110C218 108 220 118 216 124C212 116 204 114 200 116C196 112 188 114 184 122Z" transform="translate(-2.6,2.4)" stroke="none" />
         <G {...STROKE.ink}><Path d="M184 122C182 110 190 104 196 108C200 102 210 104 212 110C218 108 220 118 216 124C212 116 204 114 200 116C196 112 188 114 184 122Z" /></G>
-        <G {...STROKE.ink2}><Path d="M190 121q3-1 7 0M203 121q4-1 7 0M191 128q3 3 6 0M203 128q3 3 6 0M196 135q4 2 8 0" /></G>
+        <G {...STROKE.ink2}><Path d="M191 128q3.5 -1.5 7 0M202 128q3.5 -1.5 7 0M196 135q4 2 8 0" /></G>
       </AnimatedG>
 
       {/* Steam 1 — primary clock */}
