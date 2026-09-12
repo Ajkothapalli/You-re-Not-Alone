@@ -5,4 +5,5 @@ export { Resonance } from './Resonance';
 export { Sanctuary } from './Sanctuary';
 export { Threshold } from './Threshold';
 export { Lantern } from './Lantern';
+export { Unburdened } from './Unburdened';
 export { IllustrationCard } from './IllustrationCard';

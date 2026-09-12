@@ -23,8 +23,8 @@ import { useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '../theme/tokens';
 import { announce, useReducedMotion } from '../lib/a11y';
 import { DURATION, EASING, SPRING } from '../theme/motion';
-import { Bust, getPersonaById } from '../components/Persona';
-import { getProfileSync, incrementReleaseCount, ordinal } from '../lib/profile';
+import { Unburdened } from './illustrations';
+import { incrementReleaseCount, ordinal } from '../lib/profile';
 
 // Mustard — visible on both light and dark backgrounds (~4.5:1 on white)
 const MUSTARD = '#C07D00';
@@ -60,8 +60,6 @@ export function Celebration({ palette, onDone }: Props) {
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
 
-  const persona            = getPersonaById(getProfileSync().personaId);
-  const [tint, skin, hair] = persona.colors;
 
   const headline = useMemo(
     () => AFFIRMATIONS[Math.floor(Math.random() * AFFIRMATIONS.length)],
@@ -232,30 +230,12 @@ export function Celebration({ palette, onDone }: Props) {
                 </Svg>
               </Animated.View>
 
-              {/* Character disc — springs in, Blender clay aesthetic */}
+              {/* The moment itself — not the reader's own avatar. Unburdened
+                  plays its release beat once on mount; springs in with the
+                  emblem scale so it still lands with the confetti. */}
               <Animated.View style={{ transform: [{ scale: emblemScale }] }}>
-                {/* Outer: shadow + border-radius without overflow:hidden */}
-                <View style={styles.clayOuter}>
-                  {/* Inner: clips character to circle */}
-                  <View style={[styles.clayInner, { backgroundColor: tint }]}>
-                    {/* Specular gradient — diffuse top-left light hitting the clay */}
-                    <Svg style={StyleSheet.absoluteFill} width={120} height={120} viewBox="0 0 120 120">
-                      <Defs>
-                        <RadialGradient id="spec" cx="35%" cy="28%" r="55%">
-                          <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.55} />
-                          <Stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
-                        </RadialGradient>
-                      </Defs>
-                      <Circle cx={60} cy={60} r={60} fill="url(#spec)" />
-                      {/* Rim light — bright crescent top-right, classic 3-point lighting */}
-                      <Ellipse cx={90} cy={20} rx={22} ry={9} fill="white" opacity={0.18} transform="rotate(-28 90 20)" />
-                    </Svg>
-
-                    {/* User's chosen character */}
-                    <Svg style={StyleSheet.absoluteFill} width={120} height={120} viewBox="0 0 24 24">
-                      <Bust id={persona.id} skin={skin} hair={hair} />
-                    </Svg>
-                  </View>
+                <View style={styles.sceneBox}>
+                  <Unburdened style={{ width: '100%', height: '100%' }} />
                 </View>
               </Animated.View>
 
@@ -332,21 +312,9 @@ function createStyles(color: ColorSet) {
       borderRadius:    44,
       backgroundColor: 'rgba(0,0,0,0.2)',
     },
-    clayOuter: {
-      width:         120,
-      height:        120,
-      borderRadius:  60,
-      shadowColor:   '#000',
-      shadowOffset:  { width: 0, height: 10 },
-      shadowOpacity: 0.28,
-      shadowRadius:  18,
-      elevation:     20,
-    },
-    clayInner: {
-      width:        120,
-      height:       120,
-      borderRadius: 60,
-      overflow:     'hidden',
+    sceneBox: {
+      width:  236,
+      height: 177,   // 4:3, matching the illustration's 400x300 viewBox
     },
     textBlock: {
       alignItems: 'center',
