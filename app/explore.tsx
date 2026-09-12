@@ -348,7 +348,18 @@ export default function ExploreScreen() {
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
 
-            <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
+            {/* Quieter than everything above it on purpose: this is upkeep, not
+                an ask. As a bordered button it read as a third call to action
+                and competed with the two cards. */}
+            <Pressable
+              onPress={() => router.push('/categories?mode=edit')}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Update categories"
+              style={styles.subtleAction}
+            >
+              <Text style={styles.subtleActionLabel}>Update categories</Text>
+            </Pressable>
           </View>
         }
       />
@@ -423,6 +434,19 @@ function createStyles(color: ColorSet) {
     loadMoreLink: {
       fontFamily:         fontFamily.sansBold,
       fontSize:           14,
+      color:              color.dim,
+      textDecorationLine: 'underline',
+    },
+    // Quieter still than loadMoreLink — lighter weight, smaller, centred under
+    // the cards so it closes the page instead of competing with them.
+    subtleAction: {
+      alignSelf:     'center',
+      paddingTop:    8,
+      paddingBottom: 4,
+    },
+    subtleActionLabel: {
+      fontFamily:         fontFamily.sans,
+      fontSize:           13,
       color:              color.dim,
       textDecorationLine: 'underline',
     },
