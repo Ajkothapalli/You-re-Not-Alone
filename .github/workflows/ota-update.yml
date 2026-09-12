@@ -1,42 +1,60 @@
 name: OTA Update
 
+# Manual only (owner decision 2026-09-12).
+#
+# This previously ran on every push to main, which meant any merge shipped
+# straight to the production channel — reaching users' installed apps with no
+# release decision in between. It only ever failed to do so by accident: the
+# --message interpolation below broke on multi-line commit messages, so a push
+# with a long commit body errored out instead of publishing.
+#
+# Publishing to production is now something a human triggers:
+#   Actions -> OTA Update -> Run workflow
+#
+# Note this pushes JS only. Anything requiring a native rebuild (app.json,
+# eas.json, package.json, native assets) needs a new AAB/APK instead — those
+# paths were the paths-ignore list on the old push trigger.
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      # Changes to these always require a native rebuild — skip OTA
-      - 'app.json'
-      - 'eas.json'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'assets/android-icon-*.png'
-      - 'assets/icon.png'
-      - 'assets/splash-*.png'
-      - '.github/workflows/**'
-      - 'supabase/**'
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Update message (blank = latest commit subject)'
+        required: false
+        default: ''
 
 jobs:
   update:
     name: Push EAS Update
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # eas-cli 24+ requires Node >=22; on 20 the CLI install fails outright.
+          node-version: 22
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
       - name: Push OTA update to production channel
-        run: |
-          npx eas-cli update \
-            --branch production \
-            --message "OTA: ${{ github.event.head_commit.message }}" \
-            --non-interactive
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          # Via env, never interpolated into the script body: workflow inputs and
+          # commit messages are attacker-controllable text, and `${{ }}` inside a
+          # run block substitutes before the shell parses it — so a crafted
+          # message could execute as commands on the runner.
+          INPUT_MESSAGE: ${{ inputs.message }}
+        run: |
+          # %s is the subject line only, so a multi-line commit body can't
+          # fragment the command the way the old head_commit.message did.
+          MSG="${INPUT_MESSAGE:-$(git log -1 --pretty=%s)}"
+          echo "Publishing to production channel: $MSG"
+          npx eas-cli update \
+            --branch production \
+            --message "$MSG" \
+            --non-interactive
