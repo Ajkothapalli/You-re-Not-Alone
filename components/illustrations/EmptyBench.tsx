@@ -79,7 +79,7 @@ function EmptyBenchStill({ style }: { style?: ViewStyle }) {
 
       {/* Legs */}
       <G {...STROKE.ink}><Path d="M192 194L184 208V240M208 194L216 208V240" strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d="M192 194L184 208V240M208 194L216 208V240" /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d="M192 194L184 208V240M208 194L216 208V240" /></G>
 
       {/* Shoes */}
       <G {...STROKE.ink}><Path d="M176 243h12M212 243h12" strokeWidth={7} /></G>
@@ -288,7 +288,7 @@ function EmptyBenchAnimated({ style, isActive = true }: { style?: ViewStyle; isA
 
       {/* Legs */}
       <G {...STROKE.ink}><Path d="M192 194L184 208V240M208 194L216 208V240" strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d="M192 194L184 208V240M208 194L216 208V240" /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d="M192 194L184 208V240M208 194L216 208V240" /></G>
 
       {/* Shoes */}
       <G {...STROKE.ink}><Path d="M176 243h12M212 243h12" strokeWidth={7} /></G>

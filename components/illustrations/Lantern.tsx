@@ -59,9 +59,12 @@ const CY_EYES = 128;
 const HAIR_D = 'M184 122C182 110 190 104 196 108C200 102 210 104 212 110C218 108 220 118 216 124C212 116 204 114 200 116C196 112 188 114 184 122Z';
 // "Waiting" expression (A), dy=+14 shift applied to the level-brow / open-eye set.
 const FACE_D = 'M190 121l7-1M203 120l7 1M196 135q4 2 8 0';
-// Cross-legged tubes — ported 1:1 from NotificationsEmpty's own seated legs.
-const LEG_R_D = 'M208 210L244 226L194 240';
-const LEG_L_D = 'M192 210L156 226L206 240';
+// Cross-legged tubes. The knee (the mid vertex) is a quadratic bend, not a
+// hard L-to-L corner, so it reads as a natural rounded knee rather than a
+// sharp point — the original polyline pointed straight out at (244,226) /
+// (156,226). Control point sits at the old vertex; the curve eases in/out of it.
+const LEG_R_D = 'M208 210L237 223Q244 226 236 228L194 240';
+const LEG_L_D = 'M192 210L163 223Q156 226 164 228L206 240';
 // Chest silhouette — ported 1:1 from NotificationsEmpty.
 const CHEST_D = 'M180 156C180 148 220 148 220 156L216 212C216 217 184 217 184 212Z';
 
@@ -87,9 +90,9 @@ function LanternStill({ style }: { style?: ViewStyle }) {
 
       {/* Legs (cross-legged) — at rest */}
       <G {...STROKE.ink}><Path d={LEG_R_D} strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d={LEG_R_D} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d={LEG_R_D} /></G>
       <G {...STROKE.ink}><Path d={LEG_L_D} strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d={LEG_L_D} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d={LEG_L_D} /></G>
 
       {/* Chest — at rest */}
       <Path fill={ILL_COLOR.coral} d={CHEST_D} transform="translate(3,2)" stroke="none" />
@@ -173,9 +176,9 @@ function LanternAnimated({ style }: { style?: ViewStyle }) {
 
       {/* Legs (cross-legged) */}
       <G {...STROKE.ink}><Path d={LEG_R_D} strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d={LEG_R_D} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d={LEG_R_D} /></G>
       <G {...STROKE.ink}><Path d={LEG_L_D} strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d={LEG_L_D} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d={LEG_L_D} /></G>
 
       {/* Chest — breathe clock */}
       <AnimatedG animatedProps={chestProps}>

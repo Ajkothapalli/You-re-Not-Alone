@@ -70,10 +70,10 @@ function NotificationsEmptyStill({ style }: { style?: ViewStyle }) {
       <G {...STROKE.ink2}><Path d="M110 244l3-8M118 244l1-6" /></G>
 
       {/* Legs (cross-legged) */}
-      <G {...STROKE.ink}><Path d="M208 210L244 226L194 240" strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d="M208 210L244 226L194 240" /></G>
-      <G {...STROKE.ink}><Path d="M192 210L156 226L206 240" strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d="M192 210L156 226L206 240" /></G>
+      <G {...STROKE.ink}><Path d="M208 210L237 223Q244 226 236 228L194 240" strokeWidth={11} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d="M208 210L237 223Q244 226 236 228L194 240" /></G>
+      <G {...STROKE.ink}><Path d="M192 210L163 223Q156 226 164 228L206 240" strokeWidth={11} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d="M192 210L163 223Q156 226 164 228L206 240" /></G>
 
       {/* Chest */}
       <Path fill={ILL_COLOR.coral} d="M180 156C180 148 220 148 220 156L216 212C216 217 184 217 184 212Z" transform="translate(3,2)" stroke="none" />
@@ -230,10 +230,10 @@ function NotificationsEmptyAnimated({ style }: { style?: ViewStyle }) {
       <G {...STROKE.ink2}><Path d="M110 244l3-8M118 244l1-6" /></G>
 
       {/* Legs (cross-legged) */}
-      <G {...STROKE.ink}><Path d="M208 210L244 226L194 240" strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d="M208 210L244 226L194 240" /></G>
-      <G {...STROKE.ink}><Path d="M192 210L156 226L206 240" strokeWidth={11} /></G>
-      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" fill="none"><Path d="M192 210L156 226L206 240" /></G>
+      <G {...STROKE.ink}><Path d="M208 210L237 223Q244 226 236 228L194 240" strokeWidth={11} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d="M208 210L237 223Q244 226 236 228L194 240" /></G>
+      <G {...STROKE.ink}><Path d="M192 210L163 223Q156 226 164 228L206 240" strokeWidth={11} /></G>
+      <G stroke={ILL_COLOR.dusk} strokeWidth={7.4} strokeLinecap="round" strokeLinejoin="round" fill="none"><Path d="M192 210L163 223Q156 226 164 228L206 240" /></G>
 
       {/* Chest — breathe c2 clock */}
       <AnimatedG animatedProps={chestProps}>
