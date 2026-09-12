@@ -31,10 +31,13 @@ import React, { useCallback } from 'react';
 import { ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedProps,
+  useDerivedValue,
+  useSharedValue,
   withRepeat,
   withTiming,
   withSequence,
   cancelAnimation,
+  Easing,
 } from 'react-native-reanimated';
 import { Svg, G, Path, Rect, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
@@ -44,6 +47,20 @@ import { ILL_COLOR, STROKE } from '@/theme/illustration';
 import { useIdleLayer } from '@/components/illustrations/behaviours';
 
 const AnimatedG = Animated.createAnimatedComponent(G);
+const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
+
+// ─── Wave geometry (screen-right arm) ───────────────────────────────────────────
+// The wave animates the arm's PATH GEOMETRY directly (elbow + wrist positions
+// recomputed per frame in a worklet), NOT an SVG rotate() transform — see the
+// rotate() note below / EmptyBench.tsx: no rotate() string survives both
+// Reanimated 4's transform processor and react-native-svg's parser at once, so
+// a rigged-joint rotation can't be used. Instead the forearm's free end swings
+// around the elbow via sin/cos in the worklet, which is pure path data.
+const SH_X = 217, SH_Y = 164;   // shoulder (fixed pivot)
+const REST_WX = 228, REST_WY = 194; // wrist at rest (arm down at side)
+const FORE_R = 23;              // raised forearm length (elbow → wrist)
+const BASE_A = 0.31;            // neutral raised-forearm angle from vertical (rad)
 
 // ─── Geometry constants ────────────────────────────────────────────────────────
 // Chest origin (bottom-centre of torso): (200, 212) — ported from
@@ -155,13 +172,98 @@ function LanternAnimated({ style }: { style?: ViewStyle }) {
     };
   });
 
+  // ── Wave clock ────────────────────────────────────────────────────────────────
+  // raise: 0 = arm resting at side, 1 = raised to wave. swing: forearm angle
+  // offset (rad) that oscillates while raised. Both loop on a 5 s cadence and
+  // start immediately on mount, so the hand waves once on first appearance and
+  // then again every 5 seconds.
+  const raise = useSharedValue(0);
+  const swing = useSharedValue(0);
+  const glowT = useSharedValue(0); // lantern glow driver, 0..1
+
+  // Elbow + wrist recomputed each frame from raise/swing (see geometry note above).
+  const arm = useDerivedValue(() => {
+    'worklet';
+    const r  = raise.value;
+    const ex = 224 + (233 - 224) * r;             // elbow x: rest 224 → raised 233
+    const ey = 180 + (150 - 180) * r;             // elbow y: rest 180 → raised 150
+    const a  = BASE_A + swing.value;              // forearm angle from vertical
+    const rax = ex + FORE_R * Math.sin(a);        // raised wrist (swinging)
+    const ray = ey - FORE_R * Math.cos(a);
+    const wx = REST_WX + (rax - REST_WX) * r;     // blend rest ↔ raised by r
+    const wy = REST_WY + (ray - REST_WY) * r;
+    return { ex, ey, wx, wy };
+  });
+
+  const armInkProps = useAnimatedProps(() => {
+    'worklet';
+    return { d: `M${SH_X} ${SH_Y}L${arm.value.ex} ${arm.value.ey}L${arm.value.wx} ${arm.value.wy}` };
+  });
+  const handFillProps = useAnimatedProps(() => {
+    'worklet';
+    return { cx: arm.value.wx + 3, cy: arm.value.wy + 2 };
+  });
+  const handInkProps = useAnimatedProps(() => {
+    'worklet';
+    return { cx: arm.value.wx, cy: arm.value.wy };
+  });
+
+  const glowProps = useAnimatedProps(() => {
+    'worklet';
+    const t = glowT.value;
+    return {
+      opacity:   0.12 + 0.22 * t,
+      transform: `translate(310,155) scale(${1 + 0.12 * t}) translate(-310,-155)`,
+    };
+  });
+
   useFocusEffect(useCallback(() => {
     idle.start();
-    return () => { idle.stop(); };
+
+    const T = 5000;
+    const d = (p: number) => Math.round(T * p);
+    const EIO = Easing.inOut(Easing.sin);
+
+    // raise: up (0→10%), hold raised (10→38%), down (38→48%), rest (48→100%)
+    raise.value = withRepeat(withSequence(
+      withTiming(1, { duration: d(0.10), easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: d(0.28) }),
+      withTiming(0, { duration: d(0.10), easing: Easing.in(Easing.cubic) }),
+      withTiming(0, { duration: d(0.52) }),
+    ), -1);
+
+    // swing: neutral until raised, then a decaying oscillation, then neutral/rest
+    swing.value = withRepeat(withSequence(
+      withTiming(0,    { duration: d(0.12) }),
+      withTiming(0.5,  { duration: d(0.05), easing: EIO }),
+      withTiming(-0.4, { duration: d(0.05), easing: EIO }),
+      withTiming(0.3,  { duration: d(0.04), easing: EIO }),
+      withTiming(-0.2, { duration: d(0.04), easing: EIO }),
+      withTiming(0.1,  { duration: d(0.04), easing: EIO }),
+      withTiming(0,    { duration: d(0.03), easing: EIO }),
+      withTiming(0,    { duration: d(0.63) }),
+    ), -1);
+
+    // glow: gentle independent pulse on the lantern
+    glowT.value = withRepeat(withTiming(1, { duration: 1400, easing: EIO }), -1, true);
+
+    return () => {
+      idle.stop();
+      [raise, swing, glowT].forEach(sv => cancelAnimation(sv));
+      raise.value = 0; swing.value = 0; glowT.value = 0;
+    };
   }, []));
 
   return (
     <Svg viewBox="0 0 400 300" width="100%" preserveAspectRatio="xMidYMid meet" style={style}>
+      {/* Warm glow behind the lantern — pulses opacity + a slight scale. Uses
+          the reserved `light` yellow: this login scene carries no confession
+          scrap/yap, so the lantern is the one warm accent, not competing with a
+          "yap" object. Drawn first so it sits behind the lantern body. */}
+      <AnimatedG animatedProps={glowProps}>
+        <Circle cx={310} cy={155} r={26} fill={ILL_COLOR.light} stroke="none" />
+      </AnimatedG>
+
       {/* Hanging lantern — static prop, no clock. Hangs from a floating beam,
           same weightless-prop convention as NotificationsEmpty's shelf. */}
       <Rect fill={ILL_COLOR.sand} x="270" y="104" width="90" height="6" rx="2" transform="translate(-2.6,2.4)" stroke="none" />
@@ -188,12 +290,13 @@ function LanternAnimated({ style }: { style?: ViewStyle }) {
         {/* Neck */}
         <G {...STROKE.ink}><Path d="M200 142V154" strokeWidth={10} /></G>
         <G stroke={ILL_COLOR.skinMd} strokeWidth={6.4} strokeLinecap="round" fill="none"><Path d="M200 142V154" /></G>
-        {/* Arms — open, resting at the sides */}
-        <G {...STROKE.ink}><Path d="M183 164L172 194M217 164L228 194" strokeWidth={8.5} /></G>
-        <G stroke={ILL_COLOR.coral} strokeWidth={4.9} strokeLinecap="round" fill="none"><Path d="M183 164L172 194M217 164L228 194" /></G>
+        {/* Left arm — resting at the side (the right arm is the animated waver,
+            rendered as a sibling after the head so its geometry isn't also
+            scaled by this breathe group). */}
+        <G {...STROKE.ink}><Path d="M183 164L172 194" strokeWidth={8.5} /></G>
+        <G stroke={ILL_COLOR.coral} strokeWidth={4.9} strokeLinecap="round" fill="none"><Path d="M183 164L172 194" /></G>
         <Ellipse fill={ILL_COLOR.skinMd} cx={175} cy={196} rx={4.5} ry={3.6} stroke="none" />
-        <Ellipse fill={ILL_COLOR.skinMd} cx={231} cy={196} rx={4.5} ry={3.6} stroke="none" />
-        <G {...STROKE.ink2}><Ellipse cx={172} cy={194} rx={4.5} ry={3.6} /><Ellipse cx={228} cy={194} rx={4.5} ry={3.6} /></G>
+        <G {...STROKE.ink2}><Ellipse cx={172} cy={194} rx={4.5} ry={3.6} /></G>
       </AnimatedG>
 
       {/* Head — nod clock */}
@@ -210,6 +313,23 @@ function LanternAnimated({ style }: { style?: ViewStyle }) {
           <Circle fill={ILL_COLOR.ink} cx={206} cy={128} r={1.8} stroke="none" />
         </AnimatedG>
       </AnimatedG>
+
+      {/* Right arm — the waver. Ink outline + coral fill share one animated
+          path (shoulder → elbow → wrist); the hand is two ellipses tracking the
+          wrist. Rendered here (after the head) so the raised hand reads as being
+          in front, and outside the breathe group so its geometry is driven only
+          by the wave worklet. */}
+      <AnimatedPath animatedProps={armInkProps} {...STROKE.ink} strokeWidth={8.5} />
+      <AnimatedPath
+        animatedProps={armInkProps}
+        stroke={ILL_COLOR.coral}
+        strokeWidth={4.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+      <AnimatedEllipse animatedProps={handFillProps} rx={4.5} ry={3.6} fill={ILL_COLOR.skinMd} stroke="none" />
+      <AnimatedEllipse animatedProps={handInkProps} rx={4.5} ry={3.6} {...STROKE.ink2} />
     </Svg>
   );
 }
