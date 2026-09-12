@@ -7,6 +7,9 @@ jobs:
   build:
     name: Build Android AAB (production)
     runs-on: ubuntu-latest
+    # A previous run hung and was cancelled at 6h; a healthy local build is
+    # ~30min. Bound it so a hang costs minutes, not a day of Actions time.
+    timeout-minutes: 90
 
     steps:
       - name: Checkout
@@ -15,7 +18,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # eas-cli 24+ requires Node >=22 (@oclif/plugin-autocomplete engine
+          # constraint). On Node 20 the CLI install fails outright, before the
+          # build reaches any app code. android-preview.yml already runs 22.
+          node-version: '22'
           cache: 'npm'
 
       - name: Setup Java 17
