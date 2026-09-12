@@ -7,7 +7,7 @@
  */
 
 import { CATEGORIES } from '@/lib/categories';
-import { getReaderPreferences, saveReaderPreferences } from '@/lib/api';
+import { getReaderPreferences, isAuthError, saveReaderPreferences } from '@/lib/api';
 import { announce } from '@/lib/a11y';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
@@ -147,10 +147,26 @@ export default function CategoriesScreen() {
     try {
       await saveReaderPreferences([...selected]);
     } catch (err) {
+      // Previously this was logged and then swallowed: we announced "saved"
+      // and navigated away regardless, so a failed save was indistinguishable
+      // from a successful one — the reader went back to an unchanged feed with
+      // no idea their choice never landed.
       console.warn('[categories] preferences save failed:', err);
-    } finally {
       setSaving(false);
+      if (isAuthError(err)) {
+        showDialog(
+          'You\'re signed out',
+          'Your session has ended, so your categories weren\'t saved. Sign in again and they\'ll stick.',
+        );
+      } else {
+        showDialog(
+          'Couldn\'t save your categories',
+          'Something went wrong reaching the server. Check your connection and try again.',
+        );
+      }
+      return;
     }
+    setSaving(false);
     announce('Preferences saved.');
     router.replace(isEdit ? '../' : '/read');
   }

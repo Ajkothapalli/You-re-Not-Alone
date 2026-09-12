@@ -33,7 +33,7 @@ import { GhostButton } from '@/components/Buttons';
 import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
 import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
-import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
+import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
 import { isD7 } from '@/lib/d7';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
@@ -66,6 +66,9 @@ export default function ExploreScreen() {
   const [premiumRequired, setPremiumRequired] = useState(false);
   const [withinD7,        setWithinD7]        = useState(false);
   const [exhausted,       setExhausted]       = useState(false);
+  // 'auth'  — no/expired session, so signing in is the only way forward.
+  // 'load'  — anything else (network, edge function, RPC); retrying may work.
+  const [loadError,       setLoadError]       = useState<'auth' | 'load' | null>(null);
   const [iconSession,     setIconSession]     = useState(() => Math.floor(Math.random() * 102));
   const [showShareNudge,  setShowShareNudge]  = useState(false);
   const [sharing,         setSharing]         = useState(false);
@@ -88,6 +91,7 @@ export default function ExploreScreen() {
   async function fetchRecommendations() {
     setLoading(true);
     setExhausted(false);
+    setLoadError(null);
     shownIdsRef.current  = new Set();
     impressedRef.current = new Set();
     readToEndRef.current = new Set();
@@ -102,7 +106,8 @@ export default function ExploreScreen() {
       }
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
-    } catch {
+    } catch (e) {
+      setLoadError(isAuthError(e) ? 'auth' : 'load');
       setConfessions([]);
     } finally {
       setLoading(false);
@@ -231,6 +236,33 @@ export default function ExploreScreen() {
     return (
       <View style={styles.center}>
         <ActivityIndicator color={color.dim} accessibilityLabel="Loading recommendations" />
+      </View>
+    );
+  }
+
+  // -- Couldn't load ------------------------------------------------------------
+  // Kept separate from the empty state on purpose. Every failure used to land
+  // in "Nothing here yet", which blamed the reader's categories for problems
+  // categories can't fix — so the obvious response (edit them) changed nothing
+  // and the feed looked broken for no visible reason.
+  if (loadError) {
+    const isAuth = loadError === 'auth';
+    return (
+      <View style={styles.root}>
+        <FeedHeader />
+        <View style={styles.endContent}>
+          <Text style={styles.endHeading} accessibilityRole="header">
+            {isAuth ? 'You\'re signed out' : 'Couldn\'t load your feed'}
+          </Text>
+          <Text style={styles.endBody}>
+            {isAuth
+              ? 'Your session has ended. Sign in again to pick up where you left off.'
+              : 'Something went wrong reaching your confessions. Check your connection and try again.'}
+          </Text>
+          {isAuth
+            ? <GhostButton label="Sign in" onPress={() => router.replace('/')} />
+            : <GhostButton label="Try again" onPress={fetchRecommendations} />}
+        </View>
       </View>
     );
   }

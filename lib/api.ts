@@ -12,6 +12,29 @@ import { resetFtue, resetIntroReads } from './onboarding';
 import { clearRtueCache, markRtueSeen } from './rtue';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+/**
+ * Thrown when a call needs a signed-in user and there isn't one.
+ *
+ * Typed so screens can tell "your session ended" apart from "the network
+ * failed" — the two need different recoveries, and collapsing them into one
+ * generic empty state sends people off fixing things that were never broken.
+ */
+export class AuthRequiredError extends Error {
+  constructor() {
+    super('Not authenticated');
+    this.name = 'AuthRequiredError';
+  }
+}
+
+/**
+ * Is this failure a missing/expired session? Falls back to the message for the
+ * call sites that still throw a plain Error('Not authenticated').
+ */
+export function isAuthError(e: unknown): boolean {
+  if (e instanceof AuthRequiredError) return true;
+  return /not authenticated/i.test(String((e as Error)?.message ?? ''));
+}
+
 // "submitted" = confession stored, no match found yet (first person to feel this)
 // "matched"   = a semantically close past confession was found
 // "blocked"   = moderation gate rejected the text
@@ -290,7 +313,7 @@ export async function getRecommendations(
   excludeIds: string[] = [],
 ): Promise<RecommendationsResult> {
   const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error('Not authenticated');
+  if (!session) throw new AuthRequiredError();
 
   try {
     const { data, error } = await supabase.functions.invoke<{ confessions: Recommendation[]; premiumRequired?: boolean }>(
