@@ -5,7 +5,7 @@
  * switch on it. The Edge Function returns the same field name.
  */
 import { supabase } from './supabase';
-import { getDummyRecommendations, getDummyMatchCount } from './dummyConfessions';
+import { getDummyRecommendations, getDummyMatchCount, isRichConfession } from './dummyConfessions';
 import type { AuthorshipPayload } from './authorship';
 import { saveReceipt, clearReceipts } from './confessionReceipt';
 import { resetFtue, resetIntroReads } from './onboarding';
@@ -301,7 +301,17 @@ export async function getRecommendations(
     // Server enforced the paywall. For D7 users fall through to preview pool;
     // for everyone else respect the gate — never use dummy data to defeat it.
     if (data?.premiumRequired && !d7Bypass) return { confessions: [], premiumRequired: true };
-    if (data?.confessions?.length) return { confessions: data.confessions, premiumRequired: false };
+    if (data?.confessions?.length) {
+      // Inside D7 the reader only gets substantial, story-shaped confessions —
+      // a one-liner is a poor first impression of what this place is for. The
+      // server pool carries no richness flag, so filter on the text itself.
+      // If that leaves too little to be worth showing, drop through to the
+      // curated rich preview pool rather than serving a thin feed.
+      const pool = d7Bypass
+        ? data.confessions.filter(c => isRichConfession(c.text))
+        : data.confessions;
+      if (pool.length >= 3) return { confessions: pool, premiumRequired: false };
+    }
   } catch {
     // Edge Function not deployed — fall through to preview data.
   }
@@ -309,7 +319,7 @@ export async function getRecommendations(
   // PREVIEW FALLBACK (also D7 bypass path for premium gate)
   const prefs = await getReaderPreferences();
   return {
-    confessions:    getDummyRecommendations(prefs?.categories ?? [], 10, excludeIds),
+    confessions:    getDummyRecommendations(prefs?.categories ?? [], 10, excludeIds, d7Bypass),
     premiumRequired: false,
   };
 }

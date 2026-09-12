@@ -18,7 +18,10 @@
 import type { Recommendation } from './api';
 import type { CategoryId } from './categories';
 
-type Dummy = Recommendation & { categories: CategoryId[] };
+// `rich` marks the multi-paragraph, story-shaped entries. Readers inside
+// their first 7 days see ONLY these — a one-liner is a poor first impression
+// of what this place is for.
+type Dummy = Recommendation & { categories: CategoryId[]; rich?: boolean };
 
 export const DUMMY_CONFESSIONS: Dummy[] = [
   // ─────────────────────────── Mental health ───────────────────────────
@@ -314,6 +317,94 @@ export const DUMMY_CONFESSIONS: Dummy[] = [
     text: "doubt didn't make me bitter. it made me gentler with everyone else who's just trying to figure out how to be a person here." },
   { id: 'fa-20', feltCount: 330, categories: ['faith_meaning'],
     text: "Some mornings the meaning is just the coffee, the light on the wall, the fact that I'm still here to notice. I'm learning to let the small holy things be enough." },
+
+  // ─────────────── Rich / long-form (D7 reading pool) ───────────────
+  // Multi-paragraph, story-shaped. These are the only ones surfaced to a
+  // reader inside their first 7 days — see getDummyRecommendations({ richOnly }).
+  { id: "mh-r1", feltCount: 1470, rich: true, categories: ['mental_health'],
+    text: "I have a whole routine for seeming fine. Shower, coffee, the specific playlist, the walk to the station where I practise my face.\n\nBy the time I get to my desk I've already done a full day of work, and none of it was the job.\n\nI don't know how to tell anyone that the tiredness isn't from the work. It's from the performance around the work." },
+  { id: "mh-r2", feltCount: 1180, rich: true, categories: ['mental_health'],
+    text: "my therapist asked what i do for fun and i sat there for a full minute\n\ni used to draw. i used to be the person who drew on everything \u2014 margins, napkins, my own hands. i don't know when i stopped. there wasn't a day i decided to.\n\ni bought a sketchbook last week. it's still in the bag. but i bought it." },
+  { id: "mh-r3", feltCount: 1320, rich: true, categories: ['mental_health'],
+    text: "The anxiety doesn't announce itself any more. It moves in quietly and rearranges the furniture, and I don't notice until I go to sit somewhere familiar and it's gone.\n\nI cancelled on my oldest friend three times this month. Each time I had a real reason. Each time the relief when she said 'no worries' was bigger than the reason deserved.\n\nI'm not avoiding her. I'm avoiding being seen not coping. There's a difference, and it isn't a flattering one." },
+  { id: "mh-r4", feltCount: 990, rich: true, categories: ['mental_health'],
+    text: "everyone keeps saying it's brave to talk about it. i've talked about it. i've talked about it so much it's become a bit, a thing i say early to get ahead of it \ud83d\ude05\n\nwhat i haven't done is let anyone actually help. talking is easy. it's the accepting the lift to the appointment, the 'can i just sit here while you do it' \u2014 that's the part i can't do\n\ni think i've confused narrating it with surviving it" },
+  { id: "mh-r5", feltCount: 1240, rich: true, categories: ['mental_health'],
+    text: "Three years on medication and I still catch myself framing it as temporary. 'While I sort myself out.' 'Just for now.'\n\nMy psychiatrist asked whether I'd say that about insulin and I got defensive, which told us both what we needed to know.\n\nI'm well. I've been well a while. I just haven't put down the idea that being well is something I'm getting away with." },
+  { id: "mh-r6", feltCount: 1090, rich: true, categories: ['mental_health'],
+    text: "i had a good week. a genuinely good one.\n\nand instead of enjoying it i spent most of it bracing \u2014 checking the sky, waiting for the part where it turns. because it always turns, and i'd rather see it coming than get caught out happy\n\nnobody warns you that recovery includes learning to trust good days again. that's its own slow separate thing \ud83e\udd72" },
+  { id: "rel-r1", feltCount: 1390, rich: true, categories: ['relationships'],
+    text: "My mother and I have the same conversation every Sunday. Weather, her knee, my job, whether I'm eating.\n\nUnderneath it is a completely different conversation neither of us has ever started \u2014 about the years she wasn't there, and the reasons I've never asked for.\n\nI'm forty-one. She's seventy-three. I keep thinking there'll be a better time to open it, and I keep watching the window get smaller." },
+  { id: "rel-r2", feltCount: 1150, rich: true, categories: ['relationships'],
+    text: "we broke up eight months ago and i still narrate my day to him in my head\n\nnot the big stuff. the stupid stuff. the man on the bus with the parrot. the way the new place gets light at four. he was the audience for all my nothing, and i didn't realise how much of my life was made of nothing until there was no one to tell \ud83e\udd72\n\ni'm not sad about him exactly. i'm sad about the running commentary with nowhere to go" },
+  { id: "rel-r3", feltCount: 1510, rich: true, categories: ['relationships'],
+    text: "I love my wife and I have been lonely in my marriage for two years.\n\nBoth of those are true, and saying the second out loud feels like a betrayal of the first \u2014 which is exactly why I haven't said it to her. So we're polite, and we're kind, and we're further apart every month.\n\nI keep waiting for something to break so we'd have to talk about it. Nothing breaks. That's almost the worst part." },
+  { id: "rel-r4", feltCount: 880, rich: true, categories: ['relationships'],
+    text: "my best friend got engaged and i cried in the toilets and they were not happy tears \ud83d\ude2d\n\ni'm not in love with her. it isn't that. it's that i can feel the shape of the next ten years and i'm not in the middle of them any more, and i don't know who i am in someone's life if i'm not the first call\n\nthen i went back out and hugged her and meant it. both things fit, somehow." },
+  { id: "rel-r5", feltCount: 1260, rich: true, categories: ['relationships'],
+    text: "My dad and I fix things together. That's the whole relationship. A leaking tap, a dead battery, a fence after a storm.\n\nWe have never once talked about my divorce, or his heart, or the fact that we're both frightened of the same silence. But he drove ninety minutes last month because my boiler was out, stayed the night, and made me breakfast.\n\nI've stopped needing him to say it. I just wish I'd worked out sooner that he'd been saying it the whole time." },
+  { id: "rel-r6", feltCount: 1020, rich: true, categories: ['relationships'],
+    text: "i keep a draft text to my sister that i've rewritten maybe forty times\n\nit's an apology. a real one, not the kind that's secretly asking to be forgiven. three years of not speaking, and every version either says too little or explains too much\n\nthe honest reason i haven't sent it is that unsent, it could still work. sent, it might not." },
+  { id: "gr-r1", feltCount: 1620, rich: true, categories: ['grief'],
+    text: "Mum's been gone fourteen months and I've finally stopped reaching for the phone.\n\nWhat nobody prepared me for is that stopping felt like a second loss. The reflex was the last living thing about her \u2014 the automatic part of me that still believed she'd answer.\n\nNow I just know, all the time, evenly, without being reminded. I didn't expect to miss the forgetting." },
+  { id: "gr-r2", feltCount: 1290, rich: true, categories: ['grief'],
+    text: "he died in march and everyone was incredible for about six weeks\n\nthen the food stopped and the texts thinned out. that's not a complaint \u2014 people have lives, and honestly the crowd was exhausting. but month seven is when it actually landed, and by then the scaffolding was gone and i was supposed to be through it\n\ngrief doesn't run on the same clock as sympathy. wish someone had told me that in march" },
+  { id: "gr-r3", feltCount: 1180, rich: true, categories: ['grief'],
+    text: "I was not the widow. I was not the sister. I had no role, so I had no permission.\n\nWe'd been close nineteen years, and at the funeral I sat six rows back with the colleagues. Everyone assumed I was fine because nobody had a word for what I'd lost.\n\nI still don't have the word. I just know the house is quieter in a way that has nothing to do with sound." },
+  { id: "gr-r4", feltCount: 1440, rich: true, categories: ['grief'],
+    text: "my grandmother is still alive and i have been grieving her for two years\n\nshe knows my face most days. she doesn't know that i moved, or that i got the job, or that she already told me this story twenty minutes ago. i answer like it's new every time, and it costs me something every time\n\nnobody sends flowers for this one. there's no date to mark. she's right here, and she's been leaving for two years" },
+  { id: "gr-r5", feltCount: 1070, rich: true, categories: ['grief'],
+    text: "The strangest part is how ordinary the triggers are. Not photographs. Not the anniversary.\n\nA particular washing powder in a supermarket aisle. The sound of someone else's keys. Last week it was a stranger laughing with exactly his timing, and I had to go and sit in the car.\n\nI can plan for the big days. It's the ambushes that still take my legs out." },
+  { id: "gr-r6", feltCount: 1350, rich: true, categories: ['grief'],
+    text: "we lost the baby at nineteen weeks and people keep saying 'at least you know you can get pregnant'\n\nthey mean it kindly. i know they do. but i had names. i had a whole imagined person, a whole set of tuesdays in a future that isn't coming, and there's no funeral for that \ud83d\udc94\n\ni'm not grieving a possibility. i'm grieving someone only i ever met." },
+  { id: "sec-r1", feltCount: 1410, rich: true, categories: ['secrets'],
+    text: "Twelve years ago I let a colleague take the blame for something I did. It wasn't career-ending. He moved on. I doubt he thinks about it.\n\nI've thought about it most weeks since. I built a reputation on being the reliable one, and the foundation of it is the one day I wasn't and let someone else carry it.\n\nEvery time somebody calls me straight, I hear it. It's a splinter you only feel in certain weather." },
+  { id: "sec-r2", feltCount: 1130, rich: true, categories: ['secrets'],
+    text: "i have a second account with forty followers and it is the only honest thing i own\n\nno face, no name, just the things i actually think, posted at 2am to people who'll never meet me. my real account is a museum of a person i'm performing \ud83d\ude43\n\nthe part that worries me isn't the anonymous one. it's that the anonymous one is the one that feels like me" },
+  { id: "sec-r3", feltCount: 1280, rich: true, categories: ['secrets'],
+    text: "I'm the generous one. It's my whole identity \u2014 first round, lifts to the airport, the person who remembers.\n\nWhat nobody knows is that I do it because I'm terrified that if I stopped being useful there'd be no reason for anyone to stay. It isn't kindness. It's rent.\n\nI've been paying it so long I don't know what I'd be without it, and I'm too frightened of the answer to stop and find out." },
+  { id: "sec-r4", feltCount: 960, rich: true, categories: ['secrets'],
+    text: "i read my partner's messages once, four years ago\n\nthere was nothing. absolutely nothing \u2014 a boring conversation with his brother. and i've carried the guilt ever since while he's carried none of it, because he doesn't know\n\ni can't confess it without handing him a wound he doesn't currently have. so i just hold it. that's the whole sentence: i hold it." },
+  { id: "sec-r5", feltCount: 1330, rich: true, categories: ['secrets'],
+    text: "Everyone thinks I chose this career. The truth is I was too frightened to disappoint my father, and then too far in to turn round.\n\nTwenty-two years. A pension, a title, a house that's nearly paid for \u2014 all built on a decision I never actually made.\n\nHe's been dead six years. I'm still doing it. That's the part I can't explain to anyone, including myself." },
+  { id: "sec-r6", feltCount: 1040, rich: true, categories: ['secrets'],
+    text: "i told everyone i quit. i was managed out \ud83d\ude36\n\nit's been a year and the lie has its own architecture now \u2014 the story about wanting a change, the timeline i keep straight, the people who congratulate me on my bravery\n\nlosing the job hurt for a month. the lie has hurt for a year. i picked the worse one, and i picked it in about four seconds" },
+  { id: "wk-r1", feltCount: 1560, rich: true, categories: ['work_identity'],
+    text: "I got the promotion I'd spent six years wanting and felt absolutely nothing.\n\nNot relief, not pride. I read the email twice to check I'd understood, then went and made a coffee. That night I lay awake doing the arithmetic on how long I'd been running at something that weighed nothing once I caught it.\n\nI'm not unhappy. I'm newly aware that I don't know what I want, and that I've used ambition to avoid finding out." },
+  { id: "wk-r2", feltCount: 1220, rich: true, categories: ['work_identity'],
+    text: "everyone at work thinks i'm across everything. i google the basics of my own job most weeks \ud83d\udc80\n\nit's been four years. surely at some point the impostor thing resolves into just being the person who does the job? but it only gets more elaborate \u2014 more scaffolding, more careful management of what people see\n\ni'm good at this. i have evidence. the evidence doesn't touch the feeling" },
+  { id: "wk-r3", feltCount: 1100, rich: true, categories: ['work_identity'],
+    text: "I left a well-paid job that was quietly killing me. I'm broke and happier and I still can't say it was right without qualifying it.\n\nMy family ask how 'the new thing' is going, in a tone. Old colleagues forward me roles I'd be perfect for. Everyone is kind and nobody believes me.\n\nSome mornings I don't believe me either. Then I remember what Sunday nights used to feel like, and I do." },
+  { id: "wk-r4", feltCount: 870, rich: true, categories: ['work_identity'],
+    text: "my whole personality is being busy\n\ni took a week off and by wednesday i was genuinely unwell with it. no deadlines, nobody needing anything, just me and the enormous question of what i'm for if i'm not producing \ud83d\ude2e\u200d\ud83d\udca8\n\nwent back early and told everyone the break was great. it was the worst week i've had in years and it had nothing to do with the week" },
+  { id: "wk-r5", feltCount: 1370, rich: true, categories: ['work_identity'],
+    text: "I'm fifty-three and I've worked out that I peaked at thirty-eight.\n\nNot catastrophically \u2014 I'm respected, I'm fine. But the interesting work goes to people who remind me of me, and I've become the person who gets consulted rather than the person who does it.\n\nNobody tells you you'll have to grieve a younger, more promising version of yourself while still showing up as the current one. I'm learning to do that without the bitterness leaking out." },
+  { id: "wk-r6", feltCount: 1010, rich: true, categories: ['work_identity'],
+    text: "i measure my worth in output, and on days i make nothing i genuinely believe i am nothing\n\ni know how that sounds. i know it isn't true. knowing has never once helped at 6pm on a day where i've got nothing to show\n\ni've started writing down one non-work thing i did each day. today's was 'made soup'. it feels stupid and it's the only thing that's moved in two years" },
+  { id: "bd-r1", feltCount: 1300, rich: true, categories: ['body_health'],
+    text: "I've had chronic pain for nine years and I've become an exceptional liar.\n\n'I'm fine' is faster than the truth and it keeps the room comfortable. But it means nobody has any idea, so when I do cancel it looks sudden and inexplicable rather than the end of a week of paying for something I chose to do.\n\nI'd rather be thought flaky than fragile. I'm no longer sure that was the right trade." },
+  { id: "bd-r2", feltCount: 1150, rich: true, categories: ['body_health'],
+    text: "the diagnosis didn't break me. the inspiration did \ud83d\ude43\n\nwithin a fortnight i was somebody's lesson about perspective \u2014 people i barely knew telling me how strong i am, how it puts things in context, how they'd never cope\n\ni'm not strong. i'm here, doing the paperwork and the appointments and the tiredness, with no alternative on offer. there's nothing inspiring about having no choice" },
+  { id: "bd-r3", feltCount: 1420, rich: true, categories: ['body_health'],
+    text: "I made peace with my body at forty-six, about eight months before it started failing.\n\nThirty years at war with it \u2014 the diets, the mirrors, the whole exhausting campaign. Then I genuinely stopped, and I had the better part of a year of just living in it before the results came back.\n\nI'm not angry about the illness. I'm angry about the thirty years. That's the bit I'd want back." },
+  { id: "bd-r4", feltCount: 930, rich: true, categories: ['body_health'],
+    text: "my body has been sending invoices for everything i ignored in my twenties and they've all come due at once\n\nthe sleep i didn't get. the food that was just fuel. the years i treated exhaustion as a personality. i can't even be properly indignant because i was warned, repeatedly, by people who turned out to be right\n\n35 and i go to bed at ten now. the shame of how much better i feel is genuinely something i'm working through" },
+  { id: "bd-r5", feltCount: 1210, rich: true, categories: ['body_health'],
+    text: "Six months of tests and everything comes back normal, which is somehow the worst available result.\n\nNormal means nothing to treat. Normal means the tiredness that has taken my job and most of my friendships is, officially, nothing. I've started to sound unhinged in appointments because I'm so frightened of being dismissed again.\n\nI'm not hoping something's wrong. I'm hoping someone believes the thing that already is." },
+  { id: "bd-r6", feltCount: 1060, rich: true, categories: ['body_health'],
+    text: "got the all clear in april and i have not felt one moment of the joy i was promised\n\nwhat i feel is furious. about the year it ate, about how everyone's moved on, about being expected to be grateful now and hand back the concern \ud83e\udd72\n\nnobody prepares you for grieving the time while being congratulated on surviving it" },
+  { id: "fa-r1", feltCount: 1240, rich: true, categories: ['faith_meaning'],
+    text: "I left the church at twenty-six and I've never stopped missing the singing.\n\nNot the theology \u2014 I don't want that back and I don't miss the certainty. But two hundred people in a room making the same sound at the same time, on a Tuesday, for no commercial reason. I haven't found the replacement and I have genuinely looked.\n\nI think I lost a building and a habit, and I only meant to lose the belief." },
+  { id: "fa-r2", feltCount: 980, rich: true, categories: ['faith_meaning'],
+    text: "i pray when i'm desperate and i don't believe the rest of the time, and i've stopped finding that embarrassing\n\nfoxhole prayer is supposed to be the cheap kind. but it's the only time i'm actually honest \u2014 no performance, no theology, just the raw 'please' of someone with nothing left to manage\n\nif anything is listening, that's probably the version worth hearing anyway" },
+  { id: "fa-r3", feltCount: 1330, rich: true, categories: ['faith_meaning'],
+    text: "My daughter asked what happens when we die and I gave her the honest answer, which is that I don't know.\n\nShe's nine. She looked genuinely frightened and I had nothing to hand her. I was raised with an answer \u2014 a bad one, in hindsight, but it worked at nine \u2014 and I've given her freedom and no floor.\n\nI still think the truth was right. I just didn't expect it to cost her anything." },
+  { id: "fa-r4", feltCount: 1120, rich: true, categories: ['faith_meaning'],
+    text: "spent my thirties looking for my purpose like it was a set of car keys\n\nsomewhere this year it shifted. i stopped looking for the thing i'm for and noticed i'd already been doing it \u2014 badly, inconsistently, without naming it. the people i show up for. the small repeated unglamorous stuff\n\nit was never hidden. it just didn't look like a calling, so i kept walking past it" },
+  { id: "fa-r5", feltCount: 1190, rich: true, categories: ['faith_meaning'],
+    text: "I've been angry at a God I don't believe in for four years, which my rational brain finds ridiculous.\n\nBut you can't be furious at nothing. The anger has an address, and every time I try to dissolve it into 'random universe, no intent' it refuses to go. It wants someone to have decided.\n\nI've stopped trying to make it make sense. Some grief needs a direction more than it needs to be correct." },
+  { id: "fa-r6", feltCount: 1480, rich: true, categories: ['faith_meaning'],
+    text: "sat with my dad the night before he died and none of the meaning stuff showed up\n\nno light, no peace, no sense of anything larger. just a room, a machine, his hand, and the two of us doing the most ordinary thing humans do\n\ni thought that would frighten me out of whatever faith i had left. it did the opposite. that ordinariness felt like the most sacred thing i've ever been in the room for" },
 ];
 
 // Fisher–Yates, non-mutating
@@ -326,10 +417,14 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function matchingPool(categories: string[]): Dummy[] {
+function matchingPool(categories: string[], richOnly = false): Dummy[] {
+  const base   = richOnly ? DUMMY_CONFESSIONS.filter((c) => c.rich) : DUMMY_CONFESSIONS;
   const chosen = new Set(categories);
-  if (chosen.size === 0) return DUMMY_CONFESSIONS; // no prefs → everything
-  return DUMMY_CONFESSIONS.filter((c) => c.categories.some((cat) => chosen.has(cat)));
+  if (chosen.size === 0) return base; // no prefs → everything
+  const matched = base.filter((c) => c.categories.some((cat) => chosen.has(cat)));
+  // Never strand a reader on an empty feed because their categories are narrow:
+  // fall back to the whole (still rich-filtered) pool rather than showing nothing.
+  return matched.length > 0 ? matched : base;
 }
 
 /**
@@ -349,8 +444,9 @@ export function getDummyRecommendations(
   categories:  string[],
   limit        = 10,
   excludeIds: string[] = [],
+  richOnly     = false,
 ): Recommendation[] {
-  const pool = matchingPool(categories);
+  const pool = matchingPool(categories, richOnly);
   if (excludeIds.length > 0) {
     const excluded = new Set(excludeIds);
     const unseen   = pool.filter((c) => !excluded.has(c.id));
@@ -363,4 +459,14 @@ export function getDummyRecommendations(
 /** How many confessions match the reader's categories (preview count). */
 export function getDummyMatchCount(categories: string[]): number {
   return matchingPool(categories).length;
+}
+
+/**
+ * Is this confession substantial enough to read like a story rather than a
+ * one-liner? Used to hold the D7 reading pool to the richer entries — it also
+ * applies to server-returned confessions, which carry no `rich` flag.
+ */
+export function isRichConfession(text: string): boolean {
+  const t = text.trim();
+  return t.includes('\n\n') || t.length >= 300;
 }
