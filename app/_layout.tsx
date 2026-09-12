@@ -73,9 +73,13 @@ function ThemedStack() {
         <Stack.Screen name="my-confessions" />
         <Stack.Screen name="categories"     options={SHEET_OPTIONS} />
 
-        {/* Legacy routes kept for deep-link compat */}
-        <Stack.Screen name="write"   />
+        {/* The scrollable reading feed — reached from read.tsx's "Read more"
+            card during D7. (It was previously listed as deep-link-only, which
+            meant nothing in the app could actually get to it.) */}
         <Stack.Screen name="explore" />
+
+        {/* Legacy route kept for deep-link compat */}
+        <Stack.Screen name="write"   />
       </Stack>
       <DialogHost />
       {!splashDone && <AnimatedSplash onDone={() => setSplashDone(true)} />}

@@ -1,5 +1,5 @@
 import { router, usePathname } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ScrawlIcon } from './ScrawlIcon';
@@ -7,6 +7,7 @@ import { useNotificationsContext } from '../lib/notificationsContext';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { SPRING } from '../theme/motion';
 import { useReducedMotion } from '../lib/a11y';
+import { isD7 } from '../lib/d7';
 import { fontFamily } from '../theme/tokens';
 
 const ICON        = 20;
@@ -25,7 +26,7 @@ const IND_TOP  = PILL_PAD_V;             // 6
 
 // Only show the nav bar on the four main tab screens.
 // Every other route (sub-pages, sheets, overlays) hides it automatically.
-const SHOW_ON = new Set(['/read', '/you', '/write', '/notifications']);
+const SHOW_ON = new Set(['/read', '/explore', '/you', '/write', '/notifications']);
 
 interface TabItemProps {
   icon:    string;
@@ -73,7 +74,13 @@ export default function WriteFAB() {
   const { unreadCount } = useNotificationsContext();
   const reduceMotion    = useReducedMotion();
 
-  const isRead   = pathname === '/read';
+  // Inside D7 the Read tab goes straight to the scrollable feed — that's the
+  // habit we're trying to build. /read still shows on launch (owner decision
+  // 2026-06-12) and remains hard-capped at 2; both count as "Read" here.
+  const [withinD7, setWithinD7] = useState(false);
+  useEffect(() => { isD7().then(setWithinD7).catch(() => {}); }, []);
+
+  const isRead   = pathname === '/read' || pathname === '/explore';
   const isYou    = pathname === '/you';
   const isWrite  = pathname === '/write';
   const isAlerts = pathname === '/notifications';
@@ -119,7 +126,7 @@ export default function WriteFAB() {
             style={[styles.indicatorCircle, { backgroundColor: color.accent, borderColor: color.border, transform: indicatorTransform }]}
           />
 
-          <TabItem icon="book"   label="Read"   active={isRead}   onPress={() => router.navigate('/read')} />
+          <TabItem icon="book"   label="Read"   active={isRead}   onPress={() => router.navigate(withinD7 ? '/explore' : '/read')} />
           <TabItem icon="pencil" label="Write"  active={isWrite}  onPress={() => router.navigate('/(tabs)/write')} />
           <TabItem icon="person" label="You"    active={isYou}    onPress={() => router.navigate('/(tabs)/you')} />
           <TabItem icon="bell"   label="Alerts" active={isAlerts} onPress={() => router.navigate('/(tabs)/notifications')} badge={unreadCount} />

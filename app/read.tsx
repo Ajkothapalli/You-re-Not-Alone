@@ -18,6 +18,7 @@ import ReadCard from '@/components/ReadCard';
 import { analytics } from '@/lib/analytics';
 import { getMatchingCount, getOnboardingConfessions, reportConfession, type ReadConfession } from '@/lib/api';
 import { session } from '@/lib/sessionFlags';
+import { isD7 } from '@/lib/d7';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -65,6 +66,7 @@ export default function ReadScreen() {
   const [loading,    setLoading]    = useState(true);
   const [matchCount, setMatchCount] = useState(0);
   const [iconSession, setIconSession] = useState(() => Math.floor(Math.random() * 102));
+  const [withinD7,   setWithinD7]   = useState(false);
 
   const done = useRef(false);
 
@@ -93,6 +95,7 @@ export default function ReadScreen() {
       }
     })();
     getMatchingCount().then(setMatchCount).catch(() => {});
+    isD7().then(setWithinD7).catch(() => {});
   }, []);
 
   // Track impression for every card shown (both at once)
@@ -180,30 +183,60 @@ export default function ReadScreen() {
         <View style={styles.orLine} />
       </View>
 
+      {/* This screen is hard-capped at 2 (invariant 2). The way on to more
+          reading is the explore feed — which, until now, nothing in the app
+          actually linked to, so the batch was unreachable outside deep links.
+          Inside D7 reading is free, so pushing a paywall here would be both
+          wrong and slightly insulting; that card is for everyone else. */}
       <View style={styles.promoOuter}>
       <View pointerEvents="none" style={styles.promoShadow} />
-      <Pressable
-        onPress={() => router.push('/plans')}
-        style={({ pressed }) => [styles.promoCard, pressed && styles.promoCardPressed]}
-        accessibilityRole="button"
-        accessibilityLabel="Unlock unlimited reads"
-      >
-        <View style={styles.promoTop}>
-          <Text style={styles.promoEyebrow}>PREMIUM</Text>
-          {matchCount > 0 && (
-            <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ waiting</Text>
-          )}
-        </View>
-        <Text style={styles.promoTitle}>Don't stop at 2</Text>
-        <Text style={styles.promoBody}>
-          Right now, hundreds of confessions match what you carry.
-          Premium readers see every one — no writing, no waiting.
-        </Text>
-        <View style={styles.promoCta}>
-          <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
-          <ScrawlIcon name="arrow_right" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
-        </View>
-      </Pressable>
+      {withinD7 ? (
+        <Pressable
+          onPress={() => router.push('/explore')}
+          style={({ pressed }) => [styles.promoCard, pressed && styles.promoCardPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Keep reading — more confessions matched to you"
+        >
+          <View style={styles.promoTop}>
+            <Text style={styles.promoEyebrow}>KEEP READING</Text>
+            {matchCount > 0 && (
+              <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ matched</Text>
+            )}
+          </View>
+          <Text style={styles.promoTitle}>Don't stop at 2</Text>
+          <Text style={styles.promoBody}>
+            More confessions matched to what you chose to read — free for your
+            first week. No writing, no waiting.
+          </Text>
+          <View style={styles.promoCta}>
+            <Text style={styles.promoCtaText}>Read more</Text>
+            <ScrawlIcon name="arrow_right" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
+          </View>
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={() => router.push('/plans')}
+          style={({ pressed }) => [styles.promoCard, pressed && styles.promoCardPressed]}
+          accessibilityRole="button"
+          accessibilityLabel="Unlock unlimited reads"
+        >
+          <View style={styles.promoTop}>
+            <Text style={styles.promoEyebrow}>PREMIUM</Text>
+            {matchCount > 0 && (
+              <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ waiting</Text>
+            )}
+          </View>
+          <Text style={styles.promoTitle}>Don't stop at 2</Text>
+          <Text style={styles.promoBody}>
+            Right now, hundreds of confessions match what you carry.
+            Premium readers see every one — no writing, no waiting.
+          </Text>
+          <View style={styles.promoCta}>
+            <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
+            <ScrawlIcon name="arrow_right" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
+          </View>
+        </Pressable>
+      )}
       </View>
     </ScrollView>
     </View>
