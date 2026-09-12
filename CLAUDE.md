@@ -24,9 +24,17 @@
      with a report control on every card. Never expand into a feed, add pagination,
      add a refresh gesture, or raise the cap.
    - The explore screen (`app/explore.tsx`): owner-approved, personalized,
-     capped at 10 confessions per session, one at a time, no infinite scroll,
-     no refresh gesture. Safety filters in `recommend_confessions` SQL RPC are
-     applied BEFORE scoring and CANNOT be bypassed by the edge function.
+     capped at 10 confessions per batch, no infinite scroll, no refresh
+     gesture, nothing loads on scroll. Safety filters in
+     `recommend_confessions` SQL RPC are applied BEFORE scoring and CANNOT be
+     bypassed by the edge function.
+     *Owner decision 2026-09-12:* the original "one at a time" presentation was
+     deliberately overridden — the batch is now a SCROLLABLE list. The
+     anti-feed intent is unchanged and still enforced: the batch stays capped,
+     scrolling never loads more, and there is no refresh gesture. Readers
+     inside their first 7 days (D7) may tap "Keep reading" to append the next
+     batch; that is an explicit user action, never automatic, so the surface
+     cannot become an endless feed.
    No other read surface may be added.
 
 3. **Anonymity is user-facing (owner decision 2026-07-05; supersedes the original
