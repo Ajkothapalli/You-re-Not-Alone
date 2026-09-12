@@ -68,6 +68,9 @@ function ThemedStack() {
         <Stack.Screen name="contact"     options={SHEET_OPTIONS} />
         <Stack.Screen name="plans"       options={PLANS_SHEET_OPTIONS} />
         <Stack.Screen name="policy"      options={SHEET_OPTIONS} />
+        {/* A full pushed page, not a sheet — it's a scrollable list you drill
+            into from the You tab's "My confessions" card. */}
+        <Stack.Screen name="my-confessions" />
         <Stack.Screen name="categories"     options={SHEET_OPTIONS} />
 
         {/* Legacy routes kept for deep-link compat */}

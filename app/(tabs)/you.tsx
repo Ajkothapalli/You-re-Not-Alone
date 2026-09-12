@@ -14,7 +14,7 @@ import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { GhostButton } from '@/components/Buttons';
 import { showDialog } from '@/components/AppDialog';
 import { PERSONAS, PersonaBadge, getPersonaById } from '@/components/Persona';
-import { deleteAccount, getMyConfessions, retireConfession, type OwnConfession, type DeleteMode } from '@/lib/api';
+import { deleteAccount, getMyConfessions, type OwnConfession, type DeleteMode } from '@/lib/api';
 import { clearProfile, getProfile, setProfileName, setProfilePersona } from '@/lib/profile';
 import { usePremium } from '@/lib/premiumContext';
 import { billingAvailable, restorePurchases } from '@/lib/purchases';
@@ -41,24 +41,6 @@ import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 
 const SHADOW = 4;
-
-const STATUS_LABEL: Record<string, string> = {
-  live:         'live',
-  approved:     'live',
-  under_review: 'under review',
-  removed:      'removed',
-  retired:      'retired',
-  deleted:      'deleted',
-};
-
-const STATUS_COLOR: Record<string, string> = {
-  live:         '#4ADE80',
-  approved:     '#4ADE80',
-  under_review: '#FBBF24',
-  removed:      '#6B7280',
-  retired:      '#6B7280',
-  deleted:      '#6B7280',
-};
 
 export default function YouScreen() {
   const { isPremium, refresh } = usePremium();
@@ -131,62 +113,6 @@ export default function YouScreen() {
   async function handlePickPersona(id: string) {
     setPersonaId(id);
     await setProfilePersona(id);
-  }
-
-  function markRetired(confessionId: string) {
-    setConfessions((prev) =>
-      prev.map((c) => c.id === confessionId ? { ...c, status: 'retired' as const } : c),
-    );
-  }
-
-  function handleEdit(item: OwnConfession) {
-    showDialog(
-      'Edit this confession?',
-      'Editing retires this version immediately and releases a new one. ' +
-      'Its count starts fresh and it finds a new match.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text:  'Edit',
-          style: 'default',
-          onPress: async () => {
-            try {
-              await retireConfession(item.id);
-              markRetired(item.id);
-              router.navigate('/(tabs)/write');
-              // prefillText is picked up by the write tab via params
-              router.setParams({ prefillText: item.text });
-            } catch {
-              showDialog('Something went wrong', 'Could not retire the confession. Please try again.');
-            }
-          },
-          keepOpenWhilePending: true,
-        },
-      ],
-    );
-  }
-
-  function handleRemove(confessionId: string) {
-    showDialog(
-      'Remove this confession?',
-      'It will be removed from the pool immediately. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text:  'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await retireConfession(confessionId);
-              markRetired(confessionId);
-            } catch {
-              showDialog('Something went wrong', 'Could not remove the confession. Please try again.');
-            }
-          },
-          keepOpenWhilePending: true,
-        },
-      ],
-    );
   }
 
   async function handleSignOut() {
@@ -271,7 +197,7 @@ export default function YouScreen() {
 
   const persona  = getPersonaById(personaId);
   const liveConfessions = confessions.filter(c => c.status === 'live' || c.status === 'approved');
-  const otherConfessions = confessions.filter(c => c.status !== 'live' && c.status !== 'approved');
+  const totalFelt       = confessions.reduce((sum, c) => sum + (c.felt_count ?? 0), 0);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -413,40 +339,28 @@ export default function YouScreen() {
           </Pressable>
         </View>
       ) : (
-        <View style={{ gap: 12 }}>
-          {[...liveConfessions, ...otherConfessions].map((item) => {
-            const statusLabel = STATUS_LABEL[item.status] ?? item.status;
-            const statusColor = STATUS_COLOR[item.status] ?? color.dim;
-            const isGone      = item.status === 'retired' || item.status === 'removed' || item.status === 'deleted';
-            return (
-              <View key={item.id} style={[styles.confessionOuter, isGone && styles.confessionGone]}>
-                <View pointerEvents="none" style={styles.confessionShadow} />
-                <View style={styles.confessionCard}>
-                  <View style={styles.confessionHeader}>
-                    <View style={[styles.statusBadge, { backgroundColor: statusColor + '22' }]}>
-                      <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-                      <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
-                    </View>
-                    <Text style={styles.feltText}>{item.felt_count} felt this</Text>
-                  </View>
-                  <Text style={[styles.confessionText, isGone && styles.confessionDim]} numberOfLines={4}>
-                    {item.text}
-                  </Text>
-                  {!isGone && (
-                    <View style={styles.confessionActions}>
-                      <Pressable onPress={() => handleEdit(item)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit">
-                        <Text style={styles.editLink}>edit</Text>
-                      </Pressable>
-                      <Text style={styles.actionSep}>·</Text>
-                      <Pressable onPress={() => handleRemove(item.id)} hitSlop={8} accessibilityRole="button" accessibilityLabel="Remove">
-                        <Text style={styles.removeLink}>remove</Text>
-                      </Pressable>
-                    </View>
-                  )}
-                </View>
-              </View>
-            );
-          })}
+        // Summary card only — the full list lives on its own page (app/my-confessions.tsx).
+        // The profile shouldn't dump every confession inline; it should hand you
+        // a door into them.
+        <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
+          <View pointerEvents="none" style={styles.emptyCardShadow} />
+          <Pressable
+            onPress={() => router.navigate('/my-confessions')}
+            style={({ pressed }) => [styles.listCard, pressed && styles.emptyCardPressed]}
+            accessibilityRole="button"
+            accessibilityLabel={`My confessions — ${confessions.length} total. Opens the full list.`}
+          >
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={styles.emptyCardHeading}>
+                {confessions.length} {confessions.length === 1 ? 'confession' : 'confessions'}
+              </Text>
+              <Text style={styles.emptyCardBody}>
+                {liveConfessions.length > 0 && `${liveConfessions.length} live · `}
+                {totalFelt} {totalFelt === 1 ? 'person' : 'people'} felt them
+              </Text>
+            </View>
+            <ScrawlIcon name="arrow_right" size={18} color={color.paper} roughen={false} strokeWidth={2.5} />
+          </Pressable>
         </View>
       )}
 
@@ -579,21 +493,8 @@ function createStyles(color: ColorSet) {
     emptyCardBody:    { fontFamily: fontFamily.sans, fontSize: 13, color: color.dim, lineHeight: 19 },
     emptyCardCta:     { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
     emptyCardCtaText: { fontFamily: fontFamily.sansBold, fontSize: 13, color: color.paper, letterSpacing: 0.3 },
-    confessionOuter:  { paddingRight: SHADOW, paddingBottom: SHADOW },
-    confessionShadow: { position: 'absolute', top: SHADOW, left: SHADOW, right: 0, bottom: 0, borderRadius: radius.card, backgroundColor: color.border },
-    confessionCard:   { backgroundColor: color.ink, borderRadius: radius.card, borderWidth: 2, borderColor: color.border, padding: 16, gap: 10 },
-    confessionGone:   { opacity: 0.5 },
-    confessionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    statusBadge:      { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 3, paddingHorizontal: 8, borderRadius: 99 },
-    statusDot:        { width: 6, height: 6, borderRadius: 3 },
-    statusText:       { fontFamily: fontFamily.sansBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.5 },
-    feltText:         { fontFamily: fontFamily.sans, fontSize: 11, color: color.dim },
-    confessionText:   { fontFamily: fontFamily.serif, fontSize: 15, lineHeight: 22, color: color.paper },
-    confessionDim:    { color: color.dim },
-    confessionActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 8, marginTop: 2 },
-    actionSep:        { fontFamily: fontFamily.sans, fontSize: 12, color: color.dim },
-    editLink:         { fontFamily: fontFamily.sans, fontSize: 12, color: color.dim, textDecorationLine: 'underline' },
-    removeLink:       { fontFamily: fontFamily.sans, fontSize: 12, color: '#C25450', textDecorationLine: 'underline' },
+    // Summary card that drills into app/my-confessions.tsx
+    listCard:         { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: color.ink, borderRadius: radius.card, borderWidth: 2, borderColor: color.border, paddingVertical: 16, paddingHorizontal: 18 },
 
     // Settings list
     moreList:  { backgroundColor: color.ink, borderRadius: radius.input, borderWidth: 2, borderColor: color.border, overflow: 'hidden' },
