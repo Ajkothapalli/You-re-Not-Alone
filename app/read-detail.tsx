@@ -5,6 +5,7 @@ import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
+import { getConfessionHandoff } from '@/lib/confessionHandoff';
 import { useMemo } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
@@ -22,8 +23,16 @@ export default function ReadDetailScreen() {
     paletteIndex: string;
   }>();
 
-  const palette = palettes[Number(paletteIndex) === 0 ? 0 : 3];
-  const count   = Number(feltCount) || 0;
+  // Route params lose newlines in transit (see lib/confessionHandoff.ts), so
+  // prefer the in-memory handoff and only fall back to params for deep links.
+  const handoff = getConfessionHandoff(id);
+
+  const body    = handoff?.text ?? String(text ?? '');
+  const count   = handoff?.feltCount ?? (Number(feltCount) || 0);
+  const palIdx  = handoff?.paletteIndex ?? (Number(paletteIndex) || 0);
+  // Explore passes a real index across the whole palette set; the onboarding
+  // read screen passes 0 or 3. Modulo handles both.
+  const palette = palettes[palIdx % palettes.length] ?? palettes[0];
 
   function handleReport() {
     showDialog(
@@ -68,7 +77,7 @@ export default function ReadDetailScreen() {
       </View>
 
       <ReadCard
-        text={text ?? ''}
+        text={body}
         feltCount={count}
         palette={palette}
         onReport={handleReport}

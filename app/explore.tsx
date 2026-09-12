@@ -2,9 +2,11 @@
  * Explore — personalized reading surface.
  *
  * Shows up to 10 confessions per batch, matched to the reader's chosen
- * categories, as a SCROLLABLE list of full ReadCards (owner decision
- * 2026-09-12 — see CLAUDE.md invariant 2; this replaced the previous
- * one-card-at-a-time presentation).
+ * categories, as a SCROLLABLE list of truncated preview cards (owner
+ * decision 2026-09-12 — see CLAUDE.md invariant 2; this replaced the
+ * previous one-card-at-a-time presentation). Tapping a card pushes
+ * read-detail for the full text, the same drill-down the onboarding read
+ * screen uses. No back button here: during D7 this IS the Read tab.
  *
  * Still bounded, deliberately: the batch is capped, nothing loads on scroll,
  * and there is no refresh gesture. A reader inside their first 7 days (D7)
@@ -32,6 +34,7 @@ import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
 import { isD7 } from '@/lib/d7';
+import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
@@ -211,22 +214,12 @@ export default function ExploreScreen() {
     );
   }
 
-  function BackBar({ trailing }: { trailing?: React.ReactNode }) {
+  function FeedHeader({ trailing }: { trailing?: React.ReactNode }) {
+    // No back button: this is a tab destination (the Read tab lands here
+    // during D7), not a pushed screen. Drilling into a card is what pushes.
     return (
       <View style={styles.topBar}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityRole="button"
-          accessibilityLabel="Go back"
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ transform: [{ scaleX: -1 }] }}>
-              <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
-            </View>
-            <Text style={styles.backLabel}>back</Text>
-          </View>
-        </Pressable>
+        <Text style={styles.screenTitle} accessibilityRole="header">Read</Text>
         {trailing}
       </View>
     );
@@ -245,7 +238,7 @@ export default function ExploreScreen() {
   if (confessions.length === 0) {
     return (
       <View style={styles.root}>
-        <BackBar />
+        <FeedHeader />
         <View style={styles.endContent}>
           <Text style={styles.endHeading} accessibilityRole="header">Nothing here yet</Text>
           <Text style={styles.endBody}>
@@ -273,7 +266,7 @@ export default function ExploreScreen() {
         />
       )}
 
-      <BackBar
+      <FeedHeader
         trailing={
           <Text style={styles.progress} accessibilityLabel={`${confessions.length} confessions to read`}>
             {confessions.length} to read
@@ -285,6 +278,9 @@ export default function ExploreScreen() {
         data={confessions}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
+          // onPress makes ReadCard render as a truncated preview with a
+          // "read more" affordance and become tappable — the full text lives
+          // on read-detail, same as the onboarding read screen.
           <ReadCard
             text={item.text}
             feltCount={item.feltCount}
@@ -292,6 +288,25 @@ export default function ExploreScreen() {
             personaSeed={item.id}
             onReport={() => handleReport(item.id)}
             onFelt={() => handleFelt(item)}
+            onPress={() => {
+              // Params lose newlines in transit — hand the confession over in
+              // memory and let params serve only as a deep-link fallback.
+              setConfessionHandoff({
+                id:           item.id,
+                text:         item.text,
+                feltCount:    item.feltCount,
+                paletteIndex: index % palettes.length,
+              });
+              router.push({
+                pathname: '/read-detail',
+                params: {
+                  id:           item.id,
+                  text:         item.text,
+                  feltCount:    String(item.feltCount),
+                  paletteIndex: String(index % palettes.length),
+                },
+              });
+            }}
             iconSessionOffset={iconSession}
           />
         )}
@@ -361,15 +376,10 @@ function createStyles(color: ColorSet) {
       paddingTop:        64,
       paddingBottom:     12,
     },
-    backBtn: {
-      paddingHorizontal: spacing.screenPadding,
-      paddingTop:        64,
-      paddingBottom:     12,
-    },
-    backLabel: {
-      fontFamily: fontFamily.sans,
-      fontSize:   14,
-      color:      color.dim,
+    screenTitle: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   17,
+      color:      color.paper,
     },
     progress: {
       fontFamily: fontFamily.sans,
@@ -382,8 +392,8 @@ function createStyles(color: ColorSet) {
     scroll: {
       padding:       spacing.screenPadding,
       paddingTop:    8,
-      paddingBottom: 96,
-      gap:           20,
+      paddingBottom: 120,
+      gap:           16,
     },
     footer: {
       gap:       12,

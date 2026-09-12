@@ -19,6 +19,7 @@ import { analytics } from '@/lib/analytics';
 import { getMatchingCount, getOnboardingConfessions, reportConfession, type ReadConfession } from '@/lib/api';
 import { session } from '@/lib/sessionFlags';
 import { isD7 } from '@/lib/d7';
+import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -160,15 +161,23 @@ export default function ReadScreen() {
           feltCount={item.felt_count}
           palette={i === 0 ? palettes[0] : palettes[3]}
           onReport={() => handleReport(item)}
-          onPress={() => router.push({
-            pathname: '/read-detail',
-            params: {
+          onPress={() => {
+            setConfessionHandoff({
               id:           item.id,
               text:         item.text,
-              feltCount:    String(item.felt_count),
-              paletteIndex: String(i === 0 ? 0 : 3),
-            },
-          })}
+              feltCount:    item.felt_count,
+              paletteIndex: i === 0 ? 0 : 3,
+            });
+            router.push({
+              pathname: '/read-detail',
+              params: {
+                id:           item.id,
+                text:         item.text,
+                feltCount:    String(item.felt_count),
+                paletteIndex: String(i === 0 ? 0 : 3),
+              },
+            });
+          }}
           delay={i * 160}
           personaSeed={item.id}
           iconSessionOffset={iconSession}
