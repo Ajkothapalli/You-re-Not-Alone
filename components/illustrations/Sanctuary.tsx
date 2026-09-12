@@ -24,7 +24,6 @@ import React, { useCallback } from 'react';
 import { ViewStyle } from 'react-native';
 import Animated, {
   useAnimatedProps,
-  useSharedValue,
   withRepeat,
   withTiming,
   withSequence,
@@ -131,20 +130,6 @@ function SanctuaryAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
     };
   });
 
-  // ── Content-driven clock (beat 2: "nothing here can reach you") ────────────────
-  // A soft moon glow — a calm nightlight keeping watch over the wrapped figure.
-  // Slow and gentle, so the beat reads as safe/settled, not busy.
-  const glowT = useSharedValue(0);
-
-  const glowProps = useAnimatedProps(() => {
-    'worklet';
-    const t = glowT.value;
-    return {
-      opacity:   0.12 + 0.20 * t,
-      transform: `translate(330,58) scale(${1 + 0.10 * t}) translate(-330,-58)`,
-    };
-  });
-
   // Gated on isActive, same reasoning as EmptyBench: all six welcome.tsx beats
   // mount at once in an unvirtualized horizontal pager, so without this gate
   // the breathe/nod/blink loops keep ticking on the UI thread for a slide the
@@ -152,12 +137,7 @@ function SanctuaryAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
   useFocusEffect(useCallback(() => {
     if (!isActive) return;
     idle.start();
-    glowT.value = withRepeat(withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.sin) }), -1, true);
-    return () => {
-      idle.stop();
-      cancelAnimation(glowT);
-      glowT.value = 0;
-    };
+    return () => { idle.stop(); };
   }, [isActive]));
 
   return (
@@ -165,11 +145,6 @@ function SanctuaryAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
       {/* Ground */}
       <G {...STROKE.ink}><Path d="M36 244H364" /></G>
       <G {...STROKE.ink2}><Path d="M110 244l3-8M118 244l1-6" /></G>
-
-      {/* Moon glow — soft nightlight, pulses opacity + scale behind the moon. */}
-      <AnimatedG animatedProps={glowProps}>
-        <Circle cx={330} cy={58} r={20} fill={ILL_COLOR.light} stroke="none" />
-      </AnimatedG>
 
       {/* Moon — static prop */}
       <Circle fill={ILL_COLOR.sand} cx={330} cy={58} r={13} stroke="none" />

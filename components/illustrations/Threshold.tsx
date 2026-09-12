@@ -166,20 +166,10 @@ function ThresholdAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
     };
   });
 
-  // ── Content-driven clocks (beat 0: "meet the one who felt the same") ───────────
-  // The doorway breathes a warm invitation, and the figure waiting inside gently
-  // bobs so they read as a living presence, not a static silhouette.
-  const glowT = useSharedValue(0); // doorway glow driver, 0..1
-  const bobY  = useSharedValue(0); // distant figure vertical bob
-
-  const glowProps = useAnimatedProps(() => {
-    'worklet';
-    const t = glowT.value;
-    return {
-      opacity:   0.14 + 0.22 * t,
-      transform: `translate(300,145) scale(${1 + 0.10 * t}) translate(-300,-145)`,
-    };
-  });
+  // ── Content-driven clock (beat 0: "meet the one who felt the same") ────────────
+  // The figure waiting inside the doorway gently bobs so they read as a living
+  // presence, not a static silhouette.
+  const bobY = useSharedValue(0); // distant figure vertical bob
 
   const bobProps = useAnimatedProps(() => {
     'worklet';
@@ -190,14 +180,15 @@ function ThresholdAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
     if (!isActive) return;
     idle.start();
 
-    const EIO = Easing.inOut(Easing.sin);
-    glowT.value = withRepeat(withTiming(1, { duration: 1900, easing: EIO }), -1, true);
-    bobY.value  = withRepeat(withTiming(-2.5, { duration: 1600, easing: EIO }), -1, true);
+    bobY.value = withRepeat(
+      withTiming(-2.5, { duration: 1600, easing: Easing.inOut(Easing.sin) }),
+      -1, true,
+    );
 
     return () => {
       idle.stop();
-      [glowT, bobY].forEach(sv => cancelAnimation(sv));
-      glowT.value = 0; bobY.value = 0;
+      cancelAnimation(bobY);
+      bobY.value = 0;
     };
   }, [isActive]));
 
@@ -210,15 +201,6 @@ function ThresholdAnimated({ style, isActive = true }: { style?: ViewStyle; isAc
       {/* Archway — static prop */}
       <Path fill={ILL_COLOR.sand} d={ARCH_D} transform="translate(3,2)" stroke="none" />
       <G {...STROKE.ink}><Path d={ARCH_D} /></G>
-
-      {/* Warm invitation glow inside the doorway — pulses opacity + scale.
-          Drawn after the arch fill, behind the waiting figure, so it reads as
-          light spilling from the far side. Uses `light` (the scene carries no
-          confession scrap, so it's the one warm accent — same rationale as
-          Lantern's glow). */}
-      <AnimatedG animatedProps={glowProps}>
-        <Circle cx={300} cy={145} r={34} fill={ILL_COLOR.light} stroke="none" />
-      </AnimatedG>
 
       {/* The one waiting on the other side — gently bobs (a living presence). */}
       <AnimatedG animatedProps={bobProps}>
