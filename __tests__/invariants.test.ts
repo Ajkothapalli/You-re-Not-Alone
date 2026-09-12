@@ -483,18 +483,21 @@ describe('Source column, threshold, retire, api_call_log (Phase A–C)', () => {
     expect(src).toContain('setDraft(prefillText)');
   });
 
-  it('you.tsx (the only live "My confessions" surface) imports retireConfession (not removeConfession)', () => {
-    // app/my-confessions.tsx was a superseded, unreachable duplicate of this
-    // list (nothing ever navigated to it) and has been deleted; the inline
-    // list in app/(tabs)/you.tsx is the one users actually see.
+  it('my-confessions.tsx imports retireConfession (not removeConfession)', () => {
+    // The list lives on its own page again; app/(tabs)/you.tsx only shows a
+    // summary card that drills into it, so this page is the live surface for
+    // retire/edit and is the one that must keep the retire semantics.
     const fs   = require('fs');
     const path = require('path');
     const src  = fs.readFileSync(
-      path.join(__dirname, '..', 'app', '(tabs)', 'you.tsx'),
+      path.join(__dirname, '..', 'app', 'my-confessions.tsx'),
       'utf8',
     );
     expect(src).toContain('retireConfession');
     expect(src).not.toContain('removeConfession');
+    // Edit flow: navigates to the owner detail screen (not retire+prefill to /write)
+    expect(src).toContain('/confession/[id]');
+    expect(src).toContain('can_edit');
     // retired status must be handled
     expect(src).toContain("'retired'");
   });
