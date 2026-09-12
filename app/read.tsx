@@ -278,7 +278,7 @@ function WriteInviteCard({ onPress }: { onPress: () => void }) {
             color:      color.dim,
             lineHeight: 19,
           }}>
-            Write one confession — unlock 2 more reads
+            Whenever you're ready — one true thing gets you a match
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
             <Text style={{

@@ -573,12 +573,13 @@ export default function WelcomeScreen() {
               <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
             </View>
             <Text style={s.kick}>How it works</Text>
-            <Text style={s.title}>Write it,{'\n'}and you're heard</Text>
+            <Text style={s.title}>Read first.{'\n'}Write when ready.</Text>
             <View style={s.heroCenter}>
               <MiniCard />
             </View>
             <Text style={s.body}>
-              One true thing → one real match. No feed, no comments.
+              Explore what others have shared — free, no writing required.
+              When you're ready, one true thing finds you a real match.
             </Text>
           </View>
         </BeatSlide>
