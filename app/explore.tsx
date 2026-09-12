@@ -342,12 +342,13 @@ export default function ExploreScreen() {
               </Pressable>
             )}
 
-            {/* The two asks that actually matter at the end of a read. Nothing
-                follows them — a third button here only competes with both. */}
+            {/* The two asks that actually matter at the end of a read. */}
             <View style={styles.footerCards}>
               <WriteInviteCard onPress={() => router.replace('/write')} />
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
+
+            <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
           </View>
         }
       />
