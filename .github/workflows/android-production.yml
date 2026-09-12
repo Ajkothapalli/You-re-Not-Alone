@@ -7,9 +7,13 @@ jobs:
   build:
     name: Build Android AAB (production)
     runs-on: ubuntu-latest
-    # A previous run hung and was cancelled at 6h; a healthy local build is
-    # ~30min. Bound it so a hang costs minutes, not a day of Actions time.
-    timeout-minutes: 90
+    # A previous run hung and was cancelled at 6h. Bounded so a hang costs
+    # minutes rather than a day of Actions time. 120 not 90: this builds all
+    # four ABIs (armeabi-v7a, arm64-v8a, x86, x86_64) and the Reanimated 4
+    # worklets C++ compile is slow on a 2-core runner. If it ever needs to be
+    # faster, dropping the x86 ABIs is the lever — they are emulator and
+    # Chromebook only, so that is a device-support decision, not a CI tweak.
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -40,6 +44,16 @@ jobs:
         run: npm ci
 
       - name: Build AAB (local — production profile, autoIncrement versionCode)
+        env:
+          # Expo's prebuild template ships -Xmx2048m -XX:MaxMetaspaceSize=512m,
+          # and /android is gitignored — the runner regenerates it, so a local
+          # gradle.properties never reaches CI. At those defaults the daemon
+          # exhausts Metaspace partway through the native builds and dies with
+          # OutOfMemoryError: Metaspace; the job then sits silent until the
+          # timeout rather than reporting a failure. Quoted so the whole value
+          # stays one token — unquoted, Gradle splits on the space and only
+          # -Xmx survives, leaving Metaspace back at the default.
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=2g"'
         run: |
           eas build --local \
             --platform android \
