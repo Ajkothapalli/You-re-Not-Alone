@@ -56,6 +56,9 @@ import { showToast } from '@/components/Toast';
 
 const DWELL_THRESHOLD_MS = 5_000;
 
+// Show the write + support cards after every Nth confession.
+const INTERSTITIAL_EVERY = 10;
+
 export default function ExploreScreen() {
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
@@ -342,6 +345,22 @@ export default function ExploreScreen() {
             iconSessionOffset={iconSession}
           />
         )}
+        // The two asks repeat every INTERSTITIAL_EVERY cards rather than only
+        // at the very end (owner decision 2026-09-13). With the feed uncapped
+        // a reader can scroll a long way and never reach the footer, so the
+        // end-of-feed placement meant most readers never saw either card.
+        // Rendered as a separator so it sits BETWEEN cards and never replaces
+        // a confession — the reader loses nothing to it.
+        ItemSeparatorComponent={({ leadingItem }) => {
+          const i = confessions.findIndex(c => c.id === leadingItem?.id);
+          if (i < 0 || (i + 1) % INTERSTITIAL_EVERY !== 0) return null;
+          return (
+            <View style={styles.footerCards}>
+              {!withinIntro && <WriteInviteCard onPress={() => router.replace('/write')} />}
+              <PremiumCard onPress={() => router.push('/plans')} />
+            </View>
+          );
+        }}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
         viewabilityConfigCallbackPairs={viewabilityPairs}
