@@ -214,20 +214,38 @@ POST /functions/v1/submit-confession  { text }  + JWT
     │       CSAM signal → NCMEC hook (no account_id, no text stored locally), 400
     ├─[3] CRISIS CHECK (keyword list always + classifier when key set)
     │       FLAGGED → INSERT crisis_events, return {type:"crisis"}, STOP
-    ├─[4] EMBED  (EMBEDDING_API_KEY; server-side)
+    ├─[4] EMBED  (best-effort — see below; never blocks; category is what matches)
     ├─[5] INSERT confessions
     │       account_id = auth user id (never exposed to clients)
     │       author_token = HMAC(account_id, AUTHOR_TOKEN_SECRET)  [transition/legacy]
     │       status = 'live'
-    ├─[6] MATCH via pgvector cosine
+    ├─[6] MATCH by CATEGORY  (match_confession_by_category — owner decision 2026-09-13)
     │       WHERE status = 'live'
     │         AND (account_id IS NULL OR account_id != seeker_id)
     │         AND author_token != seeker_token          [legacy rows]
     │         AND author_token NOT IN banned_tokens
+    │         AND categories overlap (empty categories → full pool, never stranded)
     ├─[7] INCREMENT felt_count (atomic UPDATE, no read-then-write)
     └─[8] Return { match: { id, text, felt_count } }
           — no author_token, no account data
 ```
+
+*Owner decision 2026-09-13:* matching runs on the confession's CATEGORY, not on
+embedding similarity, until `EMBEDDING_API_KEY` is funded. `match_confession`
+(cosine-based) is unchanged and unused, not deleted — switching back later is a
+matter of which RPC step [6] calls, not a schema change. `EMBEDDING_API_KEY`
+absent no longer throws anywhere (`submit-confession`, `edit-confession`): the
+embedding is stored when a key is present and simply skipped (`NULL`) when it
+isn't, in every environment. **This decision is scoped to EMBEDDING_API_KEY
+only.** `MODERATION_API_KEY` is unaffected and still fails closed
+unconditionally — see the non-negotiables above; do not read this section as
+license to soften that gate too.
+
+Because categories now decide who gets matched with whom (not just feed
+ordering), `classifyCategories()` in both functions gained a keyword-list
+Layer 1 that always runs, mirroring the crisis check's own two-layer shape —
+the `gpt-4o-mini` classifier (`OPENAI_API_KEY`) is Layer 2, additive, and
+still fully optional.
 
 ---
 

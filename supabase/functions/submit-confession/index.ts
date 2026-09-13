@@ -9,9 +9,12 @@
  *   [1] Rate limit (server-computed device hash)
  *   [2] MODERATION  ← hard early-return; STORE is code-unreachable if this fires
  *   [3] CRISIS CHECK ← hard early-return; STORE is code-unreachable if this fires
- *   [4] EMBED
+ *   [4] EMBED (best-effort only — see embedText; never blocks)
  *   [5] INSERT confession
- *   [6] MATCH
+ *   [6] MATCH — by CATEGORY (owner decision 2026-09-13), not embedding
+ *       similarity. See match_confession_by_category. embedText/EMBED above
+ *       still runs and stores a vector when EMBEDDING_API_KEY is set, purely
+ *       so semantic matching can be switched back on later without a backfill.
  *   [7] increment felt_count (atomic)
  *   [8] Return match
  *
@@ -20,7 +23,10 @@
  *   API returns non-200 → throw (fail closed)
  *   flagged             → block
  * There is no development pass-through. ENVIRONMENT must never be able to
- * disable the safety gate.
+ * disable the safety gate. This is UNCHANGED by the category-matching
+ * decision above — that decision is about match quality, not safety, and
+ * touches EMBEDDING_API_KEY only. MODERATION_API_KEY still fails closed
+ * everywhere, with no exception.
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
@@ -368,9 +374,10 @@ async function generateCompanion(
     console.log('[COMPANION] using curated fallback for lang:', lang);
   }
 
-  // Embed
+  // Embed — best-effort only (see embedText). A companion with no embedding is
+  // still fully matchable by category, so unlike before 2026-09-13 this no
+  // longer aborts companion generation.
   const companionEmbedding = await embedText(text).catch(() => null);
-  if (!companionEmbedding) return null;
 
   // Classify (fail open)
   const companionCategories = await classifyCategories(text, false).catch(() => [] as string[]);
@@ -383,7 +390,7 @@ async function generateCompanion(
     .insert({
       author_token:           systemToken,
       text,
-      embedding:              JSON.stringify(companionEmbedding),
+      embedding:              companionEmbedding ? JSON.stringify(companionEmbedding) : null,
       categories:             companionCategories,
       status:                 'live',
       amplification_eligible: true,
@@ -492,16 +499,86 @@ async function runCrisisCheck(text: string): Promise<{ crisis: boolean }> {
 
 // ─── Step 4.5: Category classification ───────────────────────────────────────
 //
-// Assigns 1–3 category tags from the fixed taxonomy using gpt-4o-mini.
+// Assigns 1–3 category tags from the fixed taxonomy.
 // The sexuality_intimacy tag is set ONLY from the moderation adult signal —
-// never from the LLM. This ensures safety tags cannot be downgraded by authors.
-// Fail open on errors: empty categories is safe (recommendation falls back to
-// popularity ordering).
+// never from the LLM or the keyword layer. This ensures safety tags cannot
+// be downgraded by authors.
+//
+// Two-layer approach, same shape as the crisis check above:
+//   Layer 1: keyword list (always runs — no API cost, no key required)
+//   Layer 2: gpt-4o-mini classifier (runs when OPENAI_API_KEY is set, adds to
+//            layer 1's result rather than replacing it)
+//
+// Layer 1 exists because categories now matter more than they used to
+// (owner decision 2026-09-13): match_confession_by_category() matches
+// writers by shared category, so a confession with no categories gets a
+// wider, less relevant match than one that's tagged. Previously categories
+// only affected the read-side feed and degraded silently to "no key, no
+// tags" — fine when categories were cosmetic; not fine now that they drive
+// who gets matched with whom.
+//
+// Fail open throughout: empty categories still matches (falls back to the
+// full pool — see the migration), it's just less targeted.
 
 const CLASSIFIER_TAXONOMY = [
   'mental_health', 'relationships', 'grief',
   'secrets', 'work_identity', 'body_health', 'faith_meaning',
 ] as const;
+
+type Category = typeof CLASSIFIER_TAXONOMY[number];
+
+// Deliberately not exhaustive — this is a fallback, not a replacement for the
+// LLM classifier. Phrases over single words where a single word would be too
+// noisy ("lost" alone would tag half of everything as grief).
+const CATEGORY_KEYWORDS: Record<Category, string[]> = {
+  mental_health: [
+    'anxiety', 'anxious', 'depress', 'panic attack', 'therapy', 'therapist',
+    'medicat', 'mental health', 'burnt out', 'burnout', "can't cope",
+    'cant cope', 'breakdown', 'intrusive thoughts', 'ptsd', 'ocd', 'bipolar',
+    "can't sleep", 'cant sleep', 'insomnia', 'numb inside', 'empty inside',
+    'lonely', 'loneliness', 'struggling', 'no one understands', 'nobody understands', 'nobody listens',
+  ],
+  relationships: [
+    'boyfriend', 'girlfriend', 'husband', 'wife', 'my partner', 'marriage',
+    'married', 'divorce', 'breakup', 'broke up', 'my ex', 'dating', 'crush on',
+    'cheat', 'affair', 'fiancé', 'fiancee', 'engaged', 'in love with',
+    'ghosted', 'relationship with',
+    'my father', 'my mother', 'my dad', 'my mom', 'my parents', 'my brother', 'my sister', 'my son', 'my daughter', 'my family', 'my friend', 'best friend', 'estranged',
+  ],
+  grief: [
+    'died', 'passed away', 'funeral', 'lost my mom', 'lost my dad',
+    'lost my mother', 'lost my father', 'miscarriage', 'grieving', 'grief',
+    'mourning', 'terminal', 'dying of', 'buried him', 'buried her',
+  ],
+  secrets: [
+    'never told anyone', 'nobody knows', 'no one knows', "i've never said this",
+    "can't tell anyone", 'cant tell anyone', 'ashamed of', 'guilty about',
+    'secret i', 'lied about', 'hiding this', 'hidden from',
+  ],
+  work_identity: [
+    'my boss', 'coworker', 'fired from', 'laid off', 'quit my job',
+    'workplace', 'resignation', 'my career', 'job interview', 'my colleague',
+    'imposter syndrome', 'who i really am', "don't know who i am",
+    'dont know who i am', 'my identity',
+  ],
+  body_health: [
+    'diagnosed with', 'chronic pain', 'chronic illness', 'my disability',
+    'eating disorder', 'body image', 'my weight', 'hospital for',
+    'surgery', 'my disease', 'my symptoms', 'side effects',
+  ],
+  faith_meaning: [
+    'my faith', 'i pray', 'my religion', 'my church', 'spiritual',
+    'believe in god', 'meaning of life', 'my purpose', 'existential',
+    'my soul', 'lost my faith', 'doubt my faith', 'the universe',
+  ],
+};
+
+function keywordCategories(text: string): Category[] {
+  const lower = text.toLowerCase();
+  return (Object.keys(CATEGORY_KEYWORDS) as Category[]).filter((cat) =>
+    CATEGORY_KEYWORDS[cat].some((kw) => lower.includes(kw)),
+  );
+}
 
 async function classifyCategories(
   text:        string,
@@ -509,11 +586,15 @@ async function classifyCategories(
 ): Promise<string[]> {
   const categories: string[] = [];
 
-  // Adult tag comes from the moderation classifier's adult-sexual signal — not LLM.
+  // Adult tag comes from the moderation classifier's adult-sexual signal — not
+  // LLM, not keywords. Safety tags cannot be downgraded by anything below this line.
   if (adultSignal) categories.push('sexuality_intimacy');
 
+  // Layer 1: keyword list, always runs.
+  categories.push(...keywordCategories(text));
+
   if (!OPENAI_API_KEY) {
-    return categories; // No key: adult tag only (or empty)
+    return [...new Set(categories)]; // No key: adult tag + keyword layer only
   }
 
   try {
@@ -566,52 +647,62 @@ async function classifyCategories(
 
 // ─── Step 4: Embeddings — text-embedding-3-small ─────────────────────────────
 //
-// Dimension MUST be 1536 to match the pgvector column and HNSW index.
-// Fail closed: API error or missing key in production → throw.
-// Dev without key: returns zero vector (non-semantic but keeps pipeline exercisable).
+// Owner decision 2026-09-13: matching runs on category (see step 6 and
+// match_confession_by_category in the migration), not on embedding similarity,
+// so the embedding is no longer load-bearing for the write flow. This now
+// fails OPEN in every environment — best-effort only. A key that IS set still
+// gets used and the vector still gets stored (nothing here stops semantic
+// matching from being switched back on later; it just isn't required to write
+// a confession right now). Dimension MUST be 1536 to match the pgvector column
+// and HNSW index if a value is stored.
+//
+// Previously this threw in production when the key was absent, which made an
+// unrelated cost decision (not paying for embeddings yet) block every
+// submission. That coupling is why "we don't want semantic matching yet" and
+// "confessions can't be written" were, for a while, the same sentence.
 
-async function embedText(text: string): Promise<number[]> {
+async function embedText(text: string): Promise<number[] | null> {
   if (!EMBEDDING_API_KEY) {
-    if (IS_PRODUCTION) {
-      throw new Error('[EMBED] EMBEDDING_API_KEY not set in production — cannot embed');
+    console.warn('[EMBED] EMBEDDING_API_KEY not set — storing no embedding (category matching is unaffected).');
+    return null;
+  }
+
+  try {
+    const res = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${EMBEDDING_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model:      'text-embedding-3-small',
+        input:      text,
+        dimensions: 1536,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn('[EMBED] Embedding API returned', res.status, '— storing no embedding');
+      return null;
     }
-    // Dev: zero vector allows pipeline to run end-to-end without an API key.
-    // Matches will be non-semantic but structurally valid.
-    console.warn(
-      '[EMBED] EMBEDDING_API_KEY not set — returning zero vector in development mode only.',
-      'Set ENVIRONMENT=production to enforce hard blocking.',
-    );
-    return new Array(1536).fill(0);
+
+    const data = await res.json();
+    const embedding: number[] = data.data[0].embedding;
+
+    // Validate dimension — a mismatch would corrupt the pgvector index.
+    // Still fail open: skip storing rather than block the submission.
+    if (embedding.length !== 1536) {
+      console.warn(
+        '[EMBED] Dimension mismatch: expected 1536, got', embedding.length, '— storing no embedding',
+      );
+      return null;
+    }
+
+    return embedding;
+  } catch (err) {
+    console.warn('[EMBED] Error — storing no embedding:', err);
+    return null;
   }
-
-  const res = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${EMBEDDING_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model:      'text-embedding-3-small',
-      input:      text,
-      dimensions: 1536,
-    }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`[EMBED] Embedding API returned ${res.status} — failing closed`);
-  }
-
-  const data = await res.json();
-  const embedding: number[] = data.data[0].embedding;
-
-  // Validate dimension — a mismatch would corrupt the pgvector index
-  if (embedding.length !== 1536) {
-    throw new Error(
-      `[EMBED] Embedding dimension mismatch: expected 1536, got ${embedding.length}`,
-    );
-  }
-
-  return embedding;
 }
 
 // ─── Rate limiting ────────────────────────────────────────────────────────────
@@ -1095,7 +1186,8 @@ serve(async (req: Request) => {
     const lang = await detectLanguage(rawText);
 
     // ── [4] EMBED ──────────────────────────────────────────────────────────────
-    // embedText() throws on API failure or dimension mismatch (fail closed).
+    // Best-effort, never blocks (see embedText). Matching runs on category, not
+    // on this — owner decision 2026-09-13.
     const embedding = await embedText(rawText);
 
     // ── [4.5] AUTHORSHIP SCORING ──────────────────────────────────────────────
@@ -1125,7 +1217,7 @@ serve(async (req: Request) => {
         author_token:           authorToken,
         account_id:             user.id,
         text:                   rawText,
-        embedding:              JSON.stringify(embedding),
+        embedding:              embedding ? JSON.stringify(embedding) : null,
         categories,
         amplification_eligible,
         authorship_flags:       authorshipFlags,
@@ -1140,26 +1232,26 @@ serve(async (req: Request) => {
     if (insertErr) throw insertErr;
 
     // ── [6] MATCH ──────────────────────────────────────────────────────────────
-    // Two-pass strategy to stop garbage cross-lang / low-relevance matches:
-    //   Pass 1 — same language, sim ≥ 0.78 (MATCH_MIN).
-    //   Pass 2 — any language (lang-agnostic), sim ≥ 0.88. Only runs when pass 1
-    //            is empty; the higher threshold ensures only truly resonant cross-
-    //            lang matches surface. Better to generate a companion than show
-    //            an unrelated confession.
-    const MATCH_MIN      = parseFloat(Deno.env.get('MATCH_MIN')      ?? '0.78');
-    const MATCH_ANY_LANG = parseFloat(Deno.env.get('MATCH_ANY_LANG') ?? '0.88');
-
+    // Category-based (owner decision 2026-09-13) — matches on the tags from
+    // step [4.6], not on embedding similarity. See
+    // match_confession_by_category in the 2026-09-13 migration for the
+    // full safety-filter parity with the old cosine-based match_confession
+    // (status, author/account exclusion, banned tokens — all unchanged).
+    //
+    // Two-pass strategy, same shape as before, category instead of similarity:
+    //   Pass 1 — same language.
+    //   Pass 2 — any language. Only runs when pass 1 is empty; better to
+    //            generate a companion than show an unrelated-language confession.
     const matchRpcBase = {
-      p_embedding:      JSON.stringify(embedding),
+      p_categories:     categories,
       p_seeker_token:   authorToken,
       p_seeker_account: user.id,
       p_limit:          1,
     };
 
-    const { data: matchRows1, error: matchErr1 } = await supabase.rpc('match_confession', {
+    const { data: matchRows1, error: matchErr1 } = await supabase.rpc('match_confession_by_category', {
       ...matchRpcBase,
       p_seeker_lang: lang,
-      p_min_sim:     MATCH_MIN,
       p_any_lang:    false,
     });
     if (matchErr1) throw matchErr1;
@@ -1167,10 +1259,9 @@ serve(async (req: Request) => {
     let matchRow = matchRows1?.[0];
 
     if (!matchRow) {
-      const { data: matchRows2, error: matchErr2 } = await supabase.rpc('match_confession', {
+      const { data: matchRows2, error: matchErr2 } = await supabase.rpc('match_confession_by_category', {
         ...matchRpcBase,
         p_seeker_lang: lang,
-        p_min_sim:     MATCH_ANY_LANG,
         p_any_lang:    true,
       });
       if (matchErr2) throw matchErr2;

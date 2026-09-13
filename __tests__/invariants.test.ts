@@ -453,17 +453,20 @@ describe('Source column, threshold, retire, api_call_log (Phase A–C)', () => {
     expect(sql).toContain('p_min_sim');
   });
 
-  it('submit-confession uses two-pass match strategy: MATCH_MIN=0.78, any-lang at 0.88', () => {
+  it('submit-confession uses a two-pass match strategy: same language, then any language', () => {
+    // Was a similarity-threshold assertion (MATCH_MIN=0.78 / MATCH_ANY_LANG=0.88)
+    // against the cosine-based match_confession. Owner decision 2026-09-13
+    // replaced that call with match_confession_by_category, which has no
+    // similarity score to threshold — but the two-pass shape (try same
+    // language first, widen to any language only if that's empty) is the part
+    // of this invariant that still applies and is checked here.
     const fs   = require('fs');
     const path = require('path');
     const src  = fs.readFileSync(
       path.join(__dirname, '..', 'supabase', 'functions', 'submit-confession', 'index.ts'),
       'utf8',
     );
-    expect(src).toContain('MATCH_MIN');
-    expect(src).toContain('0.78');
-    expect(src).toContain('MATCH_ANY_LANG');
-    expect(src).toContain('0.88');
+    expect(src).toContain("supabase.rpc('match_confession_by_category'");
     // Pass 1: same lang
     expect(src).toContain('p_any_lang:    false');
     // Pass 2: any lang
@@ -618,6 +621,114 @@ describe('Safety gate has no environment escape hatch (CLAUDE.md §1)', () => {
     if (insert > -1) expect(mod).toBeLessThan(insert);
   });
 });
+
+describe('Category-based matching does not weaken the safety gate (owner decision 2026-09-13)', () => {
+  const fs   = require('fs');
+  const path = require('path');
+  const submitSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'functions', 'submit-confession', 'index.ts'),
+    'utf8',
+  );
+  const editSrc = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'functions', 'edit-confession', 'index.ts'),
+    'utf8',
+  );
+  const migrationSql = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'migrations', '20260913000001_category_matching.sql'),
+    'utf8',
+  );
+
+  it('embedText no longer throws — a missing EMBEDDING_API_KEY must not block a submission', () => {
+    // This is the exact shape of the incident this test suite exists to catch
+    // (see the moderation describe block above), on a different key: an
+    // environment-cost decision quietly became "the app cannot accept
+    // confessions". embedText's missing-key branch must return, never throw.
+    const start = submitSrc.indexOf('async function embedText(');
+    const body  = submitSrc.slice(start, submitSrc.indexOf('\n}', start));
+    expect(body).not.toContain('throw');
+    expect(body).toContain('return null');
+  });
+
+  it('edit-confession\'s embedText matches: no throw on a missing key', () => {
+    const start = editSrc.indexOf('async function embedText(');
+    const body  = editSrc.slice(start, editSrc.indexOf('\n}', start));
+    expect(body).not.toContain('throw');
+  });
+
+  it('the moderation gate is untouched by this decision — still no key, no environment escape', () => {
+    // Guards against the natural mistake of copy-pasting embedText's new
+    // fail-open shape onto runModeration while "cleaning up" nearby code.
+    const start = submitSrc.indexOf('async function runModeration(');
+    const guard = submitSrc.slice(start, start + 700);
+    expect(guard).toContain('throw');
+    expect(guard).not.toContain('IS_PRODUCTION');
+  });
+
+  it('match_confession_by_category matches on categories, not on embedding similarity', () => {
+    expect(migrationSql).toContain('categories && p_categories');
+    expect(migrationSql).not.toContain('<=>'); // pgvector's cosine-distance operator
+    expect(migrationSql).not.toContain('p_embedding');
+  });
+
+  it('match_confession_by_category keeps the same identity-separation filters as match_confession', () => {
+    // CLAUDE.md §3: reader identity separate from author identity, own
+    // confessions excluded, bans enforced — none of that is specific to
+    // cosine matching and none of it may be dropped switching to categories.
+    expect(migrationSql).toContain('c.author_token');
+    expect(migrationSql).toContain('banned_tokens');
+    expect(migrationSql).toContain('c.account_id IS DISTINCT FROM p_seeker_account');
+  });
+
+  it('an empty category list widens to the full pool rather than stranding the writer', () => {
+    expect(migrationSql).toContain('cardinality(p_categories) = 0');
+  });
+
+  it('submit-confession calls the category RPC, not the cosine one, for its live match', () => {
+    expect(submitSrc).toContain("supabase.rpc('match_confession_by_category'");
+  });
+
+  it('classifyCategories has a keyword layer that runs without OPENAI_API_KEY', () => {
+    // Categories now decide who gets matched with whom, not just feed
+    // ordering — an LLM-less submission must still get real categories.
+    for (const src of [submitSrc, editSrc]) {
+      expect(src).toContain('function keywordCategories');
+      expect(src).toContain('CATEGORY_KEYWORDS');
+
+      // Scope to classifyCategories itself — runCrisisCheck has its own,
+      // earlier "if (!OPENAI_API_KEY)" check (crisis layer 2), so a plain
+      // src.indexOf would find that one instead and pass for the wrong reason.
+      const fnStart = src.indexOf('async function classifyCategories(');
+      expect(fnStart).toBeGreaterThan(-1);
+      const fnBody  = src.slice(fnStart, src.indexOf('\n}', fnStart));
+
+      const keyCheck = fnBody.indexOf('if (!OPENAI_API_KEY)');
+      const kwCall   = fnBody.indexOf('keywordCategories(text)');
+      expect(keyCheck).toBeGreaterThan(-1);
+      expect(kwCall).toBeGreaterThan(-1);
+      // The keyword layer must run before the early exit, or a keyless
+      // submission gets no categories at all.
+      expect(kwCall).toBeLessThan(keyCheck);
+    }
+  });
+
+  it('the adult-signal safety tag still cannot come from the keyword layer or the LLM', () => {
+    // CLAUDE.md §5: "Safety tags can NEVER be downgraded by the author." The
+    // keyword layer is text-based and author-influenceable, so it must never
+    // be the source of a safety tag.
+    for (const src of [submitSrc, editSrc]) {
+      expect(CATEGORY_TAXONOMY_HAS_NO_SEXUAL_TAG(src)).toBe(true);
+    }
+  });
+});
+
+/** sexuality_intimacy must only ever be pushed from the moderation adultSignal,
+ *  never appear as a literal inside CATEGORY_KEYWORDS. */
+function CATEGORY_TAXONOMY_HAS_NO_SEXUAL_TAG(src: string): boolean {
+  const start = src.indexOf('const CATEGORY_KEYWORDS');
+  const end   = src.indexOf('\n};', start);
+  const block = src.slice(start, end);
+  return !block.includes('sexuality_intimacy');
+}
 
 // ─── Manual verification checklist ───────────────────────────────────────────
 

@@ -42,6 +42,12 @@ async function hmacSha256(message: string, secret: string): Promise<string> {
   return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
+// Unused as of 2026-09-13: this only ever gated embedText's throw-on-missing-key
+// behaviour, which is gone now that matching doesn't depend on embeddings (see
+// embedText below). Left in place rather than deleted — MODERATION_API_KEY's
+// own gate deliberately does NOT read this (it fails closed unconditionally,
+// same in every environment), and any future environment-specific behaviour
+// in this file should read this constant rather than re-derive it.
 const IS_PRODUCTION = ENVIRONMENT === 'production';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -150,41 +156,117 @@ async function runCrisisCheck(text: string): Promise<{ crisis: boolean }> {
 }
 
 // ─── Step [5]: Embeddings — identical to submit-confession ───────────────────
+//
+// Owner decision 2026-09-13: matching runs on category, not embedding
+// similarity (see match_confession_by_category), so this is best-effort only
+// and never blocks an edit. Kept so a key, if present, still gets used and the
+// vector still gets stored for a possible future switch back to semantic
+// matching — an edit just shouldn't fail because of it.
 
-async function embedText(text: string): Promise<number[]> {
+async function embedText(text: string): Promise<number[] | null> {
   if (!EMBEDDING_API_KEY) {
-    if (IS_PRODUCTION) throw new Error('[EMBED] EMBEDDING_API_KEY not set in production');
-    console.warn('[EMBED] EMBEDDING_API_KEY not set — returning zero vector (dev only).');
-    return new Array(1536).fill(0);
+    console.warn('[EMBED] EMBEDDING_API_KEY not set — storing no embedding (category matching is unaffected).');
+    return null;
   }
 
-  const res = await fetch('https://api.openai.com/v1/embeddings', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${EMBEDDING_API_KEY}` },
-    body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions: 1536 }),
-  });
-  if (!res.ok) throw new Error(`[EMBED] Embedding API returned ${res.status} — failing closed`);
+  try {
+    const res = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${EMBEDDING_API_KEY}` },
+      body: JSON.stringify({ model: 'text-embedding-3-small', input: text, dimensions: 1536 }),
+    });
+    if (!res.ok) {
+      console.warn('[EMBED] API returned', res.status, '— storing no embedding');
+      return null;
+    }
 
-  const data: { data: { embedding: number[] }[] } = await res.json();
-  const embedding = data.data[0].embedding;
-  if (embedding.length !== 1536) {
-    throw new Error(`[EMBED] Dimension mismatch: expected 1536, got ${embedding.length}`);
+    const data: { data: { embedding: number[] }[] } = await res.json();
+    const embedding = data.data[0].embedding;
+    if (embedding.length !== 1536) {
+      console.warn('[EMBED] Dimension mismatch: expected 1536, got', embedding.length, '— storing no embedding');
+      return null;
+    }
+    return embedding;
+  } catch (err) {
+    console.warn('[EMBED] Error — storing no embedding:', err);
+    return null;
   }
-  return embedding;
 }
 
 // ─── Step [6]: Category classification — identical to submit-confession ───────
+//
+// Keyword layer (Layer 1) must be kept in sync with submit-confession's
+// CATEGORY_KEYWORDS — duplicated rather than shared because these two Edge
+// Functions deploy independently and there is no shared-module setup between
+// them yet. Same reasoning as submit-confession: categories now drive
+// match_confession_by_category, so an edit that strips categories back to
+// empty (no OPENAI_API_KEY) makes that confession harder for anyone to be
+// matched with, not just a cosmetic feed miss.
 
 const CLASSIFIER_TAXONOMY = [
   'mental_health', 'relationships', 'grief',
   'secrets', 'work_identity', 'body_health', 'faith_meaning',
 ] as const;
 
+type Category = typeof CLASSIFIER_TAXONOMY[number];
+
+const CATEGORY_KEYWORDS: Record<Category, string[]> = {
+  mental_health: [
+    'anxiety', 'anxious', 'depress', 'panic attack', 'therapy', 'therapist',
+    'medicat', 'mental health', 'burnt out', 'burnout', "can't cope",
+    'cant cope', 'breakdown', 'intrusive thoughts', 'ptsd', 'ocd', 'bipolar',
+    "can't sleep", 'cant sleep', 'insomnia', 'numb inside', 'empty inside',
+    'lonely', 'loneliness', 'struggling', 'no one understands', 'nobody understands', 'nobody listens',
+  ],
+  relationships: [
+    'boyfriend', 'girlfriend', 'husband', 'wife', 'my partner', 'marriage',
+    'married', 'divorce', 'breakup', 'broke up', 'my ex', 'dating', 'crush on',
+    'cheat', 'affair', 'fiancé', 'fiancee', 'engaged', 'in love with',
+    'ghosted', 'relationship with',
+    'my father', 'my mother', 'my dad', 'my mom', 'my parents', 'my brother', 'my sister', 'my son', 'my daughter', 'my family', 'my friend', 'best friend', 'estranged',
+  ],
+  grief: [
+    'died', 'passed away', 'funeral', 'lost my mom', 'lost my dad',
+    'lost my mother', 'lost my father', 'miscarriage', 'grieving', 'grief',
+    'mourning', 'terminal', 'dying of', 'buried him', 'buried her',
+  ],
+  secrets: [
+    'never told anyone', 'nobody knows', 'no one knows', "i've never said this",
+    "can't tell anyone", 'cant tell anyone', 'ashamed of', 'guilty about',
+    'secret i', 'lied about', 'hiding this', 'hidden from',
+  ],
+  work_identity: [
+    'my boss', 'coworker', 'fired from', 'laid off', 'quit my job',
+    'workplace', 'resignation', 'my career', 'job interview', 'my colleague',
+    'imposter syndrome', 'who i really am', "don't know who i am",
+    'dont know who i am', 'my identity',
+  ],
+  body_health: [
+    'diagnosed with', 'chronic pain', 'chronic illness', 'my disability',
+    'eating disorder', 'body image', 'my weight', 'hospital for',
+    'surgery', 'my disease', 'my symptoms', 'side effects',
+  ],
+  faith_meaning: [
+    'my faith', 'i pray', 'my religion', 'my church', 'spiritual',
+    'believe in god', 'meaning of life', 'my purpose', 'existential',
+    'my soul', 'lost my faith', 'doubt my faith', 'the universe',
+  ],
+};
+
+function keywordCategories(text: string): Category[] {
+  const lower = text.toLowerCase();
+  return (Object.keys(CATEGORY_KEYWORDS) as Category[]).filter((cat) =>
+    CATEGORY_KEYWORDS[cat].some((kw) => lower.includes(kw)),
+  );
+}
+
 async function classifyCategories(text: string, adultSignal: boolean): Promise<string[]> {
   const categories: string[] = [];
   if (adultSignal) categories.push('sexuality_intimacy');
 
-  if (!OPENAI_API_KEY) return categories;
+  categories.push(...keywordCategories(text));
+
+  if (!OPENAI_API_KEY) return [...new Set(categories)];
 
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -319,12 +401,13 @@ serve(async (req: Request) => {
     // ── [7] Atomic UPDATE with seal guard ────────────────────────────────────
     // The WHERE real_felt_count = 0 clause is the atomic seal guard.
     // If a real felt landed between step [2] and now, 0 rows are updated.
-    // The embedding is stored as a JSON string (pgvector expects this format).
+    // The embedding is stored as a JSON string (pgvector expects this format),
+    // or NULL when embedText() had no key / failed — never blocks the edit.
     const { data: updated, error: updateErr } = await supabase
       .from('confessions')
       .update({
         text:       rawText,
-        embedding:  JSON.stringify(embedding),
+        embedding:  embedding ? JSON.stringify(embedding) : null,
         categories,
         updated_at: new Date().toISOString(),
       })
