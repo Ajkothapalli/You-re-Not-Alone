@@ -64,11 +64,15 @@ async function runModeration(
   text: string,
 ): Promise<{ pass: boolean; reason?: string; adultSignal?: boolean }> {
   if (!MODERATION_API_KEY) {
-    if (IS_PRODUCTION) {
-      throw new Error('[SAFETY] MODERATION_API_KEY not set in production — blocking all edits');
-    }
-    console.warn('[SAFETY] MODERATION_API_KEY not set — passing edit in development mode only.');
-    return { pass: true, adultSignal: false };
+    // Fail closed in every environment — see submit-confession for the full
+    // reasoning. This path matters even more than submission: an edit that
+    // skips moderation is a complete circumvention of the submit gate. Post
+    // something benign, edit it to anything, and it is live and matched with
+    // no classifier having ever seen the final text.
+    throw new Error(
+      '[SAFETY] MODERATION_API_KEY not set — blocking all edits. ' +
+      'Intentional in every environment: set a real key to accept edits.',
+    );
   }
 
   const res = await fetch('https://api.openai.com/v1/moderations', {

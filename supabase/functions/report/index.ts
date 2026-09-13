@@ -52,14 +52,13 @@ async function fileNcmecReport(confessionId: string): Promise<void> {
 
   if (!NCMEC_ESP_ID || !NCMEC_API_KEY) {
     const msg = `[CSAM] NCMEC credentials not set — mandatory report NOT filed. confessionId=${confessionId} timestamp=${timestamp}`;
-    if (IS_PRODUCTION) {
-      // Legal obligation unmet — surface this in Supabase logs immediately.
-      // Content is still removed; this throw is a compliance alert, not a user-facing error.
-      throw new Error(msg);
-    }
+    // Fail closed in every environment (CLAUDE.md §4: reporting stays on
+    // "permanently in all environments"). Content is still removed; this throw
+    // is a compliance alert, not a user-facing error. An unfiled mandatory
+    // report is not made acceptable by the environment it happened in.
     console.error(msg);
-    console.error('[CSAM] Complete the NCMEC ESP registration before production launch.');
-    return;
+    console.error('[CSAM] Complete the NCMEC ESP registration before launch.');
+    throw new Error(msg);
   }
 
   const res = await fetch(NCMEC_API_URL, {

@@ -582,6 +582,33 @@ describe('Safety gate has no environment escape hatch (CLAUDE.md §1)', () => {
     expect(guard).not.toContain('IS_PRODUCTION');
   });
 
+  it('edit-confession fails closed too — an unmoderated edit bypasses the submit gate', () => {
+    // Post benign text, edit it to anything: without this, the final text
+    // reaches the feed having been classified by nothing.
+    const editSrc = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'edit-confession', 'index.ts'),
+      'utf8',
+    );
+    const start = editSrc.indexOf('if (!MODERATION_API_KEY) {');
+    expect(start).toBeGreaterThan(-1);
+    const guard = editSrc.slice(start, start + 700);
+    expect(guard).toContain('throw');
+    expect(guard).not.toContain('pass: true');
+    expect(guard).not.toContain('IS_PRODUCTION');
+  });
+
+  it('the report function files or fails — never silently skips NCMEC', () => {
+    const reportSrc = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'report', 'index.ts'),
+      'utf8',
+    );
+    const start = reportSrc.indexOf('if (!NCMEC_ESP_ID || !NCMEC_API_KEY) {');
+    expect(start).toBeGreaterThan(-1);
+    const guard = reportSrc.slice(start, start + 800);
+    expect(guard).toContain('throw');
+    expect(guard).not.toContain('IS_PRODUCTION');
+  });
+
   it('moderation runs before the confession is ever inserted', () => {
     // Ordering is the other half of the invariant: the gate is worthless if
     // STORE can be reached without it.
