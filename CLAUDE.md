@@ -18,31 +18,41 @@
    table, owner-RLS, account-synced for iOS↔Android since 2026-06-14 — is allowed:
    it is never shown on confessions, which always carry a random per-confession
    persona, so author-identity separation is unaffected.)
-   **Two sanctioned read surfaces only:**
-   - The onboarding read screen (`app/read.tsx`): hard-capped at 2 confessions
-     (enforced server-side in `get_onboarding_confessions`), with a report
-     control on every card. Never expand into a feed, add pagination, add a
-     refresh gesture, or raise the cap.
-     *Owner decision 2026-09-12:* "shown every launch" (owner decision
-     2026-06-12) now applies only OUTSIDE the first 7 days. Inside D7, launch
-     routes to `app/explore.tsx` instead — reading is the habit being built
-     first, and two cards is not a reading session. What changed is the launch
-     route, NOT this surface: the 2-cap, the report control, and the ban on
-     expanding it into a feed all stand unchanged. The session gate in
-     `write.tsx` (no writing until the reader has been shown someone else's
-     confession) is satisfied by the feed instead — never removed.
-   - The explore screen (`app/explore.tsx`): owner-approved, personalized,
-     capped at 10 confessions per batch, no infinite scroll, no refresh
-     gesture, nothing loads on scroll. Safety filters in
-     `recommend_confessions` SQL RPC are applied BEFORE scoring and CANNOT be
-     bypassed by the edge function.
-     *Owner decision 2026-09-12:* the original "one at a time" presentation was
-     deliberately overridden — the batch is now a SCROLLABLE list. The
-     anti-feed intent is unchanged and still enforced: the batch stays capped,
-     scrolling never loads more, and there is no refresh gesture. Readers
-     inside their first 7 days (D7) may tap "Keep reading" to append the next
-     batch; that is an explicit user action, never automatic, so the surface
-     cannot become an endless feed.
+   **ONE sanctioned read surface: the feed (`app/explore.tsx`).**
+   Owner-approved, personalized, safety-filtered in the `recommend_confessions`
+   SQL RPC BEFORE scoring — filters that CANNOT be bypassed by the edge
+   function. No refresh gesture, nothing loads on scroll: "Keep reading" is an
+   explicit tap, never automatic.
+
+   *Owner decision 2026-09-13 — this supersedes the 2026-06-12 and 2026-09-12
+   decisions below and REMOVES the previous caps. Read this before assuming an
+   older rule still holds:*
+   - `app/read.tsx` (the 2-card "Before you write, read" screen) is **DELETED**,
+     along with its 2-cap, the `readShown` write gate, and the "+2 reads per
+     write" credit. Reading is never rationed and never earned.
+   - The feed shows **however much matches the reader's chosen categories** —
+     the fixed 10-per-batch cap is gone.
+   - The write invite is a **PROMPT shown after a 30-day intro window**
+     (`lib/introWindow.ts`), never a gate. Reading is not withheld before or
+     after it.
+   - AI-generated stories fill the feed while real volume is thin, and recede
+     automatically as real confessions arrive (real outranks generated in
+     scoring — an ordering bonus, never a filter, so a thin category fills
+     rather than empties).
+
+   **What the removed caps were protecting, and what still protects it:** the
+   caps existed so this could not become an endless scroll of other people's
+   pain. That intent still stands and is now carried by different mechanics —
+   the pool is finite and bounded by the reader's own category choices, the
+   feed ENDS (with an explicit end-of-feed state), nothing loads on scroll, and
+   there is no refresh gesture. If a future change makes the feed refill
+   automatically, continuously, or without an explicit tap, it has crossed the
+   line this invariant exists to hold, regardless of what the cap numbers say.
+
+   *Superseded history:* 2026-06-12 read screen shown every launch;
+   2026-09-12 read screen limited to outside-D7 + explore made a scrollable
+   list. Both are obsolete — the screen they governed no longer exists.
+
    No other read surface may be added.
 
 3. **Anonymity is user-facing (owner decision 2026-07-05; supersedes the original

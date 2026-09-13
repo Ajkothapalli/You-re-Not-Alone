@@ -1,6 +1,6 @@
 /**
  * The two cards that close out a reading surface: an invitation to write, and
- * the supporter upsell. Shared by app/read.tsx (after its 2 onboarding cards)
+ * the supporter upsell. Used by app/explore.tsx at the end of the feed
  * and app/explore.tsx (at the end of the feed) so the two screens can't drift.
  *
  * PremiumCard is an upsell, never a gate — per CLAUDE.md invariant 6, plans

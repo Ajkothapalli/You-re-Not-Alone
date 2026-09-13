@@ -452,7 +452,7 @@ export default function WelcomeScreen() {
     setPage(p);
   }
 
-  async function persist(chosenPersona: Persona, chosenCats: CategoryId[], dest: '/write' | '/read') {
+  async function persist(chosenPersona: Persona, chosenCats: CategoryId[], dest: '/write' | '/explore') {
     setSaving(true);
     try {
       await Promise.all([
@@ -466,10 +466,10 @@ export default function WelcomeScreen() {
   }
 
   function handleSkip() {
-    persist(randomPersona(), CATEGORIES.map(c => c.id), '/read');
+    persist(randomPersona(), CATEGORIES.map(c => c.id), '/explore');
   }
 
-  function handleFinish(dest: '/write' | '/read') {
+  function handleFinish(dest: '/write' | '/explore') {
     const cats = selected.size > 0 ? [...selected] : CATEGORIES.map(c => c.id);
     const n = name.trim();
     if (n) setProfileName(n).catch(() => {});
@@ -796,7 +796,7 @@ export default function WelcomeScreen() {
 
             <PrimaryButton
               label="Read a few first"
-              onPress={() => handleFinish('/read')}
+              onPress={() => handleFinish('/explore')}
               disabled={saving}
             />
             <Pressable

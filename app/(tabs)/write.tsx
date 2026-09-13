@@ -67,7 +67,7 @@ export default function WriteTabScreen() {
 
       if (result.type === 'submitted') {
         analytics.confessionSubmitted(result.match?.id ?? '');
-        router.replace({ pathname: '/read', params: { from: 'match' } });
+        router.replace('/explore');
         router.push({
           pathname: '/match',
           params: {
@@ -82,7 +82,7 @@ export default function WriteTabScreen() {
       }
 
       analytics.confessionSubmitted(result.match!.id);
-      router.replace({ pathname: '/read', params: { from: 'match' } });
+      router.replace('/explore');
       router.push({
         pathname: '/match',
         params: {

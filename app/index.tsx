@@ -4,15 +4,14 @@
  *        OR: apple/google → dob (new user) / /write (existing user)
  *
  * Age gate: ALL auth paths land on the DOB step for new users.
- * An existing account row bypasses DOB and routes straight to the reading
- * surface: /explore inside the first 7 days, /read after that
- * (owner decisions 2026-06-12 and 2026-09-12 — see CLAUDE.md §2).
+ * An existing account row bypasses DOB and routes straight to the feed
+ * (/explore) — the only read surface (owner decision 2026-09-13, CLAUDE.md §2).
  *
  * App Store guideline 4.8: Apple Sign-In is offered whenever Google is offered on iOS.
  */
 
 import { announce } from '@/lib/a11y';
-import { isD7, markInstall } from '@/lib/d7';
+import { markInstall } from '@/lib/introWindow';
 import { getDobOrder, maskDob, dobToISO, isAdultISO } from '@/lib/dobFormat';
 import { createOrUpdateAccount, getReaderPreferences } from '@/lib/api';
 import { resetFtue } from '@/lib/onboarding';
@@ -131,7 +130,7 @@ export default function IndexScreen() {
 
       // Network failure / timeout — don't restart FTUE for an onboarded user.
       if (!prefs.ok) {
-        router.replace('/read');
+        router.replace('/explore');
         return;
       }
 
@@ -147,18 +146,11 @@ export default function IndexScreen() {
 
       if (rtue) { router.replace('/rtue'); return; }
 
-      // Owner decision 2026-09-12: inside the first 7 days, launch lands on the
-      // scrollable feed, not the 2-card onboarding read screen. Reading is the
-      // habit we're building first, and two cards is not a reading session.
-      // Outside D7 the original every-launch read screen is unchanged.
-      // Bounded like every other await in this function. isD7() is a single
-      // AsyncStorage read and should take ~1ms, but this is the boot path:
-      // acct/prefs/rtue/resetFtue are all wrapped precisely because "should be
-      // fast" is not a guarantee, and an unbounded await here sits in 'loading'
-      // until the 10s watchdog fires — i.e. it re-creates the stuck-spinner
-      // bug this screen has already been fixed for three times.
-      const d7 = await withTimeout(isD7(), 2_000, 'd7').catch(() => false);
-      router.replace(d7 ? '/explore' : '/read');
+      // The feed is the read surface, always (owner decision 2026-09-13).
+      // No window check here any more: the intro window only decides whether
+      // the WRITE PROMPT appears at the end of the feed, never whether someone
+      // is allowed to read.
+      router.replace('/explore');
     } catch (err) {
       // Reset so a retry attempt can call routeAfterAuth again.
       routingRef.current = false;

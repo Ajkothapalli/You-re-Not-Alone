@@ -73,7 +73,7 @@ function ThemedStack() {
         <Stack.Screen name="my-confessions" />
         <Stack.Screen name="categories"     options={SHEET_OPTIONS} />
 
-        {/* The scrollable reading feed — reached from read.tsx's "Read more"
+        {/* The scrollable reading feed — the app's only read surface
             card during D7. (It was previously listed as deep-link-only, which
             meant nothing in the app could actually get to it.) */}
         <Stack.Screen name="explore" />

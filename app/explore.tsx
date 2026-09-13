@@ -34,7 +34,7 @@ import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
 import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
-import { isD7 } from '@/lib/d7';
+import { isWithinIntroWindow } from '@/lib/introWindow';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
@@ -53,23 +53,8 @@ import {
 } from 'react-native';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
-import { session } from '@/lib/sessionFlags';
 
 const DWELL_THRESHOLD_MS = 5_000;
-
-/**
- * write.tsx won't open until the reader has been shown someone else's
- * confession this session, and read.tsx was the only screen that set the flag.
- * Inside D7 the launch destination is this feed instead, so without this,
- * tapping Write bounces the reader straight back to the 2-card read screen
- * they were deliberately routed past.
- *
- * Only counts when confessions actually rendered — an empty or failed feed
- * has shown the reader nothing, and the gate exists to guarantee otherwise.
- */
-function markReadShown(count: number): void {
-  if (count > 0) session.readShown = true;
-}
 
 export default function ExploreScreen() {
   const color  = useThemeColors();
@@ -79,7 +64,8 @@ export default function ExploreScreen() {
   const [loading,         setLoading]         = useState(true);
   const [loadingMore,     setLoadingMore]     = useState(false);
   const [premiumRequired, setPremiumRequired] = useState(false);
-  const [withinD7,        setWithinD7]        = useState(false);
+  // Gates the write PROMPT only — never whether the feed loads.
+  const [withinIntro,     setWithinIntro]     = useState(true);
   const [exhausted,       setExhausted]       = useState(false);
   // 'auth'  — no/expired session, so signing in is the only way forward.
   // 'load'  — anything else (network, edge function, RPC); retrying may work.
@@ -110,10 +96,10 @@ export default function ExploreScreen() {
     shownIdsRef.current  = new Set();
     impressedRef.current = new Set();
     readToEndRef.current = new Set();
-    const d7 = await isD7().catch(() => false);
-    setWithinD7(d7);
+    const intro = await isWithinIntroWindow().catch(() => true);
+    setWithinIntro(intro);
     try {
-      const { confessions: data, premiumRequired: gated } = await getRecommendations(d7);
+      const { confessions: data, premiumRequired: gated } = await getRecommendations(intro);
       if (gated) {
         setPremiumRequired(true);
         setConfessions([]);
@@ -121,7 +107,6 @@ export default function ExploreScreen() {
       }
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
-      markReadShown(data.length);
     } catch (e) {
       setLoadError(isAuthError(e) ? 'auth' : 'load');
       setConfessions([]);
@@ -369,13 +354,15 @@ export default function ExploreScreen() {
             </Text>
             <Text style={styles.endBody}>
               {exhausted
-                ? 'You\'ve read every confession matching your categories. Add more, or write your own.'
+                ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
                 : 'Come back later. New confessions are matched to your taste as they arrive.'}
             </Text>
 
-            {/* Deliberately quiet — loading another batch is a small continuation,
-                not the thing we're asking of anyone here. The cards below are. */}
-            {withinD7 && !exhausted && (
+            {/* Deliberately quiet — loading more is a small continuation, not
+                the thing we're asking of anyone here. Available to everyone
+                now: the feed is however much we have for your categories, and
+                more is not a reward for writing. */}
+            {!exhausted && (
               <Pressable
                 onPress={loadMore}
                 disabled={loadingMore}
@@ -390,9 +377,13 @@ export default function ExploreScreen() {
               </Pressable>
             )}
 
-            {/* The two asks that actually matter at the end of a read. */}
+            {/* The write invite is a PROMPT, not a gate, and only after the
+                intro window (owner decision 2026-09-13). Asking someone to
+                write in their first 30 days is the thing we decided not to do
+                — they read for a month first, and nothing is withheld either
+                way. Premium stands on its own and shows throughout. */}
             <View style={styles.footerCards}>
-              <WriteInviteCard onPress={() => router.replace('/write')} />
+              {!withinIntro && <WriteInviteCard onPress={() => router.replace('/write')} />}
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
 

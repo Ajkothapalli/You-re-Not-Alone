@@ -311,7 +311,7 @@ export default function YouScreen() {
         // Conversion moment: zero confessions is our one chance to turn a
         // reader into a writer. The whole card is one Pressable (illustration
         // + heading + body), same neo-brutal chrome + tap pattern as
-        // read.tsx's WriteInviteCard — not a small button buried below text.
+        // the feed's WriteInviteCard — not a small button buried below text.
         <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
           <View pointerEvents="none" style={styles.emptyCardShadow} />
           <Pressable

@@ -54,16 +54,16 @@ const COPY: Record<RtueState, {
   feltLabel:   string;
   sub:         (gained: number, current: number) => string;
   primary:     string;
-  primaryDest: '/write' | '/read';
+  primaryDest: '/write' | '/explore';
   ghost:       string;
-  ghostDest:   '/write' | '/read';
+  ghostDest:   '/write' | '/explore';
 }> = {
   not_yet: {
     hi:          "It's still travelling",
     feltLabel:   '',
     sub:         () => "you said the thing — that took more than most manage. someone will feel it; it just hasn't reached them yet.",
     primary:     "read someone else's",
-    primaryDest: '/read',
+    primaryDest: '/explore',
     ghost:       'say something new',
     ghostDest:   '/write',
   },
@@ -74,7 +74,7 @@ const COPY: Record<RtueState, {
     primary:     'say something new',
     primaryDest: '/write',
     ghost:       "read someone else's",
-    ghostDest:   '/read',
+    ghostDest:   '/explore',
   },
   few: {
     hi:          'You were felt',
@@ -83,7 +83,7 @@ const COPY: Record<RtueState, {
     primary:     'say something new',
     primaryDest: '/write',
     ghost:       'just sit with this',
-    ghostDest:   '/read',
+    ghostDest:   '/explore',
   },
   growing: {
     hi:          'You were heard',
@@ -92,7 +92,7 @@ const COPY: Record<RtueState, {
     primary:     'say something new',
     primaryDest: '/write',
     ghost:       'just sit with this',
-    ghostDest:   '/read',
+    ghostDest:   '/explore',
   },
   milestone: {
     hi:          'A milestone',
@@ -101,7 +101,7 @@ const COPY: Record<RtueState, {
     primary:     'say something new',
     primaryDest: '/write',
     ghost:       'not now',
-    ghostDest:   '/read',
+    ghostDest:   '/explore',
   },
 };
 
@@ -226,14 +226,14 @@ export default function RtueScreen() {
 
   useEffect(() => {
     evaluateRtue().then(m => {
-      if (!m) { router.replace('/read'); return; }
+      if (!m) { router.replace('/explore'); return; }
       setMoment(m);
       announce(
         m.state === 'not_yet'
           ? 'Welcome back. Your confession is still travelling.'
           : `Welcome back. ${m.current.toLocaleString()} people felt this too.`
       );
-    }).catch(() => router.replace('/read'));
+    }).catch(() => router.replace('/explore'));
   }, []);
 
   async function handleShare() {
@@ -249,7 +249,7 @@ export default function RtueScreen() {
     }
   }
 
-  function dismiss(dest: '/write' | '/read') {
+  function dismiss(dest: '/write' | '/explore') {
     if (moment && moment !== 'loading') {
       markRtueSeen(moment.id, moment.current).catch(() => {});
       clearRtueCache();

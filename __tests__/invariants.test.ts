@@ -270,30 +270,61 @@ describe('D7 launch route + the write gate it must not break (CLAUDE.md §2)', (
   const read = (...p: string[]) =>
     fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
 
-  it('index.tsx routes into the feed inside D7 and the read screen outside it', () => {
+  it('the feed is the only read surface — launch always goes there', () => {
+    // Owner decision 2026-09-13: the 2-card screen is gone, along with the
+    // window check that used to pick between them. Reading is never gated.
     const src = read('app', 'index.tsx');
-    expect(src).toMatch(/isD7\(\)/);
-    expect(src).toMatch(/router\.replace\(\s*d7\s*\?\s*'\/explore'\s*:\s*'\/read'\s*\)/);
+    expect(src).toContain("router.replace('/explore')");
+    expect(src).not.toContain("'/read'");
   });
 
-  it('explore.tsx satisfies the write gate, so Write cannot bounce D7 readers back to /read', () => {
-    // write.tsx refuses to open until session.readShown is set, and read.tsx
-    // used to be the only screen that set it. Routing D7 launches past /read
-    // without this makes Write throw the reader back at the 2-card screen.
-    const src = read('app', 'explore.tsx');
-    expect(src).toContain('session.readShown = true');
+  it('app/read.tsx no longer exists', () => {
+    // It was deleted, not orphaned. A dead screen file previously caused real
+    // confusion in this repo (polish landed on a route nothing rendered), so
+    // this pins the deletion rather than trusting nobody re-adds a route to it.
+    expect(fs.existsSync(path.join(__dirname, '..', 'app', 'read.tsx'))).toBe(false);
   });
 
-  it('the write gate itself is still in place — the feed satisfies it, never removes it', () => {
+  it('nothing routes to /read any more', () => {
+    const dirs = ['app', 'components'];
+    for (const d of dirs) {
+      const walk = (p: string): string[] => fs.readdirSync(p, { withFileTypes: true })
+        .flatMap((e: any) => e.isDirectory() ? walk(path.join(p, e.name))
+          : (e.name.endsWith('.tsx') || e.name.endsWith('.ts')) ? [path.join(p, e.name)] : []);
+      for (const file of walk(path.join(__dirname, '..', d))) {
+        expect(fs.readFileSync(file, 'utf8')).not.toContain("'/read'");
+      }
+    }
+  });
+
+  it('writing is never gated on having read — the readShown gate is gone', () => {
     const src = read('app', 'write.tsx');
-    expect(src).toContain('session.readShown');
-    expect(src).toMatch(/router\.replace\('\/read'\)/);
+    expect(src).not.toContain('session.readShown');
   });
 
-  it('the read screen keeps its hard 2-cap — only the launch route moved', () => {
-    // The owner decision changed where launch lands, not this surface.
-    const src = read('app', 'read.tsx');
-    expect(src).not.toMatch(/FlatList|onEndReached|RefreshControl/);
+  it('the write invite is a prompt after the intro window, never a gate', () => {
+    // It must be conditional on the window, and the feed must render
+    // regardless — reading is not withheld before or after 30 days.
+    const src = read('app', 'explore.tsx');
+    expect(src).toContain('withinIntro');
+    expect(src).toMatch(/!withinIntro\s*&&\s*<WriteInviteCard/);
+  });
+
+  it('the intro window is 30 days and fails open', () => {
+    const src = read('lib', 'introWindow.ts');
+    expect(src).toContain('INTRO_WINDOW_DAYS = 30');
+    // Fails OPEN: a storage error must not nag a brand-new reader to write.
+    const fn = src.slice(src.indexOf('export async function isWithinIntroWindow'));
+    expect(fn).toMatch(/catch\s*{\s*return true;/);
+  });
+
+  it('real confessions outrank AI-generated ones in the feed', () => {
+    const src = read('supabase', 'functions', 'recommend-confessions', 'index.ts');
+    expect(src).toContain("c.source === 'user'");
+    // And the RPC must actually return `source`, or the bonus is dead code.
+    const sql = read('supabase', 'migrations', '20260913000002_feed_source_ordering.sql');
+    expect(sql).toContain('source     text');
+    expect(sql).toContain('c.source');
   });
 });
 

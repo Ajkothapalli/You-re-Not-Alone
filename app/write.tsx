@@ -31,7 +31,8 @@ export default function WriteScreen() {
   const { prefillText }                = useLocalSearchParams<{ prefillText?: string }>();
 
   useEffect(() => {
-    if (!session.readShown) router.replace('/read');
+    // Read-before-write gate removed (owner decision 2026-09-13): reading is
+    // never withheld, and the 2-card screen it pointed at no longer exists.
   }, []);
 
   // Seed the draft when arriving from an Edit flow in My Confessions
@@ -63,13 +64,13 @@ export default function WriteScreen() {
       if (result.type === 'submitted') {
         analytics.confessionSubmitted(result.match?.id ?? '');
         // Land on the feed first so the sheet opens over it, not over the write screen.
-        router.replace({ pathname: '/read', params: { from: 'match' } });
+        router.replace('/explore');
         router.push({ pathname: '/match', params: { youText: trimmed, themText: '', feltCount: '1', confessionId: result.match?.id ?? '', noMatch: '1' } });
         return;
       }
 
       analytics.confessionSubmitted(result.match!.id);
-      router.replace({ pathname: '/read', params: { from: 'match' } });
+      router.replace('/explore');
       router.push({ pathname: '/match', params: { youText: trimmed, themText: result.match!.text, feltCount: String(result.match!.feltCount), confessionId: result.match!.id, noMatch: '0' } });
     } catch (err: any) {
       const msg: string = err?.message ?? '';
@@ -89,7 +90,7 @@ export default function WriteScreen() {
     >
       {/* Top bar */}
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.replace('/read')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => router.replace('/explore')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
           <View style={{ transform: [{ scaleX: -1 }] }}>
             <ScrawlIcon name="arrow_right" size={18} color={color.dim} roughen={false} strokeWidth={2.5} />
           </View>

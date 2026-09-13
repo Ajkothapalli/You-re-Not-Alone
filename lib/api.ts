@@ -247,11 +247,10 @@ export async function retireConfession(confessionId: string): Promise<void> {
 
 export type DeleteMode = 'erase' | 'anonymize';
 
-export async function getOnboardingConfessions(): Promise<ReadConfession[]> {
-  const { data, error } = await supabase.rpc('get_onboarding_confessions', { max_count: 2 });
-  if (error) throw error;
-  return (data ?? []) as ReadConfession[];
-}
+// getOnboardingConfessions() was removed 2026-09-13 along with app/read.tsx —
+// it existed only to fetch that screen's 2 capped confessions. The
+// get_onboarding_confessions RPC is left in the database (harmless, unused);
+// dropping it is a separate migration if anyone wants the cleanup.
 
 // ─── Reader preferences ───────────────────────────────────────────────────────
 
@@ -356,7 +355,9 @@ export async function getRecommendations(
   // PREVIEW FALLBACK (also D7 bypass path for premium gate)
   const prefs = await withTimeout(getReaderPreferences(), 5_000, 'prefs').catch(() => null);
   return {
-    confessions:    getDummyRecommendations(prefs?.categories ?? [], 10, excludeIds, d7Bypass),
+    // No fixed 10 here either (owner decision 2026-09-13) — the preview pool
+    // gives however much matches the reader's categories, same as the server.
+    confessions:    getDummyRecommendations(prefs?.categories ?? [], Number.MAX_SAFE_INTEGER, excludeIds, d7Bypass),
     premiumRequired: false,
   };
 }

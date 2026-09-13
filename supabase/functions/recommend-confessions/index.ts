@@ -34,7 +34,13 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const AUTHOR_TOKEN_SECRET  = Deno.env.get('AUTHOR_TOKEN_SECRET');
 
 const CANDIDATE_N  = 200;
-const RETURN_N     = 10;
+// Owner decision 2026-09-13: the feed is however much we have for the
+// reader's categories, not a fixed 10. This is still a BOUND, not infinity —
+// it is the size of one response, the candidate pool above is finite, and
+// nothing loads on scroll. What changed is that a reader with 40 matching
+// confessions now sees 40 rather than being cut to 10 for no reason they
+// could perceive.
+const RETURN_N     = CANDIDATE_N;
 const EPSILON      = 0.1;   // exploration rate
 const LAMBDA       = 0.7;   // MMR relevance weight
 const ALPHA_POS    = 0.15;  // taste EMA — positive signal learning rate
@@ -56,6 +62,10 @@ interface Candidate {
   categories: string[];
   created_at: string;
   distance:   number | null;
+  // 'user' | 'generated' | 'seed'. Drives the authenticity bonus in score():
+  // real confessions outrank AI ones so generated content recedes on its own
+  // as real volume arrives. Optional because older rows may predate the column.
+  source?:    string | null;
 }
 
 interface ScoredCandidate extends Candidate {
@@ -99,16 +109,24 @@ function scoreCandidate(
   // Starvation boost: at least one of this item's categories hasn't been served yet
   const starvation = c.categories.some(cat => (fatigue.get(cat) ?? 0) === 0) ? 0.1 : 0;
 
+  // Real confessions outrank generated ones (owner decision 2026-09-13).
+  // AI stories exist to keep the feed from being empty before real volume
+  // arrives; as real confessions land they should displace them on their own,
+  // with no cutover to run and no category suddenly going thin. A flat bonus
+  // rather than a filter, so a thin category still fills rather than starves.
+  const authenticity = c.source === 'user' ? 0.25 : 0;
+
   if (coldStart) {
     // Cold start: lean on popularity × recency + diversity boost
-    return 0.45 * popularity * recency + 0.35 * similarity + 0.2 * starvation;
+    return 0.45 * popularity * recency + 0.35 * similarity + 0.2 * starvation + authenticity;
   }
 
   return (
     0.50 * similarity +
     0.15 * popularity * recency +
     0.10 * starvation -
-    0.10 * fatigueScore
+    0.10 * fatigueScore +
+    authenticity
   );
 }
 

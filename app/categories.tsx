@@ -168,11 +168,11 @@ export default function CategoriesScreen() {
     }
     setSaving(false);
     announce('Preferences saved.');
-    router.replace(isEdit ? '../' : '/read');
+    router.replace(isEdit ? '../' : '/explore');
   }
 
   function handleSkip() {
-    router.replace(isEdit ? '../' : '/read');
+    router.replace(isEdit ? '../' : '/explore');
   }
 
   if (loadingPrefs) return <View style={{ flex: 1 }} />;
