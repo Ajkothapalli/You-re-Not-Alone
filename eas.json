@@ -41,8 +41,8 @@
       },
       "env": {
         "ENVIRONMENT": "production",
-        "EXPO_PUBLIC_SUPABASE_URL": "https://tmpqadweifuwbmktbmzg.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_XPLP2lcoe2DJmnilIa4-Jw_X-yz8oBp"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://sjywjerlqxwfniwqjojs.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_qHe9n5MLT_MxQHZsDizUEQ_gCdgYfvM"
       }
     }
   },

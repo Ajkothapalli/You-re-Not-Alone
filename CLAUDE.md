@@ -119,11 +119,39 @@ is a USER-FACING guarantee.
 - `banned_tokens` remains for legacy-row ban enforcement; new rows ban via
   `accounts.banned` + `account_id`.
 
+### Environments (established 2026-09-13)
+
+| | Project ref | Region | Used by |
+|---|---|---|---|
+| Dev / preview | `tmpqadweifuwbmktbmzg` | ap-northeast-1 | `development` + `preview` build profiles. Contains test data. |
+| **Production** | `sjywjerlqxwfniwqjojs` | ap-south-1 (Mumbai) | `production` profile only. |
+
+Production is in Mumbai for latency and for the DPDP Act data-residency item
+on the compliance checklist. `AUTHOR_TOKEN_SECRET` differs per project and must
+never be shared between them — author tokens from one environment must not be
+derivable in the other.
+
+NOTE: `eas.json`'s inline `env` block overrides the EAS remote environment
+variables of the same name. The remote `production` environment still holds the
+dev URL; if the inline block is ever removed, production silently falls back to
+the dev database. Fix the remote values or keep the inline block.
+
 ### Stub rule (hard requirement)
 If `MODERATION_API_KEY` is not set in the Edge Function environment:
 - The function returns 503 with `{"error":"moderation_unavailable"}`
 - Logs: `[SAFETY] MODERATION_API_KEY not set — blocking all submissions`
 - Does NOT pass the submission through under any circumstances
+
+**This applies in EVERY environment. There is no development exemption.**
+*Incident 2026-09-13:* `submit-confession`, `edit-confession` and `report` all
+carried an `if (IS_PRODUCTION)` bypass that returned `{ pass: true }` when the
+key was missing. The live project ran `ENVIRONMENT=development` with
+`MODERATION_API_KEY=""`, so every submission was stored, matched and shown with
+no classification at all, and the CSAM branch was unreachable. It went unseen
+because the only test was `it.todo(...)`, which never executes, and
+`scripts/verify-pipeline.mjs` treats a 503 as failure — so a passing pipeline
+reported healthy while the gate was off. An environment variable is not a
+safety boundary. Invariant tests now assert all three functions fail closed.
 
 ### Client bundle
 Contains ONLY: `EXPO_PUBLIC_SUPABASE_URL` + `EXPO_PUBLIC_SUPABASE_ANON_KEY`
