@@ -1,59 +1,78 @@
 /**
  * Writing — "it's your turn."
  *
- * A figure bent over a page, mid-sentence. The one yellow object in the scene
- * is the page itself (ILL_COLOR.light), because the page is the thing we are
- * asking for.
+ * A figure at a desk, pen in hand, mid-sentence. The page is the one yellow
+ * object in the scene, because the page is the thing being asked for.
+ *
+ * Built with the house technique (docs/design/illustration.md §1), which the
+ * first version of this file ignored and looked wrong for:
+ *   - Limbs are a thick ink stroke (8.5) with a thinner garment/skin stroke
+ *     (4.9) laid over it — not a thin outline.
+ *   - Fills are drawn OFF-REGISTER from their outlines (2-3px) for the
+ *     risograph misprint feel.
+ *   - A pressure pass (STROKE.press, translated ~1px) on the shadow side.
+ *
+ * The writing arm is a real arm: the forearm path is redrawn every frame from
+ * a FIXED shoulder to the MOVING hand, so the hand never detaches from the
+ * body. The first version drew the arm ending at one point and the pen at
+ * another, which read exactly as what it was — writing with no hands.
+ *
+ * No rotate(): Reanimated 4's transform processor requires a `deg` suffix that
+ * react-native-svg's parser rejects, so nothing here can animate a rotation.
+ * The pen angle is baked into its path; only position animates.
  *
  * Two clocks:
- *   hand  — the writing hand tracks left→right and resets, 3.4s, the small
- *           repetitive motion of actually writing rather than posing with a pen.
+ *   hand  — travels the line, lifts, returns. 3.4s.
  *   chest — 5.2s breathe, so the figure is alive between strokes.
- *
- * No rotate() anywhere: Reanimated 4's transform processor requires a `deg`
- * suffix that react-native-svg's parser rejects, so nothing in this codebase
- * can animate a rotation through both. The pen angle is baked into the path
- * and only its translation animates.
  */
 
 import React, { useCallback } from 'react';
 import { ViewStyle } from 'react-native';
 import Animated, {
   useSharedValue,
+  useDerivedValue,
   useAnimatedProps,
   withRepeat,
   withTiming,
   withSequence,
   cancelAnimation,
 } from 'react-native-reanimated';
-import { Svg, G, Path, Circle } from 'react-native-svg';
+import { Svg, G, Path, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
 import { ILL_COLOR, STROKE, EASING_WORKLET } from '@/theme/illustration';
 import { useReducedMotion } from '@/lib/a11y';
 
-const AnimatedG = Animated.createAnimatedComponent(G);
+const AnimatedPath    = Animated.createAnimatedComponent(Path);
+const AnimatedEllipse = Animated.createAnimatedComponent(Ellipse);
+const AnimatedG       = Animated.createAnimatedComponent(G);
+
+// Writing shoulder stays put; the hand travels the page between these.
+const SHOULDER = { x: 250, y: 150 };
+const HAND_X0  = 136;
+const HAND_X1  = 258;
+const HAND_Y   = 190;
 
 export function Writing({ style }: { style?: ViewStyle }) {
   const reduceMotion = useReducedMotion();
 
-  const hand  = useSharedValue(0);   // 0 → 1 across the line
+  const t     = useSharedValue(0);   // 0 → 1 across the line
   const chest = useSharedValue(0);
 
   useFocusEffect(
     useCallback(() => {
       if (reduceMotion) {
-        hand.value = 0.5;
+        t.value = 0.45;
         chest.value = 0;
         return;
       }
-      // Write across, lift, return. The pause at the end of the line is what
-      // makes it read as writing rather than sliding.
-      hand.value = withRepeat(
+      // Across, pause at the line end, lift back, pause before the next line.
+      // The pauses are what make it read as writing rather than sliding.
+      t.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 2200, easing: EASING_WORKLET.breathe }),
-          withTiming(1, { duration: 250 }),
-          withTiming(0, { duration: 420, easing: EASING_WORKLET.exit }),
-          withTiming(0, { duration: 530 }),
+          withTiming(1, { duration: 2100, easing: EASING_WORKLET.breathe }),
+          withTiming(1, { duration: 220 }),
+          withTiming(0, { duration: 380, easing: EASING_WORKLET.exit }),
+          withTiming(0, { duration: 500 }),
         ),
         -1,
         false,
@@ -64,69 +83,127 @@ export function Writing({ style }: { style?: ViewStyle }) {
         true,
       );
       return () => {
-        cancelAnimation(hand);
+        cancelAnimation(t);
         cancelAnimation(chest);
       };
     }, [reduceMotion]),
   );
 
-  // Hand + pen travel together along the writing line.
+  // One source of truth for where the hand is; the forearm, the hand and the
+  // pen all read from it, so they cannot drift apart.
+  const hand = useDerivedValue(() => {
+    'worklet';
+    const x = HAND_X0 + (HAND_X1 - HAND_X0) * t.value;
+    // The wrist dips slightly through the stroke and lifts on the return.
+    const y = HAND_Y + Math.sin(t.value * Math.PI) * 2;
+    return { x, y };
+  });
+
+  const forearmProps = useAnimatedProps(() => {
+    'worklet';
+    return { d: `M${SHOULDER.x} ${SHOULDER.y}L${hand.value.x} ${hand.value.y}` };
+  });
+  const handProps = useAnimatedProps(() => {
+    'worklet';
+    return { cx: hand.value.x, cy: hand.value.y };
+  });
+  const handFillProps = useAnimatedProps(() => {
+    'worklet';
+    // Off-register: the fill sits 2.4px down-left of its outline.
+    return { cx: hand.value.x - 3, cy: hand.value.y + 2.6 };
+  });
   const penProps = useAnimatedProps(() => {
     'worklet';
-    const x = 168 + hand.value * 74;
-    // A shallow dip mid-line — the wrist drops slightly through the stroke.
-    const y = 176 + Math.sin(hand.value * Math.PI) * 2.5;
-    return { transform: `translate(${x},${y})` };
+    const { x, y } = hand.value;
+    // Nib at the page, barrel up and back over the hand.
+    return { d: `M${x + 3} ${y - 5}L${x + 19} ${y - 32}` };
   });
 
   const chestProps = useAnimatedProps(() => {
     'worklet';
-    const s = 1 + chest.value * 0.012;
-    return { transform: `translate(200,150) scale(1,${s}) translate(-200,-150)` };
+    const s = 1 + chest.value * 0.013;
+    return { transform: `translate(200,180) scale(1,${s}) translate(-200,-180)` };
   });
 
   return (
     <Svg viewBox="0 0 400 300" style={style} preserveAspectRatio="xMidYMid meet">
-      {/* ground */}
-      <Path d="M60 262L340 262" {...STROKE.ink} />
+      {/* ground line */}
+      <G {...STROKE.ink}><Path d="M40 268L360 268" /></G>
 
-      {/* desk */}
-      <Path d="M104 214L296 214L286 262L114 262Z" fill={ILL_COLOR.sand} />
-      <Path d="M104 214L296 214L286 262L114 262Z" {...STROKE.ink} />
+      {/* ── far arm — drawn BEFORE the desk deliberately: it rests ON the
+             desk surface, so the desk must not cover it. It is placed here
+             only so the torso overlaps its shoulder end. ─────────────── */}
 
-      {/* the page — the one yellow object, and the thing being asked for */}
-      <Path d="M156 198L262 198L268 226L162 226Z" fill={ILL_COLOR.light} />
-      <Path d="M156 198L262 198L268 226L162 226Z" {...STROKE.ink} />
-      {/* written lines already on the page */}
-      <Path d="M170 208L232 208M170 216L214 216" {...STROKE.ink2} />
-
+      {/* ── figure ───────────────────────────────────────────────────── */}
       <AnimatedG animatedProps={chestProps}>
         {/* torso */}
-        <Path d="M168 196C168 160 180 138 200 138C220 138 232 160 232 196Z" fill={ILL_COLOR.sage} />
-        <Path d="M168 196C168 160 180 138 200 138C220 138 232 160 232 196" {...STROKE.ink} />
+        <Path
+          fill={ILL_COLOR.sage} stroke="none" transform="translate(-3,2.6)"
+          d="M152 152C152 126 168 112 200 112C232 112 248 126 248 152L256 232L144 232Z"
+        />
+        <G {...STROKE.ink}>
+          <Path d="M152 152C152 126 168 112 200 112C232 112 248 126 248 152L256 232L144 232Z" />
+        </G>
+        <Path {...STROKE.press} transform="translate(1,1.1)" d="M248 152L256 232" />
 
-        {/* head, tipped toward the page */}
-        <Circle cx="204" cy="116" r="25" fill={ILL_COLOR.skinMd} />
-        <Circle cx="204" cy="116" r="25" {...STROKE.ink} />
+        {/* neck */}
+        <G {...STROKE.ink}><Path d="M200 88V116" strokeWidth={14} /></G>
+        <G stroke={ILL_COLOR.skinMd} strokeWidth={9} strokeLinecap="round" fill="none">
+          <Path d="M200 88V116" />
+        </G>
+
+        {/* head */}
+        <Circle fill={ILL_COLOR.skinMd} cx={204} cy={68} r={30} stroke="none" />
+        <G {...STROKE.ink}><Circle cx={200} cy={66} r={30} /></G>
+        <Circle cx={200} cy={66} r={30} {...STROKE.press} transform="translate(1.2,1.3)" />
         {/* hair */}
-        <Path d="M181 108q6 -22 25 -22q20 0 24 20q-10 -9 -24 -9q-15 0 -25 11Z" fill={ILL_COLOR.ink} />
-        {/* eyes down at the page, not at us */}
-        <Path d="M194 120q3.5 3 7 0M208 120q3.5 3 7 0" {...STROKE.ink2} />
-
-        {/* far arm resting on the desk */}
-        <Path d="M176 176C160 182 152 196 156 206" {...STROKE.ink} />
+        <Path
+          fill={ILL_COLOR.ink} stroke="none" transform="translate(3,2.2)"
+          d="M170 60C170 34 230 34 230 60C220 48 180 48 170 60Z"
+        />
+        <G {...STROKE.ink}>
+          <Path d="M170 60C170 34 230 34 230 60C220 48 180 48 170 60Z" />
+        </G>
+        {/* eyes down at the page */}
+        <G {...STROKE.ink2}><Path d="M184 74q5 4 10 0M206 74q5 4 10 0" strokeWidth={2.6} /></G>
       </AnimatedG>
 
-      {/* writing arm — shoulder fixed, hand travels */}
-      <Path d="M226 168C238 172 244 176 248 180" {...STROKE.ink} />
-      <AnimatedG animatedProps={penProps}>
-        {/* hand */}
-        <Circle cx="0" cy="0" r="9" fill={ILL_COLOR.skinMd} />
-        <Circle cx="0" cy="0" r="9" {...STROKE.ink2} />
-        {/* pen — angle baked into the path, only the group translates */}
-        <Path d="M4 -4L18 -24" {...STROKE.ink} />
-        <Path d="M-2 4L4 -4" {...STROKE.ink2} />
-      </AnimatedG>
+      {/* far arm — reaches down to rest a hand on the desk */}
+      <G {...STROKE.ink}><Path d="M156 158L96 198" strokeWidth={12} /></G>
+      <G stroke={ILL_COLOR.sage} strokeWidth={7} strokeLinecap="round" fill="none">
+        <Path d="M156 158L96 198" />
+      </G>
+      <Ellipse fill={ILL_COLOR.skinMd} cx={87} cy={206} rx={9} ry={7.4} stroke="none" />
+      <G {...STROKE.ink2}><Ellipse cx={90} cy={203} rx={9} ry={7.4} strokeWidth={2.6} /></G>
+
+      {/* ── desk ─────────────────────────────────────────────────────── */}
+      <Path
+        fill={ILL_COLOR.sand} stroke="none" transform="translate(-3,2.6)"
+        d="M52 212L348 212L348 268L52 268Z"
+      />
+      <G {...STROKE.ink}><Path d="M52 212L348 212L348 268L52 268Z" /></G>
+      <Path {...STROKE.press} transform="translate(1,1.1)" d="M348 212L348 268" />
+
+      {/* ── the page — the one yellow object ─────────────────────────── */}
+      <Path
+        fill={ILL_COLOR.light} stroke="none" transform="translate(-3,2.4)"
+        d="M108 168L286 168L294 212L116 212Z"
+      />
+      <G {...STROKE.ink}><Path d="M108 168L286 168L294 212L116 212Z" /></G>
+      <G {...STROKE.ink2}>
+        <Path d="M128 182L256 182M128 196L214 196" strokeWidth={2.6} />
+      </G>
+
+      {/* ── writing arm — forearm redrawn each frame, shoulder to hand ── */}
+      <AnimatedPath {...STROKE.ink} strokeWidth={12} animatedProps={forearmProps} />
+      <AnimatedPath
+        stroke={ILL_COLOR.sage} strokeWidth={7} strokeLinecap="round" fill="none"
+        animatedProps={forearmProps}
+      />
+      <AnimatedEllipse fill={ILL_COLOR.skinMd} rx={9.4} ry={7.8} stroke="none" animatedProps={handFillProps} />
+      <AnimatedEllipse {...STROKE.ink2} strokeWidth={2.6} rx={9.4} ry={7.8} animatedProps={handProps} />
+      {/* pen */}
+      <AnimatedPath {...STROKE.ink} strokeWidth={4.4} animatedProps={penProps} />
     </Svg>
   );
 }

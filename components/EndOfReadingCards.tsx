@@ -8,7 +8,7 @@
  */
 
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Writing, ManyWindows } from '@/components/illustrations';
+import { Writing, MoreWaiting } from '@/components/illustrations';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { deriveHeightFromWidth } from '@/hooks/useAspectFit';
 import { useThemeColors } from '@/theme/ThemeProvider';
@@ -17,6 +17,14 @@ import { DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
 import { useMemo } from 'react';
 
 const SHADOW = 4;
+
+// These cards sit BETWEEN confessions, every 10. At a full 4:3 of card width
+// the drawing alone ran ~270px and the pair filled the whole screen — the
+// reader hit a wall of advert mid-feed rather than a pause in it. Capped so
+// the illustration reads as a banner, not a hero. preserveAspectRatio
+// "xMidYMid meet" scales the whole 400x300 scene down inside the shorter box,
+// so nothing is cropped — it just gets smaller.
+const ILL_MAX_H = 132;
 
 export function WriteInviteCard({ onPress }: { onPress: () => void }) {
   const color = useThemeColors();
@@ -29,7 +37,7 @@ export function WriteInviteCard({ onPress }: { onPress: () => void }) {
   // useWindowDimensions, not a layout measurement), so this uses the same
   // pure arithmetic hooks/useAspectFit.ts exports for every other
   // illustration mount site, without needing an onLayout pass.
-  const illH  = deriveHeightFromWidth(cardW, 4 / 3);
+  const illH  = Math.min(deriveHeightFromWidth(cardW, 4 / 3), ILL_MAX_H);
 
   return (
     <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
@@ -110,7 +118,7 @@ export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; 
   // Same measured 4:3 fit as the write card — ManyWindows is a 400x300
   // viewBox, so a fixed height would letterbox it inside the box instead of
   // filling edge to edge.
-  const illH = deriveHeightFromWidth(screenW - spacing.screenPadding * 2 - 40, 4 / 3);
+  const illH = Math.min(deriveHeightFromWidth(screenW - spacing.screenPadding * 2 - 40, 4 / 3), ILL_MAX_H);
 
   return (
     <View style={styles.promoOuter}>
@@ -128,11 +136,11 @@ export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; 
           )}
         </View>
 
-        {/* The offer, drawn: a wall of lit windows the reader can see but not
-            reach. Premium buys what is behind the glass — which is a truer
-            picture of the thing than a lock icon. */}
+        {/* The offer, drawn: one confession open in your hands, a pile beside
+            you, more still arriving. Premium buys the pile you haven't reached
+            — a truer picture of it than a lock icon. */}
         <View style={styles.promoIll}>
-          <ManyWindows style={{ width: '100%', height: illH }} />
+          <MoreWaiting style={{ width: '100%', height: illH }} />
         </View>
 
         <Text style={styles.promoTitle}>Read without the daily limit</Text>
