@@ -63,6 +63,12 @@ jobs:
             # Counts only — the function never returns confession text.
             echo "$c -> HTTP $code $(cat /tmp/out.json)"
             if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then fail=1; fi
+            # A 2xx that inserted nothing is a failure. Without this the run
+            # goes green while writing zero confessions, which is exactly how
+            # a broken generator stays invisible.
+            if grep -q '"total":0' /tmp/out.json && ! grep -q '"skipped":true' /tmp/out.json; then
+              echo "  ^ inserted nothing"; fail=1
+            fi
           done
           # One bad category shouldn't hide the other six — report at the end.
           exit $fail
@@ -83,5 +89,11 @@ jobs:
               -d "{\"category\":\"$c\"}")
             echo "$c -> HTTP $code $(cat /tmp/out.json)"
             if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then fail=1; fi
+            # A 2xx that inserted nothing is a failure. Without this the run
+            # goes green while writing zero confessions, which is exactly how
+            # a broken generator stays invisible.
+            if grep -q '"total":0' /tmp/out.json && ! grep -q '"skipped":true' /tmp/out.json; then
+              echo "  ^ inserted nothing"; fail=1
+            fi
           done
           exit $fail

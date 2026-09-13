@@ -19,8 +19,12 @@ const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const AUTHOR_TOKEN_SECRET  = Deno.env.get('AUTHOR_TOKEN_SECRET')!;
 const OPENAI_API_KEY       = Deno.env.get('OPENAI_API_KEY') ?? '';
-const EMBEDDING_API_KEY    = Deno.env.get('EMBEDDING_API_KEY') ?? OPENAI_API_KEY;
-const MODERATION_API_KEY   = Deno.env.get('MODERATION_API_KEY') ?? OPENAI_API_KEY;
+// || not ??: these are frequently set to the EMPTY STRING rather than unset,
+// and ?? only falls back on null/undefined — so '' passes straight through as
+// a 'configured' key. That exact trap silently disabled the moderation gate
+// for three months (see CLAUDE.md, incident 2026-09-13).
+const EMBEDDING_API_KEY    = Deno.env.get('EMBEDDING_API_KEY') || OPENAI_API_KEY;
+const MODERATION_API_KEY   = Deno.env.get('MODERATION_API_KEY') || OPENAI_API_KEY;
 const SEED_CRON_SECRET     = Deno.env.get('SEED_CRON_SECRET') ?? '';
 
 /** Constant-time string compare — this endpoint is public and unauthenticated
@@ -374,15 +378,15 @@ serve(async (req: Request) => {
           continue;
         }
 
-        // [C] Embed
+        // [C] Embed — best-effort. Matching runs on category now, so a missing
+        // embedding is not a reason to throw away a safety-cleared confession.
+        // This previously dropped EVERY candidate whenever the embedding key was
+        // absent: the run reported ok:true with attempted:8, inserted:0, and the
+        // scheduler went green while writing nothing.
         const embedding = await embed(text);
-        if (!embedding) {
-          console.error(`[EMBED] failed — ${key}`);
-          continue;
-        }
 
-        // [D] Dedup
-        if (await isDuplicate(embedding)) {
+        // [D] Dedup — only possible when we have a vector to compare.
+        if (embedding && await isDuplicate(embedding)) {
           console.log(`[DEDUP] near-duplicate drop — ${key}`);
           continue;
         }
@@ -393,7 +397,7 @@ serve(async (req: Request) => {
         const { error: insertErr } = await supabase.from('confessions').insert({
           author_token:           autoToken,
           text,
-          embedding:              JSON.stringify(embedding),
+          embedding:              embedding ? JSON.stringify(embedding) : null,
           categories:             [category],
           status:                 'live',
           amplification_eligible: true,
