@@ -35,7 +35,7 @@ import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
 import { isWithinIntroWindow } from '@/lib/introWindow';
-import { getDailyLimit, recordRead, DAILY_ALLOWANCE } from '@/lib/readAllowance';
+import { getDailyLimit, recordRead, DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
 import { checkPremium } from '@/lib/purchases';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
@@ -387,7 +387,7 @@ export default function ExploreScreen() {
             </Text>
             <Text style={styles.endBody}>
               {dailyLimit !== null && confessions.length > dailyLimit
-                ? 'Write one of your own to unlock more now, or come back tomorrow for another ' + DAILY_ALLOWANCE + '.'
+                ? 'Write one of your own to unlock ' + PER_WRITE + ' more right now, or come back tomorrow for another ' + DAILY_ALLOWANCE + '.'
                 : exhausted
                   ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
                   : 'Come back later. New confessions are matched to your taste as they arrive.'}

@@ -5,7 +5,7 @@
  * the same day — see CLAUDE.md §2/§6):
  *   - First 30 days (lib/introWindow.ts): unlimited. Nothing below applies.
  *   - After that: DAILY_ALLOWANCE confessions per day.
- *   - Writing one grants PER_WRITE more, for that day.
+ *   - Writing one grants PER_WRITE (another 10) more, for that day.
  *   - Premium: unlimited, no counting at all.
  *   - Midnight local: a fresh DAILY_ALLOWANCE. Nothing carries over, and
  *     nothing is lost — a reader who hits the limit is a day away from more,
@@ -27,8 +27,14 @@ const KEY = '@yana/read_allowance_v2';
 /** Free reads per day, after the intro window. */
 export const DAILY_ALLOWANCE = 10;
 
-/** Additional reads granted for each confession written, same day. */
-export const PER_WRITE = 2;
+/**
+ * Additional reads granted for each confession written, same day.
+ *
+ * Matches DAILY_ALLOWANCE deliberately: writing one buys you the same again.
+ * A smaller number (this was 2) makes writing feel like a poor trade against
+ * the day's free allowance, which is the opposite of the nudge.
+ */
+export const PER_WRITE = 10;
 
 interface DayState {
   /** Local calendar day, YYYY-MM-DD. */

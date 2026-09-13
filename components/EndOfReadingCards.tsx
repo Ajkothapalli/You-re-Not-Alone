@@ -13,7 +13,7 @@ import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { deriveHeightFromWidth } from '@/hooks/useAspectFit';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
-import { DAILY_ALLOWANCE } from '@/lib/readAllowance';
+import { DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
 import { useMemo } from 'react';
 
 const SHADOW = 4;
@@ -137,8 +137,9 @@ export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; 
 
         <Text style={styles.promoTitle}>Read without the daily limit</Text>
         <Text style={styles.promoBody}>
-          You get {DAILY_ALLOWANCE} a day. Premium readers keep going —
-          every confession that matches what you carry, whenever you want it.
+          You get {DAILY_ALLOWANCE} a day, and writing one unlocks {PER_WRITE} more.
+          Premium readers keep going — every confession that matches what you
+          carry, whenever you want it.
         </Text>
         <View style={styles.promoCta}>
           <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
