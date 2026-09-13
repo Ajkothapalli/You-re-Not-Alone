@@ -313,8 +313,20 @@ export default function ExploreScreen() {
 
       <FeedHeader
         trailing={
-          <Text style={styles.progress} accessibilityLabel={`${confessions.length} confessions to read`}>
-            {confessions.length} to read
+          // Count what is actually readable, not what was fetched. This read
+          // confessions.length — the unsliced array — so a capped reader was
+          // told "540 to read" above a feed showing 10.
+          <Text
+            style={styles.progress}
+            accessibilityLabel={
+              dailyLimit === null
+                ? `${confessions.length} confessions to read`
+                : `${Math.min(dailyLimit, confessions.length)} confessions left today`
+            }
+          >
+            {dailyLimit === null
+              ? `${confessions.length} to read`
+              : `${Math.min(dailyLimit, confessions.length)} today`}
           </Text>
         }
       />
