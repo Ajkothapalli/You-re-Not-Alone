@@ -10,6 +10,7 @@ import type { AuthorshipPayload } from './authorship';
 import { saveReceipt, clearReceipts } from './confessionReceipt';
 import { resetFtue, resetIntroReads } from './onboarding';
 import { clearRtueCache, markRtueSeen } from './rtue';
+import { withTimeout } from './withTimeout';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
@@ -312,13 +313,25 @@ export async function getRecommendations(
   d7Bypass = false,
   excludeIds: string[] = [],
 ): Promise<RecommendationsResult> {
-  const { data: { session } } = await supabase.auth.getSession();
+  // Every await here is bounded. This screen is the post-login landing
+  // destination inside D7, and unlike app/index.tsx it has no watchdog behind
+  // it — an unbounded hang here is an infinite spinner on the Read tab with no
+  // way out, which is exactly the "stuck on loading" class of bug the boot path
+  // already has three fixes for. Timing out into the error state (which offers
+  // Try again) or into the preview pool is always better than spinning.
+  const { data: { session } } = await withTimeout(supabase.auth.getSession(), 4_000, 'session');
   if (!session) throw new AuthRequiredError();
 
   try {
-    const { data, error } = await supabase.functions.invoke<{ confessions: Recommendation[]; premiumRequired?: boolean }>(
-      'recommend-confessions',
-      { body: { action: 'recommend' } },
+    // Edge Functions cold-start, so this gets more room than the others —
+    // but still a bound, not none.
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke<{ confessions: Recommendation[]; premiumRequired?: boolean }>(
+        'recommend-confessions',
+        { body: { action: 'recommend' } },
+      ),
+      8_000,
+      'recommend',
     );
     if (error) throw error;
     // Server enforced the paywall. For D7 users fall through to preview pool;
@@ -336,11 +349,12 @@ export async function getRecommendations(
       if (pool.length >= 3) return { confessions: pool, premiumRequired: false };
     }
   } catch {
-    // Edge Function not deployed — fall through to preview data.
+    // Edge Function not deployed, erroring, or too slow — fall through to
+    // preview data rather than leaving the reader on a spinner.
   }
 
   // PREVIEW FALLBACK (also D7 bypass path for premium gate)
-  const prefs = await getReaderPreferences();
+  const prefs = await withTimeout(getReaderPreferences(), 5_000, 'prefs').catch(() => null);
   return {
     confessions:    getDummyRecommendations(prefs?.categories ?? [], 10, excludeIds, d7Bypass),
     premiumRequired: false,

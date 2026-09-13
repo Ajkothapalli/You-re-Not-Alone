@@ -151,7 +151,13 @@ export default function IndexScreen() {
       // scrollable feed, not the 2-card onboarding read screen. Reading is the
       // habit we're building first, and two cards is not a reading session.
       // Outside D7 the original every-launch read screen is unchanged.
-      const d7 = await isD7().catch(() => false);
+      // Bounded like every other await in this function. isD7() is a single
+      // AsyncStorage read and should take ~1ms, but this is the boot path:
+      // acct/prefs/rtue/resetFtue are all wrapped precisely because "should be
+      // fast" is not a guarantee, and an unbounded await here sits in 'loading'
+      // until the 10s watchdog fires — i.e. it re-creates the stuck-spinner
+      // bug this screen has already been fixed for three times.
+      const d7 = await withTimeout(isD7(), 2_000, 'd7').catch(() => false);
       router.replace(d7 ? '/explore' : '/read');
     } catch (err) {
       // Reset so a retry attempt can call routeAfterAuth again.
