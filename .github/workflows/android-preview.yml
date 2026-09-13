@@ -1,5 +1,15 @@
 name: Android Preview Build
 
+# Installable APK for on-device testing. Sideload this directly — an AAB
+# cannot be installed on a device, it is only a Play upload format.
+#
+# Builds LOCALLY on the runner (eas build --local), not via EAS cloud, so it
+# does not consume the monthly EAS build quota — the same approach
+# android-production.yml uses.
+#
+# Backend: the `preview` profile points at the DEVELOPMENT Supabase project.
+# Same code and same Edge Functions as production, different database — so
+# test submissions do not land in the production data.
 on:
   workflow_dispatch:
 
@@ -7,7 +17,7 @@ jobs:
   build:
     name: Build Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 120
 
     steps:
       - name: Checkout
@@ -16,45 +26,43 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
+          # eas-cli 24+ requires Node >=22.
           node-version: '22'
           cache: 'npm'
 
-      - name: Install EAS CLI
-        run: npm install -g eas-cli@latest
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Expo + EAS CLI
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build APK via EAS cloud
-        id: eas_build
+      - name: Build APK (local — preview profile)
         env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          # Expo's prebuild template ships -Xmx2048m -XX:MaxMetaspaceSize=512m
+          # and /android is gitignored, so the runner regenerates it and a local
+          # gradle.properties never reaches CI. At those defaults the daemon
+          # exhausts Metaspace mid-build and the job hangs silently until the
+          # timeout. Quoted so the whole value stays one token.
+          GRADLE_OPTS: '-Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=2g"'
         run: |
-          # Run EAS cloud build and capture output; tee so we see logs live
-          eas build \
+          eas build --local \
             --platform android \
             --profile preview \
             --non-interactive \
-            --json 2>&1 | tee eas-output.txt
+            --output ${{ github.workspace }}/soulyap-preview.apk
 
-          # Extract the artifact URL from EAS JSON output line
-          ARTIFACT_URL=$(grep -o '"artifactUrl":"[^"]*"' eas-output.txt | tail -1 | cut -d'"' -f4)
-          if [ -z "$ARTIFACT_URL" ]; then
-            # Try alternate key name
-            ARTIFACT_URL=$(grep -o '"url":"[^"]*\.apk[^"]*"' eas-output.txt | tail -1 | cut -d'"' -f4)
-          fi
-          echo "artifact_url=$ARTIFACT_URL" >> $GITHUB_OUTPUT
-          echo "APK URL: $ARTIFACT_URL"
-
-      - name: Download APK
-        if: steps.eas_build.outputs.artifact_url != ''
-        run: |
-          curl -L "${{ steps.eas_build.outputs.artifact_url }}" -o app-preview.apk
-          ls -lh app-preview.apk
-
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-preview-${{ github.run_number }}
-          path: app-preview.apk
-          retention-days: 14
+          name: soulyap-apk-${{ github.run_number }}
+          path: ${{ github.workspace }}/soulyap-preview.apk
+          retention-days: 30
