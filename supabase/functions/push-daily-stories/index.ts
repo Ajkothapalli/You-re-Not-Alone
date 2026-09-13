@@ -297,13 +297,29 @@ serve(async (req: Request) => {
     return respond({ error: 'Unauthorized' }, 401);
   }
 
+  // Optional { category } narrows this invocation to one category, so the
+  // caller can fan out across several short runs instead of one long one.
+  // Generating all 7 categories in a single invocation exceeded Supabase's
+  // per-invocation compute (546 WORKER_RESOURCE_LIMIT) once generation moved
+  // to gpt-4o with moderation + crisis + embedding per confession.
+  let onlyCategory: Category | null = null;
+  try {
+    const body = await req.json().catch(() => ({}));
+    const c = (body as { category?: string })?.category;
+    if (c && (CATEGORIES as readonly string[]).includes(c)) onlyCategory = c as Category;
+  } catch { /* no body is fine — run every category */ }
+
   // 1. Idempotency — skip if today's run is already logged ─────────────────────
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD UTC
+
+  // Per-category when fanning out: a single run_date row would let the first
+  // category claim the day and silently skip the other six.
+  const runKey = onlyCategory ? `${today}:${onlyCategory}` : today;
 
   const { data: existingRun } = await supabase
     .from('seed_runs')
     .select('id')
-    .eq('run_date', today)
+    .eq('run_date', runKey)
     .maybeSingle();
 
   if (existingRun) {
@@ -334,7 +350,7 @@ serve(async (req: Request) => {
   const summary: Record<string, { attempted: number; inserted: number }> = {};
 
   for (const lang of languages) {
-    for (const category of CATEGORIES) {
+    for (const category of (onlyCategory ? [onlyCategory] : CATEGORIES)) {
       const key      = `${lang}/${category}`;
       let inserted  = 0;
       let attempted = 0;
@@ -406,7 +422,7 @@ serve(async (req: Request) => {
 
   // 4. Log this run for idempotency ─────────────────────────────────────────────
   const { error: runErr } = await supabase.from('seed_runs').insert({
-    run_date:    today,
+    run_date:    runKey,
     total:       totalInserted,
     summary,
   });

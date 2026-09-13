@@ -19,8 +19,8 @@ name: Daily Stories
 on:
   schedule:
     # 03:30 UTC = 09:00 IST. GitHub's scheduler can lag under load; the
-    # function is idempotent per day (seed_runs), so a late or double fire
-    # is harmless.
+    # function is idempotent per day per category (seed_runs), so a late or
+    # double fire is harmless.
     - cron: '30 3 * * *'
   workflow_dispatch:
     inputs:
@@ -34,38 +34,54 @@ jobs:
   seed:
     name: Generate daily confessions
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
+    env:
+      # One request per category. All seven in a single invocation exceeded
+      # Supabase's per-invocation compute (546 WORKER_RESOURCE_LIMIT) once
+      # generation moved to gpt-4o, with moderation, crisis check and embedding
+      # run per confession.
+      CATEGORIES: mental_health relationships grief secrets work_identity body_health faith_meaning
+      KEY: ${{ secrets.SEED_CRON_SECRET }}
+
     steps:
       - name: Seed production
         if: github.event_name == 'schedule' || inputs.target == 'production' || inputs.target == 'both'
         env:
-          KEY: ${{ secrets.SEED_CRON_SECRET }}
-          # Public by design — this ships in the client bundle. It only
-          # satisfies the gateway's JWT check; x-seed-secret is the real auth.
+          # Public by design — this ships in the client bundle. It exists only
+          # to satisfy the gateway's JWT check; x-seed-secret is the real auth.
           ANON: sb_publishable_qHe9n5MLT_MxQHZsDizUEQ_gCdgYfvM
+          REF: sjywjerlqxwfniwqjojs
         run: |
-          code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
-            "https://sjywjerlqxwfniwqjojs.supabase.co/functions/v1/push-daily-stories" \
-            -H "Authorization: Bearer $ANON" -H "x-seed-secret: $KEY" \
-            -H "Content-Type: application/json" -d '{}')
-          echo "HTTP $code"
-          # Counts only — the function never returns confession text.
-          cat /tmp/out.json
-          echo
-          # A 2xx that reports zero inserted is still a failure worth seeing.
-          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then exit 1; fi
+          fail=0
+          for c in $CATEGORIES; do
+            code=$(curl -s -o /tmp/out.json -w '%{http_code}' --max-time 300 -X POST \
+              "https://$REF.supabase.co/functions/v1/push-daily-stories" \
+              -H "Authorization: Bearer $ANON" \
+              -H "x-seed-secret: $KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"category\":\"$c\"}")
+            # Counts only — the function never returns confession text.
+            echo "$c -> HTTP $code $(cat /tmp/out.json)"
+            if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then fail=1; fi
+          done
+          # One bad category shouldn't hide the other six — report at the end.
+          exit $fail
 
       - name: Seed development
         if: inputs.target == 'development' || inputs.target == 'both'
         env:
-          KEY: ${{ secrets.SEED_CRON_SECRET }}
           ANON: sb_publishable_XPLP2lcoe2DJmnilIa4-Jw_X-yz8oBp
+          REF: tmpqadweifuwbmktbmzg
         run: |
-          code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
-            "https://tmpqadweifuwbmktbmzg.supabase.co/functions/v1/push-daily-stories" \
-            -H "Authorization: Bearer $ANON" -H "x-seed-secret: $KEY" \
-            -H "Content-Type: application/json" -d '{}')
-          echo "HTTP $code"
-          cat /tmp/out.json
-          echo
-          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then exit 1; fi
+          fail=0
+          for c in $CATEGORIES; do
+            code=$(curl -s -o /tmp/out.json -w '%{http_code}' --max-time 300 -X POST \
+              "https://$REF.supabase.co/functions/v1/push-daily-stories" \
+              -H "Authorization: Bearer $ANON" \
+              -H "x-seed-secret: $KEY" \
+              -H "Content-Type: application/json" \
+              -d "{\"category\":\"$c\"}")
+            echo "$c -> HTTP $code $(cat /tmp/out.json)"
+            if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then fail=1; fi
+          done
+          exit $fail
