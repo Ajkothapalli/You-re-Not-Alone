@@ -80,30 +80,57 @@ async function generateBatch(category: Category, n: number, lang = 'en'): Promis
     ? ''
     : `\nWRITE IN ${langLabel.toUpperCase()}. ${isRomanized ? 'Use Roman/Latin script (transliterated), NOT native script.' : 'Use native script.'} All ${n} confessions must be in this language.\n`;
 
+  // Few-shot anchored on two confessions from the curated pool. Testing showed
+  // instructions alone don't hold the register: gpt-4o-mini returned "your laugh
+  // sounded just like the wind chimes" and "the silence was so loud" — AI grief
+  // poetry with tidy closers — even with those exact patterns banned in prose.
+  // Showing two examples plus an explicit banned list is what made it stick.
+  const EXAMPLE_A =
+    "I have a whole routine for seeming fine. Shower, coffee, the specific playlist, the walk to the station where I practise my face.\n\n" +
+    "By the time I get to my desk I've already done a full day of work, and none of it was the job.\n\n" +
+    "I don't know how to tell anyone that the tiredness isn't from the work. It's from the performance around the work.";
+  const EXAMPLE_B =
+    "my therapist asked what i do for fun and i sat there for a full minute i used to draw. i used to be the person who drew on everything — margins, napkins, my own hands. i don't know when i stopped. there wasn't a day i decided to.\n\n" +
+    "i bought a sketchbook last week. it's still in the bag. but i bought it.";
+
   const prompt = [
-    'You write raw, anonymous personal confessions for a mobile app.',
-    'Each confession is one honest, specific feeling — imperfect and human.',
-    langLine,
-    `Category hints: ${HINTS[category]}`,
+    'You write raw, anonymous confessions for an app. Match the register of these exactly.',
     '',
-    'Hard rules:',
-    '- 1–3 sentences. One feeling. No more.',
-    '- Concrete and personal — a real moment, not a general statement.',
-    '- No advice. No rhetorical questions. No clichés like "life is hard" or "I feel so alone."',
-    '- No names, usernames, or locations.',
-    '- NEVER write crisis content: no suicide, no self-harm, no "want to die" or similar.',
+    'EXAMPLE A:', EXAMPLE_A, '',
+    'EXAMPLE B:', EXAMPLE_B, '',
+    'Why they work: ordinary concrete nouns (playlist, station, sketchbook, margins).',
+    'No metaphor. No simile. The feeling is never named — it is shown by what the',
+    'person does. They stop mid-thought rather than concluding.',
+    langLine,
+    `Category: ${category} — ${HINTS[category]}`,
+    '',
+    'BANNED. Reject your own draft if it contains any of these:',
+    '- Simile or metaphor of any kind ("like shadows", "an empty room", "the weight of").',
+    '- Weather, seasons, gardens, leaves, or nature standing in for mood.',
+    '- A closing line that summarises the feeling or reaches for meaning.',
+    '- Naming the emotion: lonely, heartbroken, empty, devastated, palpable, grief itself.',
+    '- The phrases "I find myself", "I wonder if", "I realized", "it feels like",',
+    '  "no one tells you", "learn to live with".',
+    '- Any sentence that could appear in a greetings card.',
+    '',
+    'FORMAT (mandatory): 2-4 paragraphs separated by ONE BLANK LINE. A confession',
+    'with no blank line is invalid. Vary the paragraph count across the batch.',
+    '40-120 words each.',
     '',
     lang === 'en' ? [
-      'Voice — mix across the batch:',
-      '  • teens / early 20s (~35%): all lowercase, casual, raw. "idk", "fr", "lowkey", "ngl".',
-      '    Optional emoji: 🥲 😭 💀 🙃 😶 😮‍💨 — only if it fits. NOT every line.',
-      '  • 30s–40s (~40%): reflective, slightly longer, thoughtful but not tidy. Occasional emoji ok.',
-      '  • 50s+ (~25%): measured, full sentences, clean prose. No emoji.',
+      'VOICE — assign a different one per confession, never blended:',
+      '  1. early 20s: all lowercase, loose punctuation, sentences run together.',
+      '  2. 30s-40s: normal capitalisation, plain reflective prose, dry.',
+      '  3. 50s+: measured, complete sentences, faintly formal. No slang, no emoji.',
       '',
-      'Add an emoji to roughly 1 in 3 confessions only — never more.',
+      'At most one emoji across the whole batch, and only if it genuinely fits.',
     ].join('\n') : 'Keep the voice natural and personal for the target language.',
     '',
-    `Return ONLY a JSON array of exactly ${n} strings. No markdown, no keys, no explanation.`,
+    'No names, usernames, places, or employers. NEVER write crisis content:',
+    'no suicide, no self-harm, no "want to die" or similar.',
+    'Do not reuse an image or structure from earlier in this batch.',
+    '',
+    `Return ONLY a JSON array of exactly ${n} strings. No markdown, no keys.`,
   ].join('\n');
 
   const userMsg = lang === 'en'
@@ -114,9 +141,15 @@ async function generateBatch(category: Category, n: number, lang = 'en'): Promis
     method:  'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` },
     body: JSON.stringify({
-      model:       'gpt-4o-mini',
-      temperature: 0.95,
-      max_tokens:  1400,
+      // gpt-4o, not -mini: tested side by side on the same prompt, -mini
+      // ignored the paragraph format and produced sentimental filler.
+      // ~$1.20/month at 35 confessions/day.
+      model:       'gpt-4o',
+      temperature: 1.0,
+      // Sized for the long-form shape: ~120 words x n, plus JSON overhead.
+      // Was 1400, set when these were 1-3 sentences — too tight now, and a
+      // truncated response fails JSON.parse and silently drops the batch.
+      max_tokens:  400 * n + 600,
       messages: [
         { role: 'system', content: prompt },
         { role: 'user',   content: userMsg },

@@ -1,0 +1,65 @@
+name: Daily Stories
+
+# Keeps the feed fed. push-daily-stories generates fresh confessions per
+# category each day, every one through the same moderation + crisis gate as a
+# real submission, and they recede automatically as real confessions arrive
+# (recommend-confessions ranks source='user' above generated).
+#
+# Why here and not pg_cron: the in-database schedule
+# (20260706000001_lang_matching.sql) is wrapped in
+#   IF EXISTS (pg_cron) AND EXISTS (pg_net) ... EXCEPTION WHEN OTHERS THEN NULL
+# so it schedules nothing at all when those extensions are off, silently, and
+# it needs app.project_ref / app.service_role_key set on the database by hand.
+# Running it here means the schedule is in version control, every run is
+# visible in the Actions tab with logs, and it can be triggered manually.
+#
+# Volume is controlled in the database, not here:
+#   UPDATE seed_config SET per_category = 5 WHERE id = 1;   -- 7 categories x 5
+#   UPDATE seed_config SET enabled = false WHERE id = 1;    -- stop instantly
+on:
+  schedule:
+    # 03:30 UTC = 09:00 IST. GitHub's scheduler can lag under load; the
+    # function is idempotent per day (seed_runs), so a late or double fire
+    # is harmless.
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which project to seed'
+        type: choice
+        options: [production, development, both]
+        default: production
+
+jobs:
+  seed:
+    name: Generate daily confessions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Seed production
+        if: github.event_name == 'schedule' || inputs.target == 'production' || inputs.target == 'both'
+        env:
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_PROD }}
+        run: |
+          code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
+            "https://sjywjerlqxwfniwqjojs.supabase.co/functions/v1/push-daily-stories" \
+            -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}')
+          echo "HTTP $code"
+          # Counts only — the function never returns confession text.
+          cat /tmp/out.json
+          echo
+          # A 2xx that reports zero inserted is still a failure worth seeing.
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then exit 1; fi
+
+      - name: Seed development
+        if: inputs.target == 'development' || inputs.target == 'both'
+        env:
+          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}
+        run: |
+          code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
+            "https://tmpqadweifuwbmktbmzg.supabase.co/functions/v1/push-daily-stories" \
+            -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}')
+          echo "HTTP $code"
+          cat /tmp/out.json
+          echo
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then exit 1; fi
