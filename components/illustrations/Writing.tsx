@@ -65,22 +65,44 @@ export function Writing({ style }: { style?: ViewStyle }) {
   const reduceMotion = useReducedMotion();
 
   const t     = useSharedValue(0);   // 0 → 1 across the line
+  const lift  = useSharedValue(0);   // pen off the page during the return
   const chest = useSharedValue(0);
 
   useFocusEffect(
     useCallback(() => {
       if (reduceMotion) {
         t.value = 0.45;
+        lift.value = 0;
         chest.value = 0;
         return;
       }
       // Across, pause at the line end, lift back, pause before the next line.
       // The pauses are what make it read as writing rather than sliding.
+      //
+      // Deliberately LINEAR across the line, not eased. An inOut ease made the
+      // hand glide — slow, fast, slow, one continuous sweep — which is what
+      // read as robotic. Real writing advances at a roughly even rate; the
+      // texture comes from the per-letter motion layered on top, below.
       t.value = withRepeat(
         withSequence(
-          withTiming(1, { duration: 2100, easing: EASING_WORKLET.breathe }),
-          withTiming(1, { duration: 220 }),
-          withTiming(0, { duration: 380, easing: EASING_WORKLET.exit }),
+          withTiming(1, { duration: 2400 }),
+          withTiming(1, { duration: 260 }),
+          withTiming(0, { duration: 420, easing: EASING_WORKLET.exit }),
+          withTiming(0, { duration: 520 }),
+        ),
+        -1,
+        false,
+      );
+      // Pen off the page for the return sweep, and only then. A hand that
+      // slides back along the line it just wrote is the other half of what
+      // looked mechanical.
+      lift.value = withRepeat(
+        withSequence(
+          withTiming(0, { duration: 2400 }),
+          withTiming(1, { duration: 130, easing: EASING_WORKLET.enter }),
+          withTiming(1, { duration: 130 }),
+          withTiming(1, { duration: 290 }),
+          withTiming(0, { duration: 150, easing: EASING_WORKLET.exit }),
           withTiming(0, { duration: 500 }),
         ),
         -1,
@@ -93,6 +115,7 @@ export function Writing({ style }: { style?: ViewStyle }) {
       );
       return () => {
         cancelAnimation(t);
+        cancelAnimation(lift);
         cancelAnimation(chest);
       };
     }, [reduceMotion]),
@@ -104,9 +127,32 @@ export function Writing({ style }: { style?: ViewStyle }) {
   // the pen and both bones cannot drift apart.
   const arm = useDerivedValue(() => {
     'worklet';
-    const tx = HAND_X0 + (HAND_X1 - HAND_X0) * t.value;
-    // The wrist dips slightly through the stroke and lifts on the return.
-    const ty = HAND_Y + Math.sin(t.value * Math.PI) * 2;
+    const p = t.value;
+
+    // Per-letter motion. A hand forming letters oscillates far faster than it
+    // advances: the up-down of strokes, and a small stutter in the advance as
+    // each letter is closed off. ~13 letters across the line. Without this the
+    // hand is a point gliding on a rail, which is what "robotic" meant.
+    const letter = Math.sin(p * Math.PI * 2 * 13);
+    const stutter = Math.sin(p * Math.PI * 2 * 13 + 1.1);
+
+    // Suppressed while the pen is off the page — you don't form letters in
+    // mid-air on the way back.
+    const onPage = 1 - lift.value;
+
+    // Amplitude 2.0, not 1.4. Below ~1.5 the stutter never overcomes the
+    // advance rate (122px per unit p against a peak stutter rate of
+    // amp x 2pi x 13), so the hand only ever moves forward — a point sliding
+    // on a rail. Above it the pen genuinely retreats a little inside each
+    // letter, the way a real one does closing an 'o' or crossing a 't'.
+    const tx = HAND_X0 + (HAND_X1 - HAND_X0) * p + stutter * 2.0 * onPage;
+    const ty = HAND_Y
+      // the line itself sags very slightly toward the middle
+      + Math.sin(p * Math.PI) * 1.6
+      // the strokes
+      + letter * 2.4 * onPage
+      // and the pen comes up off the page for the return
+      - lift.value * 16;
 
     const dx = tx - SHOULDER.x;
     const dy = ty - SHOULDER.y;
