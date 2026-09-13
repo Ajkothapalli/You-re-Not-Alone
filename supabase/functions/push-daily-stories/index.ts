@@ -283,9 +283,17 @@ serve(async (req: Request) => {
   // Compared with a length-equalised constant-time check: a plain !== leaks
   // the position of the first differing byte through timing, and this endpoint
   // is public.
-  const auth     = (req.headers.get('Authorization') ?? '').replace(/^Bearer /, '');
+  // The Authorization header is spoken for: Supabase's gateway verifies a JWT
+  // there BEFORE this function runs, so a non-JWT secret sent that way is
+  // rejected upstream and this code never executes. Disabling that gateway
+  // check to make room would weaken every request to this endpoint, so the
+  // caller instead sends the public anon JWT as Authorization (satisfying the
+  // gateway, which is what it is for) and the real credential in its own
+  // header, checked here.
+  const provided = req.headers.get('x-seed-secret')
+    ?? (req.headers.get('Authorization') ?? '').replace(/^Bearer /, '');
   const accepted = [SEED_CRON_SECRET, SUPABASE_SERVICE_KEY].filter(Boolean) as string[];
-  if (!accepted.some(k => timingSafeEqual(auth, k))) {
+  if (!accepted.some(k => timingSafeEqual(provided, k))) {
     return respond({ error: 'Unauthorized' }, 401);
   }
 

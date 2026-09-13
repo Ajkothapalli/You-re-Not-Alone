@@ -40,10 +40,14 @@ jobs:
         if: github.event_name == 'schedule' || inputs.target == 'production' || inputs.target == 'both'
         env:
           KEY: ${{ secrets.SEED_CRON_SECRET }}
+          # Public by design — this ships in the client bundle. It only
+          # satisfies the gateway's JWT check; x-seed-secret is the real auth.
+          ANON: sb_publishable_qHe9n5MLT_MxQHZsDizUEQ_gCdgYfvM
         run: |
           code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
             "https://sjywjerlqxwfniwqjojs.supabase.co/functions/v1/push-daily-stories" \
-            -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}')
+            -H "Authorization: Bearer $ANON" -H "x-seed-secret: $KEY" \
+            -H "Content-Type: application/json" -d '{}')
           echo "HTTP $code"
           # Counts only — the function never returns confession text.
           cat /tmp/out.json
@@ -55,10 +59,12 @@ jobs:
         if: inputs.target == 'development' || inputs.target == 'both'
         env:
           KEY: ${{ secrets.SEED_CRON_SECRET }}
+          ANON: sb_publishable_XPLP2lcoe2DJmnilIa4-Jw_X-yz8oBp
         run: |
           code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
             "https://tmpqadweifuwbmktbmzg.supabase.co/functions/v1/push-daily-stories" \
-            -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" -d '{}')
+            -H "Authorization: Bearer $ANON" -H "x-seed-secret: $KEY" \
+            -H "Content-Type: application/json" -d '{}')
           echo "HTTP $code"
           cat /tmp/out.json
           echo
