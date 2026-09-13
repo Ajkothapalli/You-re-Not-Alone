@@ -11,6 +11,7 @@
  */
 
 import { announce } from '@/lib/a11y';
+import { claimAuthCredential } from '@/lib/authCallback';
 import { markInstall } from '@/lib/introWindow';
 import { getDobOrder, maskDob, dobToISO, isAdultISO } from '@/lib/dobFormat';
 import { createOrUpdateAccount, getReaderPreferences } from '@/lib/api';
@@ -28,7 +29,7 @@ import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -78,11 +79,13 @@ export default function IndexScreen() {
 
   const stepRef     = useRef(step);
   const routingRef  = useRef(false);   // prevents concurrent routeAfterAuth calls
-  // De-dupes a PKCE code / access token seen via BOTH runBoot()'s
-  // Linking.getInitialURL() check and the 'url' event listener — see
-  // handleDeepLink below for why the same deep link can reach it twice.
-  const handledDeepLinksRef = useRef<Set<string>>(new Set());
   useEffect(() => { stepRef.current = step; }, [step]);
+
+  // The OAuth callback route (app/auth.tsx) hands the redirect URL here rather
+  // than trying to complete the sign-in itself — see that file for why it must
+  // not keep the screen. Present only on the sign-in-return navigation.
+  const search = useLocalSearchParams<{ authUrl?: string | string[] }>();
+  const handedOffUrl = Array.isArray(search.authUrl) ? search.authUrl[0] : search.authUrl;
 
   // Announce errors to the screen reader as they appear.
   useEffect(() => { if (error) announce(error); }, [error]);
@@ -158,24 +161,65 @@ export default function IndexScreen() {
     }
   }
 
+  /**
+   * Route from whatever session already exists, without exchanging anything.
+   *
+   * Reached when a callback credential turns out to be already claimed. That is
+   * NOT always a harmless duplicate: on the warm path /auth's replace can mount
+   * a FRESH IndexScreen over the one that did the exchange, so this instance
+   * holds none of the resulting state. Returning early there would leave it on
+   * the loading splash until the watchdog gave up — the same shape of bug this
+   * whole change exists to remove.
+   *
+   * The exchange that claimed the code may still be in flight, so a single
+   * getSession() can legitimately come back empty. Poll briefly rather than
+   * dropping the user on the email screen a beat before their session lands.
+   */
+  async function resumeFromSession() {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      // Someone else's routeAfterAuth is already in flight (or has finished);
+      // it owns the step and the navigation. Deliberately NOT clearing
+      // routingRef here — every other caller does, because it has a fresher
+      // signal than whatever set it. This one does not: it holds no credential
+      // and knows nothing the in-flight call doesn't.
+      if (routingRef.current) return;
+
+      const { data } = await supabase.auth.getSession().catch(
+        () => ({ data: { session: null } }),
+      );
+      if (data.session?.user) {
+        try { await routeAfterAuth(data.session.user.id); }
+        catch { setStep('retry'); }
+        return;
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+    // ~4s and still nothing: the exchange failed rather than raced.
+    setStep('email');
+  }
+
   // ── Deep link handler (magic-link + Google OAuth PKCE redirect) ──────────────
   //
-  // Root cause of the Android "stuck loading" bug: this function can be invoked
-  // TWICE, concurrently, for the exact same URL — once from runBoot() via
-  // Linking.getInitialURL() (when the OAuth redirect cold-starts the app) and
-  // once from the Linking 'url' event listener registered in the same effect
-  // (the native side doesn't suppress the event just because getInitialURL()
-  // already returned it). Both calls raced to exchange the SAME single-use
-  // PKCE code: whichever lost threw "code already used", landed in the catch
-  // block, and reset routingRef/step — stomping the winner's in-flight routing.
-  // This was most visible for brand-new users, where routing after auth is a
-  // local setStep('dob') rather than a router.replace, so there was nothing
-  // to protect it from being overwritten by the loser's setStep('retry').
+  // This function can be invoked several times, concurrently, for the same URL:
+  // from runBoot() via Linking.getInitialURL(), from the Linking 'url' event
+  // listener (the native side doesn't suppress the event just because
+  // getInitialURL() already returned it), and now from the /auth handoff param.
+  // All of them race to exchange the SAME single-use PKCE code; whichever loses
+  // gets "code already used" and lands in the catch block.
   //
-  // Fix: claim the code/token synchronously (before any await) so only the
-  // first call ever attempts the exchange — JS's single-threaded execution
-  // guarantees this check-and-claim can't itself race. The second call becomes
-  // a true no-op instead of racing the exchange and clobbering state.
+  // The claim is taken synchronously, before any await, so only the first
+  // caller ever attempts the exchange — JS's single-threaded execution is what
+  // makes the check-and-claim safe. Later callers become true no-ops.
+  //
+  // The claim lives at module scope (lib/authCallback.ts), NOT in a useRef as
+  // it did before. A per-component ref is the wrong lifetime for the cold-start
+  // path: the callback arrives on /auth, IndexScreen mounts afterwards, and a
+  // fresh ref would happily re-claim a code another screen already spent.
+  //
+  // NOTE: this race was previously recorded here as the root cause of the
+  // Android "stuck loading" report. It was not — it is a real race, and the
+  // de-dupe is worth keeping, but the actual cause was app/auth.tsx keeping the
+  // screen forever on the new-user path. See that file.
   async function handleDeepLink(url: string) {
     // PKCE code flow — Google OAuth on Android fires this BEFORE (or instead of)
     // openAuthSessionAsync resolving. Dismiss the browser first so it doesn't
@@ -183,8 +227,7 @@ export default function IndexScreen() {
     const codeMatch = url.match(/[?&#]code=([^&#]+)/);
     if (codeMatch) {
       const code = decodeURIComponent(codeMatch[1]);
-      if (handledDeepLinksRef.current.has(code)) return;
-      handledDeepLinksRef.current.add(code);
+      if (!claimAuthCredential(code)) { await resumeFromSession(); return; }
 
       WebBrowser.dismissBrowser();
       setBusy(true);
@@ -234,8 +277,7 @@ export default function IndexScreen() {
 
     // Same double-dispatch risk as the PKCE branch above (a magic link can
     // also cold-start the app) — de-dupe by the access token.
-    if (handledDeepLinksRef.current.has(accessToken)) return;
-    handledDeepLinksRef.current.add(accessToken);
+    if (!claimAuthCredential(accessToken)) { await resumeFromSession(); return; }
 
     setBusy(true);
     try {
@@ -293,10 +335,26 @@ export default function IndexScreen() {
   }
 
   useEffect(() => {
-    void runBoot();
+    // A handoff from /auth IS the boot for this launch — runBoot's own
+    // getInitialURL() branch would only rediscover the same URL, and on a warm
+    // deep link Android may hand it the stale launching intent instead.
+    if (handedOffUrl) void handleDeepLink(handedOffUrl);
+    else void runBoot();
     const sub = Linking.addEventListener('url', ({ url }) => handleDeepLink(url));
     return () => sub.remove();
   }, []);
+
+  // Warm path: IndexScreen was already mounted underneath /auth, so the
+  // mount effect above has long since run and will not run again. The handoff
+  // arrives as a param change instead, and has to be picked up here.
+  //
+  // This deliberately overlaps with the mount effect on the cold path — both
+  // fire with the same URL. That is safe by construction rather than by
+  // ordering: handleDeepLink claims the code synchronously, so exactly one of
+  // them does the exchange and the other returns having touched nothing.
+  useEffect(() => {
+    if (handedOffUrl) void handleDeepLink(handedOffUrl);
+  }, [handedOffUrl]);
 
   // Last-resort watchdog: catches any hang not covered by the per-call timeouts
   // (e.g. getInitialURL wedging, exchangeCodeForSession hanging with no timeout
