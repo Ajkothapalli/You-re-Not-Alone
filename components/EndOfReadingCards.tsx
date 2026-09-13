@@ -113,21 +113,26 @@ export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; 
         onPress={onPress}
         style={({ pressed }) => [styles.promoCard, pressed && styles.promoCardPressed]}
         accessibilityRole="button"
-        accessibilityLabel="Unlock unlimited reads"
+        accessibilityLabel="Support soulyap"
       >
         <View style={styles.promoTop}>
-          <Text style={styles.promoEyebrow}>PREMIUM</Text>
+          <Text style={styles.promoEyebrow}>SUPPORT</Text>
           {matchCount > 0 && (
-            <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ waiting</Text>
+            <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ to read</Text>
           )}
         </View>
-        <Text style={styles.promoTitle}>Read without limits</Text>
+        {/* Reading is free and ungated for everyone (owner decision
+            2026-09-13). The old copy — "Read without limits", "Premium readers
+            see every one", "Unlock unlimited reads" — described a paywall that
+            no longer exists, and promised buyers something every reader
+            already has. Supporting is patronage, not access. */}
+        <Text style={styles.promoTitle}>Keep this place open</Text>
         <Text style={styles.promoBody}>
-          Right now, hundreds of confessions match what you carry.
-          Premium readers see every one — no writing, no waiting.
+          Everything here is free to read, and stays that way.
+          If it has meant something to you, you can help keep it running.
         </Text>
         <View style={styles.promoCta}>
-          <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
+          <Text style={styles.promoCtaText}>Support soulyap</Text>
           <ScrawlIcon name="arrow_right" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
         </View>
       </Pressable>

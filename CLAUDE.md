@@ -39,6 +39,17 @@
      automatically as real confessions arrive (real outranks generated in
      scoring — an ordering bonus, never a filter, so a thin category fills
      rather than empties).
+   - **THE FEED IS NEVER EMPTY.** This is the rule this surface lives by.
+     Real confessions come first; the curated pool tops the feed up whenever
+     real volume is thin (`FEED_FLOOR` in lib/api.ts). A reader must never
+     open Read and find nothing, whatever their account age or subscription.
+   - **Reading is never gated on payment.** `recommend-confessions` used to
+     return an empty set to every non-premium reader — so a free user saw no
+     real confession ever, and after 30 days hit a permanently empty feed
+     behind copy promising more were arriving. Removed 2026-09-13. `is_premium`
+     still exists and the RevenueCat webhook still writes it; it is simply not
+     a reading entitlement, per §6 ("supporting buys nothing another user is
+     denied").
 
    **What the removed caps were protecting, and what still protects it:** the
    caps existed so this could not become an endless scroll of other people's

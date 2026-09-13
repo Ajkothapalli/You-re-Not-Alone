@@ -63,7 +63,6 @@ export default function ExploreScreen() {
   const [confessions,     setConfessions]     = useState<Recommendation[]>([]);
   const [loading,         setLoading]         = useState(true);
   const [loadingMore,     setLoadingMore]     = useState(false);
-  const [premiumRequired, setPremiumRequired] = useState(false);
   // Gates the write PROMPT only — never whether the feed loads.
   const [withinIntro,     setWithinIntro]     = useState(true);
   const [exhausted,       setExhausted]       = useState(false);
@@ -99,12 +98,7 @@ export default function ExploreScreen() {
     const intro = await isWithinIntroWindow().catch(() => true);
     setWithinIntro(intro);
     try {
-      const { confessions: data, premiumRequired: gated } = await getRecommendations(intro);
-      if (gated) {
-        setPremiumRequired(true);
-        setConfessions([]);
-        return;
-      }
+      const { confessions: data } = await getRecommendations(intro);
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
     } catch (e) {
@@ -275,10 +269,14 @@ export default function ExploreScreen() {
         <FeedHeader />
         <View style={styles.endContent}>
           <Text style={styles.endHeading} accessibilityRole="header">Nothing here yet</Text>
+          {/* Should now be near-unreachable: the feed tops up from the curated
+              pool whenever real volume is thin, so an empty feed means the
+              reader's categories matched nothing at all. The premium branch is
+              gone — reading is never gated, so "you must pay" was never an
+              honest reason for an empty screen, and the copy that replaced it
+              ("come back soon") told paywalled readers something untrue. */}
           <Text style={styles.endBody}>
-            {premiumRequired
-              ? 'Come back soon — more confessions are matched to your taste as they arrive.'
-              : 'Add more reading categories or check back soon — more people are sharing every day.'}
+            Add more reading categories — that will bring more in.
           </Text>
           <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
           <GhostButton label="Write your own" onPress={() => router.replace('/write')} />

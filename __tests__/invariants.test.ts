@@ -318,6 +318,24 @@ describe('D7 launch route + the write gate it must not break (CLAUDE.md §2)', (
     expect(fn).toMatch(/catch\s*{\s*return true;/);
   });
 
+  it('reading is never gated on payment — the feed cannot be emptied by a paywall', () => {
+    // CLAUDE.md §6: "Plans NEVER gate matching, reading, writing, or the
+    // counter itself." recommend-confessions used to return an empty set to
+    // every non-premium reader, so a free user saw no real confession ever and
+    // hit a permanently empty feed after 30 days — behind copy telling them
+    // more were on the way.
+    const src = read('supabase', 'functions', 'recommend-confessions', 'index.ts');
+    expect(src).not.toMatch(/if\s*\(!isPremium\)/);
+    expect(src).not.toContain('premiumRequired: true');
+  });
+
+  it('the feed tops up from the curated pool rather than going short or empty', () => {
+    const src = read('lib', 'api.ts');
+    expect(src).toContain('FEED_FLOOR');
+    // Real first, curated appended — never curated instead of real.
+    expect(src).toMatch(/\[\.\.\.real,\s*\.\.\.topUp\]/);
+  });
+
   it('real confessions outrank AI-generated ones in the feed', () => {
     const src = read('supabase', 'functions', 'recommend-confessions', 'index.ts');
     expect(src).toContain("c.source === 'user'");

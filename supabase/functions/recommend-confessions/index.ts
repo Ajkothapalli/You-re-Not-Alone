@@ -259,14 +259,19 @@ serve(async (req: Request) => {
     return json({ error: 'Service unavailable.' }, 503);
   }
 
-  // Premium gate — unlimited reading is a paid entitlement. The server is the
-  // source of truth (written by the revenuecat-webhook), so the paywall can't
-  // be bypassed by a tampered client. Free readers get the empty set + a flag;
-  // the client shows the upgrade path. Crisis support is never gated.
-  const { data: isPremium } = await supabase.rpc('is_premium', { uid: user.id });
-  if (!isPremium) {
-    return json({ confessions: [], premiumRequired: true });
-  }
+  // Reading is NOT gated (owner decision 2026-09-13, restoring CLAUDE.md §6:
+  // "Plans NEVER gate matching, reading, writing, or the counter itself —
+  // supporting buys nothing another user is denied").
+  //
+  // This used to return an empty set to every non-premium reader, so a free
+  // user saw no real confession ever — only the client's preview pool, and
+  // only for their first 30 days. After that the feed went permanently empty
+  // behind copy that said "come back soon, more are arriving". That is the
+  // opposite of the one rule this surface has: the feed is never empty.
+  //
+  // is_premium still exists and the revenuecat-webhook still writes it; it is
+  // simply not a reading entitlement. Whatever supporting buys, it is not
+  // access to other people's words.
 
   // 1. Read preferences (authoritative from DB — never from client)
   const { data: prefs } = await supabase

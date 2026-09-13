@@ -299,8 +299,15 @@ export interface RecommendationsResult {
 }
 
 /**
- * @param d7Bypass   — see above; lets D0-7 readers past the premium gate on
- *                     the client-side preview pool.
+ * The feed is NEVER empty (owner decision 2026-09-13). Real confessions come
+ * first; curated/AI stories top the feed up when real volume is thin, and
+ * recede on their own as real ones arrive (the server ranks source='user'
+ * above generated — see recommend-confessions). A reader should never open
+ * Read and find nothing, whatever their account age or subscription state.
+ *
+ * @param richOnly   — prefer substantial, story-shaped confessions (used for
+ *                     readers inside the intro window, where a one-liner is a
+ *                     poor first impression of what this place is for).
  * @param excludeIds — ids already shown earlier this reading session. Only
  *                     consumed by the dummy-fallback path below — the real
  *                     recommend-confessions Edge Function already excludes a
@@ -308,8 +315,12 @@ export interface RecommendationsResult {
  *                     (see recommend_confessions SQL RPC), so nothing needs
  *                     threading into its request body.
  */
+// Below this, top the feed up from the curated pool rather than showing a
+// short or empty feed. Not a cap — a floor.
+const FEED_FLOOR = 8;
+
 export async function getRecommendations(
-  d7Bypass = false,
+  richOnly = false,
   excludeIds: string[] = [],
 ): Promise<RecommendationsResult> {
   // Every await here is bounded. This screen is the post-login landing
@@ -320,6 +331,8 @@ export async function getRecommendations(
   // Try again) or into the preview pool is always better than spinning.
   const { data: { session } } = await withTimeout(supabase.auth.getSession(), 4_000, 'session');
   if (!session) throw new AuthRequiredError();
+
+  let real: Recommendation[] = [];
 
   try {
     // Edge Functions cold-start, so this gets more room than the others —
@@ -333,31 +346,35 @@ export async function getRecommendations(
       'recommend',
     );
     if (error) throw error;
-    // Server enforced the paywall. For D7 users fall through to preview pool;
-    // for everyone else respect the gate — never use dummy data to defeat it.
-    if (data?.premiumRequired && !d7Bypass) return { confessions: [], premiumRequired: true };
-    if (data?.confessions?.length) {
-      // Inside D7 the reader only gets substantial, story-shaped confessions —
-      // a one-liner is a poor first impression of what this place is for. The
-      // server pool carries no richness flag, so filter on the text itself.
-      // If that leaves too little to be worth showing, drop through to the
-      // curated rich preview pool rather than serving a thin feed.
-      const pool = d7Bypass
-        ? data.confessions.filter(c => isRichConfession(c.text))
-        : data.confessions;
-      if (pool.length >= 3) return { confessions: pool, premiumRequired: false };
-    }
+    // The server pool carries no richness flag, so filter on the text itself
+    // for readers still inside the intro window.
+    real = richOnly
+      ? (data?.confessions ?? []).filter(c => isRichConfession(c.text))
+      : (data?.confessions ?? []);
   } catch {
-    // Edge Function not deployed, erroring, or too slow — fall through to
-    // preview data rather than leaving the reader on a spinner.
+    // Edge Function not deployed, erroring, or too slow — fall through to the
+    // curated pool rather than leaving the reader on a spinner or an empty feed.
   }
 
-  // PREVIEW FALLBACK (also D7 bypass path for premium gate)
-  const prefs = await withTimeout(getReaderPreferences(), 5_000, 'prefs').catch(() => null);
+  // Real confessions first, then top up from the curated pool if the feed
+  // would otherwise be thin. Every reader gets a full feed on day one, and the
+  // curated share shrinks by itself as real volume grows — no cutover to run,
+  // and no category that suddenly goes empty.
+  if (real.length >= FEED_FLOOR) {
+    return { confessions: real, premiumRequired: false };
+  }
+
+  const prefs   = await withTimeout(getReaderPreferences(), 5_000, 'prefs').catch(() => null);
+  const seen    = new Set([...excludeIds, ...real.map(c => c.id)]);
+  const topUp   = getDummyRecommendations(
+    prefs?.categories ?? [],
+    Number.MAX_SAFE_INTEGER,
+    Array.from(seen),
+    richOnly,
+  );
+
   return {
-    // No fixed 10 here either (owner decision 2026-09-13) — the preview pool
-    // gives however much matches the reader's categories, same as the server.
-    confessions:    getDummyRecommendations(prefs?.categories ?? [], Number.MAX_SAFE_INTEGER, excludeIds, d7Bypass),
+    confessions:     [...real, ...topUp],
     premiumRequired: false,
   };
 }
