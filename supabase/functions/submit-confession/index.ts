@@ -15,10 +15,12 @@
  *   [7] increment felt_count (atomic)
  *   [8] Return match
  *
- * M6 MODERATION RULE:
- *   ENVIRONMENT === "production" + no key → throw (fail closed, 500)
- *   ENVIRONMENT !== "production" + no key → loud warning, pass through (UI testing only)
- *   API returns non-200 → throw in all environments (fail closed)
+ * MODERATION RULE (identical in every environment — CLAUDE.md §1):
+ *   no key              → throw, block every submission
+ *   API returns non-200 → throw (fail closed)
+ *   flagged             → block
+ * There is no development pass-through. ENVIRONMENT must never be able to
+ * disable the safety gate.
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
@@ -93,27 +95,32 @@ async function computeDeviceHash(accountId: string, req: Request): Promise<strin
 
 // ─── Step 2: Moderation — OpenAI omni-moderation-latest ──────────────────────
 //
-// Fail closed in ALL cases:
-//   - API key absent  + production  → throw (outer catch → 500)
-//   - API key absent  + development → warn + pass (UI testing only)
-//   - API returns non-200           → throw (fail closed)
-//   - result.flagged                → block
+// Fail closed in ALL cases, in EVERY environment:
+//   - API key absent      → throw (outer catch → 503, nothing stored)
+//   - API returns non-200 → throw (fail closed)
+//   - result.flagged      → block
+//
+// There is deliberately no development escape hatch. CLAUDE.md non-negotiable
+// #1: "No exceptions. No fast paths. No dev-mode skipping. Stubs MUST BLOCK —
+// a missing classifier key blocks all submissions and logs a warning. It NEVER
+// silently passes everything through." The threat model names this exact hole:
+// "Dev bypass via missing key → Stub BLOCKS (never passes)".
+//
+// This previously returned { pass: true } whenever ENVIRONMENT !== 'production'.
+// The live project ran with ENVIRONMENT=development and an EMPTY
+// MODERATION_API_KEY, so every submission reaching it was stored, matched and
+// shown to other people with no classification of any kind. An environment
+// variable is not a safety boundary: one unset value silently disabled the
+// gate the entire product rests on, and nothing failed loudly to say so.
 
 async function runModeration(
   text: string,
 ): Promise<{ pass: boolean; reason?: string; csam?: boolean; adultSignal?: boolean; borderline?: boolean }> {
   if (!MODERATION_API_KEY) {
-    if (IS_PRODUCTION) {
-      // Hard fail in production — see CLAUDE.md non-negotiables.
-      throw new Error('[SAFETY] MODERATION_API_KEY not set in production — blocking all submissions');
-    }
-    // Dev/staging: pass through so the UI can be tested without API keys.
-    // This bypass MUST NOT reach production (gated on ENVIRONMENT above).
-    console.warn(
-      '[SAFETY] MODERATION_API_KEY not set — passing submission in development mode only.',
-      'Set ENVIRONMENT=production to enforce hard blocking.',
+    throw new Error(
+      '[SAFETY] MODERATION_API_KEY not set — blocking all submissions. ' +
+      'This is intentional and applies in every environment: set a real key to accept submissions.',
     );
-    return { pass: true, adultSignal: false };
   }
 
   const res = await fetch('https://api.openai.com/v1/moderations', {
@@ -705,10 +712,9 @@ function getCrisisResources(region = 'IN'): CrisisResource[] {
 // The report carries only: platform identifier, content type, and timestamp.
 // CSAM content is NEVER stored — it is blocked at step [2] before INSERT.
 //
-// Fail behaviour:
-//   - Missing credentials in production → log critical + throw (blocks the 400 response)
-//   - NCMEC API non-200              → log critical + throw
-//   - Development (no credentials)   → log and return (no throw, so dev pipeline runs)
+// Fail behaviour (identical in EVERY environment):
+//   - Missing credentials → log critical + throw
+//   - NCMEC API non-200   → log critical + throw
 
 const NCMEC_ESP_ID  = Deno.env.get('NCMEC_ESP_ID')  ?? '';
 const NCMEC_API_KEY = Deno.env.get('NCMEC_API_KEY') ?? '';
@@ -721,16 +727,15 @@ async function reportCsam(): Promise<void> {
 
   if (!NCMEC_ESP_ID || !NCMEC_API_KEY) {
     const msg = `[CSAM] NCMEC credentials not set — mandatory report NOT filed. Timestamp: ${timestamp}`;
-    if (IS_PRODUCTION) {
-      // In production, unconfigured NCMEC reporting is a legal blocker.
-      // Throw so the caller still returns 400 (submission blocked), and the
-      // error surfaces in Supabase logs for immediate human review.
-      throw new Error(msg);
-    }
-    // Development: log and return so the pipeline can be exercised locally.
+    // Fail closed in every environment. CLAUDE.md non-negotiable #4: CSAM
+    // detection, reporting, and human review "stay on permanently in all
+    // environments". A detection that silently files no report is the failure
+    // mode this rule exists to prevent, and "it was only development" is not a
+    // defence for an unfiled mandatory report. The caller never stores the
+    // text either way; throwing makes the gap loud instead of a log line.
     console.error(msg);
-    console.error('[CSAM] Complete NCMEC ESP registration before production launch.');
-    return;
+    console.error('[CSAM] Complete NCMEC ESP registration before launch.');
+    throw new Error(msg);
   }
 
   // Report fields: platform identity + content type + timestamp. No PII. No text.
@@ -1051,8 +1056,9 @@ serve(async (req: Request) => {
     }
 
     // ── [2] MODERATION ────────────────────────────────────────────────────────
-    // runModeration() throws on API failure (fail closed).
-    // Missing key: throws in production, passes in development (see function above).
+    // runModeration() throws on API failure AND on a missing key, in every
+    // environment (fail closed) — nothing below this line runs unless the
+    // submission was actually classified.
     const modResult = await runModeration(rawText);
 
     if (!modResult.pass) {

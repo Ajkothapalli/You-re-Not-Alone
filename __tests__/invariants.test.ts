@@ -536,6 +536,62 @@ describe('Source column, threshold, retire, api_call_log (Phase A–C)', () => {
   });
 });
 
+describe('Safety gate has no environment escape hatch (CLAUDE.md §1)', () => {
+  const fs   = require('fs');
+  const path = require('path');
+  const src  = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'functions', 'submit-confession', 'index.ts'),
+    'utf8',
+  );
+
+  /** The body of the `if (!X)` guard that handles a missing key. */
+  function missingKeyGuard(varName: string): string {
+    const start = src.indexOf(`if (!${varName}) {`);
+    expect(start).toBeGreaterThan(-1);
+    return src.slice(start, start + 700);
+  }
+
+  // This is the hole that was live: runModeration() returned { pass: true }
+  // whenever ENVIRONMENT !== 'production', and the deployed project ran with
+  // ENVIRONMENT=development and an empty MODERATION_API_KEY — so every
+  // submission was stored, matched and shown with no classification at all.
+  // The old guard for this was `it.todo`, which never executes.
+  it('a missing moderation key throws instead of passing the submission', () => {
+    const guard = missingKeyGuard('MODERATION_API_KEY');
+    expect(guard).toContain('throw');
+    expect(guard).not.toContain('pass: true');
+  });
+
+  it('the moderation guard is not conditional on the environment', () => {
+    // An env var must never be able to disable the gate. If this fails,
+    // someone has reintroduced a dev bypass.
+    const guard = missingKeyGuard('MODERATION_API_KEY');
+    expect(guard).not.toContain('IS_PRODUCTION');
+    expect(guard).not.toContain('ENVIRONMENT');
+  });
+
+  it('a CSAM detection with no NCMEC credentials fails closed everywhere', () => {
+    // CLAUDE.md §4: detection and reporting stay on "permanently in all
+    // environments". Silently filing no report is the exact failure this
+    // forbids — "it was only development" is not a defence for an unfiled
+    // mandatory report.
+    const start = src.indexOf('if (!NCMEC_ESP_ID || !NCMEC_API_KEY) {');
+    expect(start).toBeGreaterThan(-1);
+    const guard = src.slice(start, start + 900);
+    expect(guard).toContain('throw');
+    expect(guard).not.toContain('IS_PRODUCTION');
+  });
+
+  it('moderation runs before the confession is ever inserted', () => {
+    // Ordering is the other half of the invariant: the gate is worthless if
+    // STORE can be reached without it.
+    const mod    = src.indexOf('await runModeration(');
+    const insert = src.indexOf(".from('confessions')\n      .insert");
+    expect(mod).toBeGreaterThan(-1);
+    if (insert > -1) expect(mod).toBeLessThan(insert);
+  });
+});
+
 // ─── Manual verification checklist ───────────────────────────────────────────
 
 describe('Manual verification required (cannot unit-test)', () => {
@@ -543,7 +599,12 @@ describe('Manual verification required (cannot unit-test)', () => {
   it.todo('Native SVG: CategoryBadge border colour matches category palette');
   it.todo('Google OAuth: sign-in completes and navigates to /welcome on fresh install');
   it.todo('Google OAuth: sign-in completes on Android without getting stuck loading');
-  it.todo('Safety gate: submit with MODERATION_API_KEY unset → 503, nothing stored');
+  // Source-level guards now cover this (see "Safety gate has no environment
+  // escape hatch" above). This entry stays because only a live call proves the
+  // deployed function behaves that way — the source being right and the
+  // deployment being right are two different facts, and for ~3 months they
+  // disagreed.
+  it.todo('Safety gate: submit against the DEPLOYED function with no key → 503, nothing stored');
   it.todo('Crisis path: crisis text → resources screen, no confession card, no counter');
   it.todo('Read cap: onboarding shows max 2 confessions (get_onboarding_confessions)');
   it.todo('Read cap: explore shows max 10 per session, no infinite scroll');
