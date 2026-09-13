@@ -1,71 +1,120 @@
 /**
- * How much someone may read, once their intro window has passed.
+ * How much someone may read in a day, once their intro window has passed.
  *
  * Owner decision 2026-09-13 (supersedes "reading is never gated", set earlier
  * the same day — see CLAUDE.md §2/§6):
  *   - First 30 days (lib/introWindow.ts): unlimited. Nothing below applies.
- *   - After that: BASE_ALLOWANCE confessions.
- *   - Writing one grants PER_WRITE more, permanently.
+ *   - After that: DAILY_ALLOWANCE confessions per day.
+ *   - Writing one grants PER_WRITE more, for that day.
  *   - Premium: unlimited, no counting at all.
+ *   - Midnight local: a fresh DAILY_ALLOWANCE. Nothing carries over, and
+ *     nothing is lost — a reader who hits the limit is a day away from more,
+ *     not permanently stuck.
  *
  * This is a conversion nudge, not DRM. It is deliberately client-side and
  * deliberately cheap to defeat — clearing app storage resets it. Enforcing it
  * server-side would mean the recommender withholding real confessions from
  * free readers, which is the exact shape that left the feed permanently empty
- * behind copy promising more were coming. A reader who wants past this badly
- * enough to clear storage is not the reader this is for.
+ * behind copy promising more were coming. A reader determined enough to clear
+ * storage is not the reader this is for.
  *
- * The crisis path is never affected: crisis submissions never reach the feed,
- * and nothing here gates writing, reporting, or support resources.
+ * Nothing here gates writing, reporting, or the crisis path.
  */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const KEY = '@yana/read_unlocked_extra';
+const KEY = '@yana/read_allowance_v2';
 
-/** Readable after the intro window, before writing anything. */
-export const BASE_ALLOWANCE = 2;
+/** Free reads per day, after the intro window. */
+export const DAILY_ALLOWANCE = 10;
 
-/** Additional confessions unlocked per confession written. */
+/** Additional reads granted for each confession written, same day. */
 export const PER_WRITE = 2;
 
+interface DayState {
+  /** Local calendar day, YYYY-MM-DD. */
+  day:    string;
+  /** Confessions opened today. */
+  read:   number;
+  /** Extra slots earned by writing today. */
+  earned: number;
+}
+
 /**
- * Extra slots earned by writing. Survives restarts — a reader who wrote last
- * week should not find their unlock gone today.
+ * Local date, not UTC. A reader in IST rolling over at 05:30 because the
+ * server thinks it is still yesterday would read as the limit being broken.
  */
-export async function getUnlockedExtra(): Promise<number> {
+function today(): string {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+async function load(): Promise<DayState> {
+  const fresh: DayState = { day: today(), read: 0, earned: 0 };
   try {
     const raw = await AsyncStorage.getItem(KEY);
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    if (!raw) return fresh;
+    const parsed = JSON.parse(raw) as Partial<DayState>;
+    // A stored day that isn't today is yesterday's state — start over.
+    if (parsed?.day !== fresh.day) return fresh;
+    return {
+      day:    fresh.day,
+      read:   Number.isFinite(parsed.read)   ? Number(parsed.read)   : 0,
+      earned: Number.isFinite(parsed.earned) ? Number(parsed.earned) : 0,
+    };
   } catch {
-    return 0;
+    return fresh;
   }
 }
 
-/** Call after a confession is successfully submitted. Idempotent per call. */
-export async function grantForWrite(): Promise<void> {
+async function save(state: DayState): Promise<void> {
   try {
-    const current = await getUnlockedExtra();
-    await AsyncStorage.setItem(KEY, String(current + PER_WRITE));
+    await AsyncStorage.setItem(KEY, JSON.stringify(state));
   } catch {
-    // Losing an unlock is a poor outcome but not a broken one — the reader
-    // keeps what the server gave them and can write again. Never throw here:
-    // this runs after a successful submission and must not turn a completed
-    // write into an error the user sees.
+    // Losing a day's count is a poor outcome, not a broken one: the reader
+    // gets a fuller allowance than they earned. Never throw — this runs on
+    // the read path and after successful writes, and must not surface as an
+    // error for something the user did nothing wrong in.
   }
 }
 
-/**
- * How many confessions to show.
- *
- * `null` means unlimited — inside the intro window, or premium. Callers should
- * branch on null rather than comparing against a sentinel number, so an
- * unlimited reader is never accidentally sliced.
- */
-export async function getReadLimit(opts: {
+/** Today's total allowance, including anything earned by writing. */
+export async function getDailyLimit(opts: {
   withinIntroWindow: boolean;
   isPremium:         boolean;
 }): Promise<number | null> {
+  // null means unlimited. Callers branch on null rather than comparing against
+  // a sentinel, so an unlimited reader is never accidentally sliced.
   if (opts.withinIntroWindow || opts.isPremium) return null;
-  return BASE_ALLOWANCE + (await getUnlockedExtra());
+  const s = await load();
+  return DAILY_ALLOWANCE + s.earned;
+}
+
+/** How many the reader has already opened today. */
+export async function getReadToday(): Promise<number> {
+  return (await load()).read;
+}
+
+/** Count one confession as read. Call when a confession is actually opened. */
+export async function recordRead(): Promise<void> {
+  const s = await load();
+  await save({ ...s, read: s.read + 1 });
+}
+
+/** Call after a confession is successfully submitted. Grants PER_WRITE today. */
+export async function grantForWrite(): Promise<void> {
+  const s = await load();
+  await save({ ...s, earned: s.earned + PER_WRITE });
+}
+
+/** Reads left today. `null` when unlimited. */
+export async function getRemaining(opts: {
+  withinIntroWindow: boolean;
+  isPremium:         boolean;
+}): Promise<number | null> {
+  const limit = await getDailyLimit(opts);
+  if (limit === null) return null;
+  const s = await load();
+  return Math.max(0, limit - s.read);
 }

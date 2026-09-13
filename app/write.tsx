@@ -1,4 +1,5 @@
 import ConfessionInput from '@/components/ConfessionInput';
+import { grantForWrite } from '@/lib/readAllowance';
 import ProfileButton from '@/components/ProfileButton';
 import { PrimaryButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
@@ -64,13 +65,15 @@ export default function WriteScreen() {
       if (result.type === 'submitted') {
         analytics.confessionSubmitted(result.match?.id ?? '');
         // Land on the feed first so the sheet opens over it, not over the write screen.
+        void grantForWrite();
         router.replace('/explore');
         router.push({ pathname: '/match', params: { youText: trimmed, themText: '', feltCount: '1', confessionId: result.match?.id ?? '', noMatch: '1' } });
         return;
       }
 
       analytics.confessionSubmitted(result.match!.id);
-      router.replace('/explore');
+      void grantForWrite();
+        router.replace('/explore');
       router.push({ pathname: '/match', params: { youText: trimmed, themText: result.match!.text, feltCount: String(result.match!.feltCount), confessionId: result.match!.id, noMatch: '0' } });
     } catch (err: any) {
       const msg: string = err?.message ?? '';

@@ -7,6 +7,7 @@
  */
 
 import ConfessionInput from '@/components/ConfessionInput';
+import { grantForWrite } from '@/lib/readAllowance';
 import { PrimaryButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
 import { submitConfession } from '@/lib/api';
@@ -67,6 +68,7 @@ export default function WriteTabScreen() {
 
       if (result.type === 'submitted') {
         analytics.confessionSubmitted(result.match?.id ?? '');
+        void grantForWrite();
         router.replace('/explore');
         router.push({
           pathname: '/match',
@@ -82,7 +84,8 @@ export default function WriteTabScreen() {
       }
 
       analytics.confessionSubmitted(result.match!.id);
-      router.replace('/explore');
+      void grantForWrite();
+        router.replace('/explore');
       router.push({
         pathname: '/match',
         params: {

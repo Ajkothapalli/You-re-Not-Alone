@@ -35,6 +35,8 @@ import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
 import { isWithinIntroWindow } from '@/lib/introWindow';
+import { getDailyLimit, recordRead, DAILY_ALLOWANCE } from '@/lib/readAllowance';
+import { checkPremium } from '@/lib/purchases';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
@@ -68,6 +70,9 @@ export default function ExploreScreen() {
   const [loadingMore,     setLoadingMore]     = useState(false);
   // Gates the write PROMPT only — never whether the feed loads.
   const [withinIntro,     setWithinIntro]     = useState(true);
+  // null = unlimited (inside the intro window, or premium). A number is
+  // today's cap; the feed is sliced to it and a gate card closes the list.
+  const [dailyLimit,      setDailyLimit]      = useState<number | null>(null);
   const [exhausted,       setExhausted]       = useState(false);
   // 'auth'  — no/expired session, so signing in is the only way forward.
   // 'load'  — anything else (network, edge function, RPC); retrying may work.
@@ -100,6 +105,10 @@ export default function ExploreScreen() {
     readToEndRef.current = new Set();
     const intro = await isWithinIntroWindow().catch(() => true);
     setWithinIntro(intro);
+    // Fails OPEN to unlimited: a storage or billing hiccup should never be
+    // the reason someone is told they have run out.
+    const premium = await checkPremium().catch(() => true);
+    setDailyLimit(await getDailyLimit({ withinIntroWindow: intro, isPremium: premium }).catch(() => null));
     try {
       const { confessions: data } = await getRecommendations(intro);
       data.forEach(c => shownIdsRef.current.add(c.id));
@@ -310,7 +319,10 @@ export default function ExploreScreen() {
       />
 
       <FlatList
-        data={confessions}
+        // Sliced to today's allowance. The confessions beyond it are not
+        // fetched-and-hidden — they are simply not rendered, and tomorrow's
+        // reset brings them back without another round trip.
+        data={dailyLimit === null ? confessions : confessions.slice(0, dailyLimit)}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) => (
           // onPress makes ReadCard render as a truncated preview with a
@@ -324,6 +336,8 @@ export default function ExploreScreen() {
             onReport={() => handleReport(item.id)}
             onFelt={() => handleFelt(item)}
             onPress={() => {
+              // Opening one is what counts against the day, not scrolling past.
+              void recordRead();
               // Params lose newlines in transit — hand the confession over in
               // memory and let params serve only as a deep-link fallback.
               setConfessionHandoff({
@@ -355,7 +369,7 @@ export default function ExploreScreen() {
           const i = confessions.findIndex(c => c.id === leadingItem?.id);
           if (i < 0 || (i + 1) % INTERSTITIAL_EVERY !== 0) return null;
           return (
-            <View style={styles.footerCards}>
+            <View style={styles.interstitial}>
               {!withinIntro && <WriteInviteCard onPress={() => router.replace('/write')} />}
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
@@ -367,19 +381,23 @@ export default function ExploreScreen() {
         ListFooterComponent={
           <View style={styles.footer}>
             <Text style={styles.endHeading} accessibilityRole="header">
-              {exhausted ? "That's everything for now" : "You're all caught up"}
+              {dailyLimit !== null && confessions.length > dailyLimit
+                ? "That's your " + DAILY_ALLOWANCE + " for today"
+                : exhausted ? "That's everything for now" : "You're all caught up"}
             </Text>
             <Text style={styles.endBody}>
-              {exhausted
-                ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
-                : 'Come back later. New confessions are matched to your taste as they arrive.'}
+              {dailyLimit !== null && confessions.length > dailyLimit
+                ? 'Write one of your own to unlock more now, or come back tomorrow for another ' + DAILY_ALLOWANCE + '.'
+                : exhausted
+                  ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
+                  : 'Come back later. New confessions are matched to your taste as they arrive.'}
             </Text>
 
             {/* Deliberately quiet — loading more is a small continuation, not
                 the thing we're asking of anyone here. Available to everyone
                 now: the feed is however much we have for your categories, and
                 more is not a reward for writing. */}
-            {!exhausted && (
+            {!exhausted && dailyLimit === null && (
               <Pressable
                 onPress={loadMore}
                 disabled={loadingMore}
@@ -484,8 +502,17 @@ function createStyles(color: ColorSet) {
       paddingTop: 8,
     },
     footerCards: {
-      gap:       16,
-      marginTop: 4,
+      gap:       20,
+      marginTop: 12,
+    },
+    // Breathing room on both sides. These cards sit between confessions, and
+    // flush against them they read as part of the feed rather than as a break
+    // in it — the reader's eye ran straight from a stranger's confession into
+    // an ask with nothing between.
+    interstitial: {
+      gap:          20,
+      marginTop:    20,
+      marginBottom: 12,
     },
     loadMoreLink: {
       fontFamily:         fontFamily.sansBold,

@@ -43,13 +43,23 @@
      Real confessions come first; the curated pool tops the feed up whenever
      real volume is thin (`FEED_FLOOR` in lib/api.ts). A reader must never
      open Read and find nothing, whatever their account age or subscription.
-   - **Reading is never gated on payment.** `recommend-confessions` used to
-     return an empty set to every non-premium reader — so a free user saw no
-     real confession ever, and after 30 days hit a permanently empty feed
-     behind copy promising more were arriving. Removed 2026-09-13. `is_premium`
-     still exists and the RevenueCat webhook still writes it; it is simply not
-     a reading entitlement, per §6 ("supporting buys nothing another user is
-     denied").
+   - **Daily read allowance (owner decision 2026-09-13, LATER the same day —
+     this supersedes "reading is never gated on payment", set that morning).**
+     First 30 days: unlimited. After that, `DAILY_ALLOWANCE` (10) per day;
+     writing a confession grants `PER_WRITE` (2) more that day; premium is
+     unlimited. Resets at local midnight — a reader who hits the limit is a
+     day from more, never permanently stuck, and the feed still never shows
+     an empty screen.
+     **This knowingly overrides §6's "supporting buys nothing another user is
+     denied."** Premium now buys volume. What that override does NOT extend to:
+     plans still never gate WRITING, matching, reporting, the felt counter, or
+     anything on the crisis path — and a capped reader is shown a cap, never
+     an empty feed pretending there is nothing there.
+     Enforcement is deliberately CLIENT-SIDE (`lib/readAllowance.ts`) and
+     cheap to defeat. Doing it in `recommend-confessions` would mean the
+     server withholding real confessions from free readers, which is exactly
+     what produced a permanently empty feed behind copy promising more were
+     arriving. A conversion nudge, not DRM.
 
    **What the removed caps were protecting, and what still protects it:** the
    caps existed so this could not become an endless scroll of other people's

@@ -8,11 +8,12 @@
  */
 
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Release } from '@/components/illustrations';
+import { Writing, ManyWindows } from '@/components/illustrations';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { deriveHeightFromWidth } from '@/hooks/useAspectFit';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
+import { DAILY_ALLOWANCE } from '@/lib/readAllowance';
 import { useMemo } from 'react';
 
 const SHADOW = 4;
@@ -21,7 +22,7 @@ export function WriteInviteCard({ onPress }: { onPress: () => void }) {
   const color = useThemeColors();
   const { width: screenW } = useWindowDimensions();
   const cardW = screenW - spacing.screenPadding * 2;
-  // Release's <Svg viewBox="0 0 400 300"> is 4:3 — matching the hero box to
+  // Writing's <Svg viewBox="0 0 400 300"> is 4:3 — matching the hero box to
   // that ratio (instead of a fixed 160) lets preserveAspectRatio="xMidYMid
   // meet" fill the box edge-to-edge rather than letterboxing inside a
   // shallower one. cardW is already known synchronously here (derived from
@@ -62,7 +63,7 @@ export function WriteInviteCard({ onPress }: { onPress: () => void }) {
             the card's own ink surface, so the card keeps ONE continuous
             background (set on the Pressable itself) instead of a separate
             dark rect behind just the illustration. */}
-        <Release style={{ width: '100%', height: illH }} />
+        <Writing style={{ width: '100%', height: illH }} />
 
         {/* ── Text area ── */}
         <View style={{
@@ -105,6 +106,11 @@ export function WriteInviteCard({ onPress }: { onPress: () => void }) {
 export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; matchCount?: number }) {
   const color  = useThemeColors();
   const styles = useMemo(() => createPromoStyles(color), [color]);
+  const { width: screenW } = useWindowDimensions();
+  // Same measured 4:3 fit as the write card — ManyWindows is a 400x300
+  // viewBox, so a fixed height would letterbox it inside the box instead of
+  // filling edge to edge.
+  const illH = deriveHeightFromWidth(screenW - spacing.screenPadding * 2 - 40, 4 / 3);
 
   return (
     <View style={styles.promoOuter}>
@@ -116,23 +122,26 @@ export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; 
         accessibilityLabel="Support soulyap"
       >
         <View style={styles.promoTop}>
-          <Text style={styles.promoEyebrow}>SUPPORT</Text>
+          <Text style={styles.promoEyebrow}>PREMIUM</Text>
           {matchCount > 0 && (
-            <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ to read</Text>
+            <Text style={styles.promoStat}>{matchCount.toLocaleString()}+ waiting</Text>
           )}
         </View>
-        {/* Reading is free and ungated for everyone (owner decision
-            2026-09-13). The old copy — "Read without limits", "Premium readers
-            see every one", "Unlock unlimited reads" — described a paywall that
-            no longer exists, and promised buyers something every reader
-            already has. Supporting is patronage, not access. */}
-        <Text style={styles.promoTitle}>Keep this place open</Text>
+
+        {/* The offer, drawn: a wall of lit windows the reader can see but not
+            reach. Premium buys what is behind the glass — which is a truer
+            picture of the thing than a lock icon. */}
+        <View style={styles.promoIll}>
+          <ManyWindows style={{ width: '100%', height: illH }} />
+        </View>
+
+        <Text style={styles.promoTitle}>Read without the daily limit</Text>
         <Text style={styles.promoBody}>
-          Everything here is free to read, and stays that way.
-          If it has meant something to you, you can help keep it running.
+          You get {DAILY_ALLOWANCE} a day. Premium readers keep going —
+          every confession that matches what you carry, whenever you want it.
         </Text>
         <View style={styles.promoCta}>
-          <Text style={styles.promoCtaText}>Support soulyap</Text>
+          <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
           <ScrawlIcon name="arrow_right" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
         </View>
       </Pressable>
@@ -143,6 +152,9 @@ export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; 
 function createPromoStyles(color: ColorSet) {
   return StyleSheet.create({
     promoOuter:       { paddingRight: SHADOW, paddingBottom: SHADOW },
+    // The drawing sits on its own paper ground inside the ink card, the
+    // same treatment the write card gives its hero.
+    promoIll:         { backgroundColor: '#FBF8F2', borderRadius: radius.input, overflow: 'hidden', marginBottom: 4 },
     promoShadow:      { position: 'absolute', top: SHADOW, left: SHADOW, right: 0, bottom: 0, borderRadius: radius.input, backgroundColor: color.border },
     promoCard:        { backgroundColor: color.ink, borderRadius: radius.input, borderWidth: 2, borderColor: color.border, padding: 20, gap: 12 },
     promoCardPressed: { opacity: 0.88 },
