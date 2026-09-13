@@ -21,6 +21,16 @@ const AUTHOR_TOKEN_SECRET  = Deno.env.get('AUTHOR_TOKEN_SECRET')!;
 const OPENAI_API_KEY       = Deno.env.get('OPENAI_API_KEY') ?? '';
 const EMBEDDING_API_KEY    = Deno.env.get('EMBEDDING_API_KEY') ?? OPENAI_API_KEY;
 const MODERATION_API_KEY   = Deno.env.get('MODERATION_API_KEY') ?? OPENAI_API_KEY;
+const SEED_CRON_SECRET     = Deno.env.get('SEED_CRON_SECRET') ?? '';
+
+/** Constant-time string compare — this endpoint is public and unauthenticated
+ *  callers should learn nothing from how long the rejection takes. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
@@ -262,9 +272,20 @@ serve(async (req: Request) => {
       headers: { ...CORS, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
     });
 
-  // Cron-only: must present the service role key
-  const auth = req.headers.get('Authorization') ?? '';
-  if (auth !== `Bearer ${SUPABASE_SERVICE_KEY}`) {
+  // Cron-only. Accepts either:
+  //   - SEED_CRON_SECRET: a narrow, single-purpose token for the scheduler.
+  //     The GitHub Actions schedule uses this, so CI holds a secret that can
+  //     ONLY trigger seeding — not a service role key, which would grant the
+  //     scheduler full database access it has no need for.
+  //   - the service role key: for the in-database pg_cron path, which already
+  //     runs with that privilege.
+  //
+  // Compared with a length-equalised constant-time check: a plain !== leaks
+  // the position of the first differing byte through timing, and this endpoint
+  // is public.
+  const auth     = (req.headers.get('Authorization') ?? '').replace(/^Bearer /, '');
+  const accepted = [SEED_CRON_SECRET, SUPABASE_SERVICE_KEY].filter(Boolean) as string[];
+  if (!accepted.some(k => timingSafeEqual(auth, k))) {
     return respond({ error: 'Unauthorized' }, 401);
   }
 

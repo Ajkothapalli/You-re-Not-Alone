@@ -39,7 +39,7 @@ jobs:
       - name: Seed production
         if: github.event_name == 'schedule' || inputs.target == 'production' || inputs.target == 'both'
         env:
-          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_PROD }}
+          KEY: ${{ secrets.SEED_CRON_SECRET }}
         run: |
           code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
             "https://sjywjerlqxwfniwqjojs.supabase.co/functions/v1/push-daily-stories" \
@@ -54,7 +54,7 @@ jobs:
       - name: Seed development
         if: inputs.target == 'development' || inputs.target == 'both'
         env:
-          KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY_DEV }}
+          KEY: ${{ secrets.SEED_CRON_SECRET }}
         run: |
           code=$(curl -s -o /tmp/out.json -w "%{http_code}" -X POST \
             "https://tmpqadweifuwbmktbmzg.supabase.co/functions/v1/push-daily-stories" \
