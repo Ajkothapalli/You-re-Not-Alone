@@ -52,6 +52,15 @@ const HAND_X0  = 136;
 const HAND_X1  = 258;
 const HAND_Y   = 190;
 
+// Bone lengths. A straight shoulder-to-hand line changed length from ~41 to
+// ~121 across the stroke — the arm stretched like a rubber band, which is
+// exactly how it read. Real arms keep their bones and bend at the elbow, so
+// these are FIXED and the elbow is solved for.
+//   UPPER + FORE must reach the furthest point of the travel (~121).
+//   |UPPER - FORE| must be small enough to fold to the nearest (~41).
+const UPPER = 62;
+const FORE  = 62;
+
 export function Writing({ style }: { style?: ViewStyle }) {
   const reduceMotion = useReducedMotion();
 
@@ -89,19 +98,54 @@ export function Writing({ style }: { style?: ViewStyle }) {
     }, [reduceMotion]),
   );
 
-  // One source of truth for where the hand is; the forearm, the hand and the
-  // pen all read from it, so they cannot drift apart.
-  const hand = useDerivedValue(() => {
+  // One source of truth for the whole arm. Two-bone inverse kinematics: given
+  // where the hand wants to be, solve for the elbow that keeps both bones at
+  // their fixed length. Everything downstream reads from this, so the hand,
+  // the pen and both bones cannot drift apart.
+  const arm = useDerivedValue(() => {
     'worklet';
-    const x = HAND_X0 + (HAND_X1 - HAND_X0) * t.value;
+    const tx = HAND_X0 + (HAND_X1 - HAND_X0) * t.value;
     // The wrist dips slightly through the stroke and lifts on the return.
-    const y = HAND_Y + Math.sin(t.value * Math.PI) * 2;
-    return { x, y };
+    const ty = HAND_Y + Math.sin(t.value * Math.PI) * 2;
+
+    const dx = tx - SHOULDER.x;
+    const dy = ty - SHOULDER.y;
+    const raw = Math.sqrt(dx * dx + dy * dy) || 0.001;
+    // Clamp to what the arm can actually reach, then place the hand AT the
+    // clamped point — otherwise the bones stay honest and the hand floats off
+    // the end of them, which is the same bug in a different disguise.
+    const d  = Math.min(raw, UPPER + FORE - 0.5);
+    const ux = dx / raw;
+    const uy = dy / raw;
+    const hx = SHOULDER.x + ux * d;
+    const hy = SHOULDER.y + uy * d;
+
+    // Circle-circle intersection gives the elbow.
+    const a = (UPPER * UPPER - FORE * FORE + d * d) / (2 * d);
+    const h = Math.sqrt(Math.max(0, UPPER * UPPER - a * a));
+    const px = SHOULDER.x + a * ux;
+    const py = SHOULDER.y + a * uy;
+    // Perpendicular, signed so the elbow falls away from the body rather than
+    // folding through the torso.
+    const ex = px + h * uy;
+    const ey = py - h * ux;
+
+    return { hx, hy, ex, ey };
   });
 
+  // Kept as a stable alias so the hand/pen worklets below read naturally.
+  const hand = useDerivedValue(() => {
+    'worklet';
+    return { x: arm.value.hx, y: arm.value.hy };
+  });
+
+  const upperArmProps = useAnimatedProps(() => {
+    'worklet';
+    return { d: `M${SHOULDER.x} ${SHOULDER.y}L${arm.value.ex} ${arm.value.ey}` };
+  });
   const forearmProps = useAnimatedProps(() => {
     'worklet';
-    return { d: `M${SHOULDER.x} ${SHOULDER.y}L${hand.value.x} ${hand.value.y}` };
+    return { d: `M${arm.value.ex} ${arm.value.ey}L${arm.value.hx} ${arm.value.hy}` };
   });
   const handProps = useAnimatedProps(() => {
     'worklet';
@@ -195,7 +239,12 @@ export function Writing({ style }: { style?: ViewStyle }) {
       </G>
 
       {/* ── writing arm — forearm redrawn each frame, shoulder to hand ── */}
+      <AnimatedPath {...STROKE.ink} strokeWidth={12} animatedProps={upperArmProps} />
       <AnimatedPath {...STROKE.ink} strokeWidth={12} animatedProps={forearmProps} />
+      <AnimatedPath
+        stroke={ILL_COLOR.sage} strokeWidth={7} strokeLinecap="round" fill="none"
+        animatedProps={upperArmProps}
+      />
       <AnimatedPath
         stroke={ILL_COLOR.sage} strokeWidth={7} strokeLinecap="round" fill="none"
         animatedProps={forearmProps}
