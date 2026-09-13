@@ -45,9 +45,9 @@
      open Read and find nothing, whatever their account age or subscription.
    - **Daily read allowance (owner decision 2026-09-13, LATER the same day —
      this supersedes "reading is never gated on payment", set that morning).**
-     First 30 days: unlimited. After that, `DAILY_ALLOWANCE` (10) per day;
-     writing a confession grants `PER_WRITE` (2) more that day; premium is
-     unlimited. Resets at local midnight — a reader who hits the limit is a
+     `DAILY_ALLOWANCE` (10) per day, FROM DAY ONE — there is no unlimited
+     intro period. Writing a confession grants `PER_WRITE` (10) more that day;
+     premium is unlimited. Resets at local midnight — a reader who hits the limit is a
      day from more, never permanently stuck, and the feed still never shows
      an empty screen.
      **This knowingly overrides §6's "supporting buys nothing another user is

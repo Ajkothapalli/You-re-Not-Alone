@@ -34,7 +34,6 @@ import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
 import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
-import { isWithinIntroWindow } from '@/lib/introWindow';
 import { getDailyLimit, recordRead, DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
 import { checkPremium } from '@/lib/purchases';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
@@ -68,8 +67,6 @@ export default function ExploreScreen() {
   const [confessions,     setConfessions]     = useState<Recommendation[]>([]);
   const [loading,         setLoading]         = useState(true);
   const [loadingMore,     setLoadingMore]     = useState(false);
-  // Gates the write PROMPT only — never whether the feed loads.
-  const [withinIntro,     setWithinIntro]     = useState(true);
   // null = unlimited (inside the intro window, or premium). A number is
   // today's cap; the feed is sliced to it and a gate card closes the list.
   const [dailyLimit,      setDailyLimit]      = useState<number | null>(null);
@@ -103,14 +100,18 @@ export default function ExploreScreen() {
     shownIdsRef.current  = new Set();
     impressedRef.current = new Set();
     readToEndRef.current = new Set();
-    const intro = await isWithinIntroWindow().catch(() => true);
-    setWithinIntro(intro);
     // Fails OPEN to unlimited: a storage or billing hiccup should never be
     // the reason someone is told they have run out.
     const premium = await checkPremium().catch(() => true);
-    setDailyLimit(await getDailyLimit({ withinIntroWindow: intro, isPremium: premium }).catch(() => null));
+    setDailyLimit(await getDailyLimit({ isPremium: premium }).catch(() => null));
     try {
-      const { confessions: data } = await getRecommendations(intro);
+      // richOnly = false. It used to be the intro-window flag, filtering the
+      // feed to story-shaped confessions on the theory that a one-liner is a
+      // poor first impression. With the window gone that would apply to every
+      // reader forever, and it would quietly shrink the REAL pool — most
+      // genuine confessions are short — leaning the feed harder on generated
+      // ones, which is the opposite of letting AI content recede.
+      const { confessions: data } = await getRecommendations(false);
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
     } catch (e) {
@@ -370,7 +371,7 @@ export default function ExploreScreen() {
           if (i < 0 || (i + 1) % INTERSTITIAL_EVERY !== 0) return null;
           return (
             <View style={styles.interstitial}>
-              {!withinIntro && <WriteInviteCard onPress={() => router.replace('/write')} />}
+              <WriteInviteCard onPress={() => router.replace('/write')} />
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
           );
@@ -418,7 +419,7 @@ export default function ExploreScreen() {
                 — they read for a month first, and nothing is withheld either
                 way. Premium stands on its own and shows throughout. */}
             <View style={styles.footerCards}>
-              {!withinIntro && <WriteInviteCard onPress={() => router.replace('/write')} />}
+              <WriteInviteCard onPress={() => router.replace('/write')} />
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
 

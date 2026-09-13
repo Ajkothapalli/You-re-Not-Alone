@@ -3,8 +3,9 @@
  *
  * Owner decision 2026-09-13 (supersedes "reading is never gated", set earlier
  * the same day — see CLAUDE.md §2/§6):
- *   - First 30 days (lib/introWindow.ts): unlimited. Nothing below applies.
- *   - After that: DAILY_ALLOWANCE confessions per day.
+ *   - DAILY_ALLOWANCE confessions per day, from day one. There is no
+ *     unlimited intro period: a reader who only meets the limit a month in
+ *     has already formed an expectation the product then takes back.
  *   - Writing one grants PER_WRITE (another 10) more, for that day.
  *   - Premium: unlimited, no counting at all.
  *   - Midnight local: a fresh DAILY_ALLOWANCE. Nothing carries over, and
@@ -86,13 +87,10 @@ async function save(state: DayState): Promise<void> {
 }
 
 /** Today's total allowance, including anything earned by writing. */
-export async function getDailyLimit(opts: {
-  withinIntroWindow: boolean;
-  isPremium:         boolean;
-}): Promise<number | null> {
+export async function getDailyLimit(opts: { isPremium: boolean }): Promise<number | null> {
   // null means unlimited. Callers branch on null rather than comparing against
   // a sentinel, so an unlimited reader is never accidentally sliced.
-  if (opts.withinIntroWindow || opts.isPremium) return null;
+  if (opts.isPremium) return null;
   const s = await load();
   return DAILY_ALLOWANCE + s.earned;
 }
@@ -115,10 +113,7 @@ export async function grantForWrite(): Promise<void> {
 }
 
 /** Reads left today. `null` when unlimited. */
-export async function getRemaining(opts: {
-  withinIntroWindow: boolean;
-  isPremium:         boolean;
-}): Promise<number | null> {
+export async function getRemaining(opts: { isPremium: boolean }): Promise<number | null> {
   const limit = await getDailyLimit(opts);
   if (limit === null) return null;
   const s = await load();

@@ -1,6 +1,12 @@
 /**
  * The intro window — how long someone can read before we ask them to write.
  *
+ * STATUS as of 2026-09-13: the read limit applies from day one, so nothing
+ * currently branches on isWithinIntroWindow() — only markInstall() is still
+ * called (app/index.tsx), recording the install date. Kept because that date
+ * is not recoverable once lost and a future decision may want it; delete the
+ * unused half deliberately rather than by accident.
+ *
  * Owner decision 2026-09-13 (replaces the 7-day "D7" window):
  *   - 30 days, not 7.
  *   - Inside it: read freely. The feed is the whole experience and we never
