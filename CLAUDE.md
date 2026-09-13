@@ -119,22 +119,32 @@ is a USER-FACING guarantee.
 - `banned_tokens` remains for legacy-row ban enforcement; new rows ban via
   `accounts.banned` + `account_id`.
 
-### Environments (established 2026-09-13)
+### Environments
 
-| | Project ref | Region | Used by |
-|---|---|---|---|
-| Dev / preview | `tmpqadweifuwbmktbmzg` | ap-northeast-1 | `development` + `preview` build profiles. Contains test data. |
-| **Production** | `sjywjerlqxwfniwqjojs` | ap-south-1 (Mumbai) | `production` profile only. |
+**One Supabase project serves every environment: `tmpqadweifuwbmktbmzg`**
+(ap-northeast-1). All three build profiles — `development`, `preview`,
+`production` — point at it.
 
-Production is in Mumbai for latency and for the DPDP Act data-residency item
-on the compliance checklist. `AUTHOR_TOKEN_SECRET` differs per project and must
-never be shared between them — author tokens from one environment must not be
-derivable in the other.
+*Owner decision 2026-09-13:* the environment split is DEFERRED on cost
+grounds, to be done before real users arrive. A migrated, empty production
+project exists at `sjywjerlqxwfniwqjojs` (ap-south-1, Mumbai — chosen for
+latency and the DPDP data-residency item) and is not referenced by any build.
+
+Consequences to carry until the split happens, none of them hypothetical:
+- The live database holds test confessions. A public release puts real users'
+  writing in the same table, and dev testing touches real user data.
+- `ENVIRONMENT=development` on the Edge Functions, so rate limits are the dev
+  values (500/hour, 1000/day) rather than 5/hour and 10/day. The moderation
+  gate is NOT affected — it fails closed in every environment (see below).
+- One `AUTHOR_TOKEN_SECRET` across dev and prod, so author tokens are
+  derivable across environments.
+
+Before any public release: purge the test rows, set `ENVIRONMENT=production`,
+and rotate `AUTHOR_TOKEN_SECRET` — or complete the split.
 
 NOTE: `eas.json`'s inline `env` block overrides the EAS remote environment
-variables of the same name. The remote `production` environment still holds the
-dev URL; if the inline block is ever removed, production silently falls back to
-the dev database. Fix the remote values or keep the inline block.
+variables of the same name. Both currently agree; if the inline block is ever
+removed, check the remote values still point where you expect.
 
 ### Stub rule (hard requirement)
 If `MODERATION_API_KEY` is not set in the Edge Function environment:
