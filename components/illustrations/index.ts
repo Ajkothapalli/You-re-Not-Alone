@@ -6,4 +6,6 @@ export { Sanctuary } from './Sanctuary';
 export { Threshold } from './Threshold';
 export { Lantern } from './Lantern';
 export { Unburdened } from './Unburdened';
+export { Writing } from './Writing';
+export { ManyWindows } from './ManyWindows';
 export { IllustrationCard } from './IllustrationCard';
