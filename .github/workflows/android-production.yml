@@ -43,7 +43,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build AAB (local — production profile, autoIncrement versionCode)
+      # versionCode is NOT auto-incremented. eas.json sets appVersionSource:
+      # "local", so the number comes from app.json and nothing here changes it
+      # — every build of a given commit produces the same versionCode, and Play
+      # refuses a second upload of one it has seen ("Version code N has already
+      # been used"). Bump app.json's expo.android.versionCode and commit it
+      # before each upload.
+      #
+      # Adding autoIncrement to the production profile would NOT fix this while
+      # appVersionSource is "local": it rewrites app.json on the build machine,
+      # and CI checkouts are thrown away, so every run would compute the same
+      # committed value + 1. The real fix is appVersionSource: "remote" with
+      # autoIncrement, letting EAS hold the counter server-side — worth doing,
+      # but verify it against `eas build --local` before relying on it.
+      - name: Build AAB (local — production profile)
         env:
           # Expo's prebuild template ships -Xmx2048m -XX:MaxMetaspaceSize=512m,
           # and /android is gitignored — the runner regenerates it, so a local
