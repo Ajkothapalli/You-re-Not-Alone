@@ -23,9 +23,20 @@ const SHEET_OPTIONS = {
   gestureEnabled:                  true,
 };
 
+// Plans is taller than the other sheets (badge, heading, three tiers, perks,
+// CTA, restore, footnote), so it gets a taller detent — but a FRACTION, not
+// 'fitToContents'.
+//
+// It used to be ['fitToContents'] and rendered as a grey screen on Android.
+// That option sizes the sheet from its content's intrinsic height, and
+// app/plans.tsx roots at a ScrollView with flex:1 — which has no intrinsic
+// height, it expands to fill its parent. The sheet asks the child how tall it
+// is, the child answers "as tall as you are", and the measurement resolves to
+// zero. The `as any` it needed was the warning: the typings don't accept that
+// value here. Every other sheet in this file uses a fraction and works.
 const PLANS_SHEET_OPTIONS = {
   presentation:                    'formSheet' as const,
-  sheetAllowedDetents:             ['fitToContents'] as any,
+  sheetAllowedDetents:             [0.9] as number[],
   sheetGrabberVisible:             true,
   sheetCornerRadius:               28,
   sheetExpandsWhenScrolledToEdge:  false,
