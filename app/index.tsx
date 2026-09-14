@@ -44,7 +44,29 @@ import {
   View,
 } from 'react-native';
 
-type Step = 'loading' | 'email' | 'otp' | 'dob' | 'retry';
+type Step = 'loading' | 'email' | 'otp' | 'password' | 'dob' | 'retry';
+
+/**
+ * The one account that signs in with a password instead of an emailed code.
+ *
+ * Google Play REJECTED the app (2026-09-14, "Multi-factor authentication
+ * blocks access") because a reviewer cannot complete either sign-in route we
+ * offer: Google OAuth needs a Google account we cannot hand over, and the
+ * email OTP needs access to an inbox. Play's policy is explicit that reviewers
+ * must not be asked to reach an external mailbox for a code, so the app has to
+ * expose reusable credentials for one account.
+ *
+ * This is NOT a backdoor. It is ordinary Supabase email+password auth, offered
+ * only for this address, against an account with no special privileges — every
+ * gate a normal reader passes still applies to it: age verification, the
+ * moderation pipeline, rate limits, bans. Knowing the address gets you a
+ * password prompt and nothing else; the password lives in Play Console and the
+ * Supabase user list, never in this bundle.
+ *
+ * Empty (the default) disables the branch entirely, so a build without the
+ * variable behaves exactly as before.
+ */
+const REVIEW_EMAIL = (process.env.EXPO_PUBLIC_REVIEW_EMAIL ?? '').trim().toLowerCase();
 
 
 function parseAuthTokens(url: string): { accessToken?: string; refreshToken?: string } {
@@ -73,6 +95,7 @@ export default function IndexScreen() {
   const [step,           setStep]           = useState<Step>('loading');
   const [email,          setEmail]          = useState('');
   const [otp,            setOtp]            = useState('');
+  const [password,       setPassword]       = useState('');
   const [dob,            setDob]            = useState('');
   const [busy,  setBusy]  = useState(false);
   const [error, setError] = useState('');
@@ -442,6 +465,13 @@ export default function IndexScreen() {
       setError("That doesn't look like an email");
       return;
     }
+    // The review account signs in with a password (see REVIEW_EMAIL above).
+    // Checked before the OTP send so no code is ever mailed to it.
+    if (REVIEW_EMAIL && trimmed.toLowerCase() === REVIEW_EMAIL) {
+      setStep('password');
+      return;
+    }
+
     setBusy(true);
     try {
       const { error: err } = await supabase.auth.signInWithOtp({
@@ -451,6 +481,28 @@ export default function IndexScreen() {
       setStep('otp');
     } catch (err: any) {
       setError("Couldn't send the code — try again");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Step 1b: password (review account only) ───────────────────────────────────
+  async function handlePassword() {
+    clearError();
+    if (!password) { setError('Enter the password.'); return; }
+    setBusy(true);
+    try {
+      const { error: err } = await supabase.auth.signInWithPassword({
+        email:    email.trim().toLowerCase(),
+        password,
+      });
+      if (err) throw err;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('No user after sign-in');
+      await routeAfterAuth(user.id);
+    } catch (err: any) {
+      setError('That password did not work.');
     } finally {
       setBusy(false);
     }
@@ -561,10 +613,11 @@ export default function IndexScreen() {
             </View>
           )}
           <Text style={styles.sub}>
-            {step === 'email' && 'A private place to share what you carry.'}
-            {step === 'otp'   && `Check your email — we sent a code to ${email}`}
-            {step === 'dob'   && 'Adults only. Your age is verified once.'}
-            {step === 'retry' && ''}
+            {step === 'email'    && 'A private place to share what you carry.'}
+            {step === 'otp'      && `Check your email — we sent a code to ${email}`}
+            {step === 'password' && 'Enter the password for this account.'}
+            {step === 'dob'      && 'Adults only. Your age is verified once.'}
+            {step === 'retry'    && ''}
           </Text>
         </View>
 
@@ -638,6 +691,39 @@ export default function IndexScreen() {
             <GhostButton
               label="Use a different email"
               onPress={() => { setStep('email'); setOtp(''); clearError(); }}
+            />
+          </View>
+        )}
+
+        {/* ── Password step (review account only — see REVIEW_EMAIL) ── */}
+        {step === 'password' && (
+          <View style={styles.form}>
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              placeholderTextColor={color.dim}
+              secureTextEntry
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoComplete="password"
+              textContentType="password"
+              autoFocus
+              onSubmitEditing={handlePassword}
+              returnKeyType="done"
+              accessibilityLabel="Account password"
+            />
+            {!!error && (
+              <Text style={styles.errorText} accessibilityRole="alert" accessibilityLiveRegion="assertive">
+                {error}
+              </Text>
+            )}
+            <PrimaryButton label="Sign in" onPress={handlePassword} loading={busy} />
+            <GhostButton
+              label="Use a different email"
+              onPress={() => { setStep('email'); setPassword(''); clearError(); }}
             />
           </View>
         )}

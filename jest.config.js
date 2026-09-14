@@ -30,5 +30,9 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
   },
-  testPathIgnorePatterns: ['/node_modules/', '/ios/', '/android/'],
+  // '/.claude/' keeps agent worktrees out of the run. A worktree under
+  // .claude/worktrees/ is a full second checkout, so without this jest
+  // collects both copies of every test: the totals inflate, and a stale
+  // worktree's failures get reported as if they were this branch's.
+  testPathIgnorePatterns: ['/node_modules/', '/ios/', '/android/', '/.claude/'],
 };
