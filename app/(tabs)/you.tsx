@@ -253,7 +253,7 @@ export default function YouScreen() {
                 <Text style={styles.premiumTitle}>{isPremium ? 'Premium active' : 'Go Premium'}</Text>
               </View>
               <Text style={styles.premiumSub}>
-                {isPremium ? 'Thank you for holding this place up' : 'Unlimited reading, tuned to you'}
+                {isPremium ? 'Thank you for holding this place up' : 'Reading without the daily limit'}
               </Text>
             </View>
             <ScrawlIcon name="arrow_right" size={20} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
@@ -329,7 +329,7 @@ export default function YouScreen() {
               <Text style={styles.emptyCardHeading}>Say the one true thing</Text>
               <Text style={styles.emptyCardBody}>
                 You haven't written anything yet — someone out there is carrying
-                the exact same thing. This is where you'll watch it land.
+                something like it. This is where you'll watch it land.
               </Text>
               <View style={styles.emptyCardCta}>
                 <Text style={styles.emptyCardCtaText}>Write it now</Text>

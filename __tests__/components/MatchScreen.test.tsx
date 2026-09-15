@@ -8,12 +8,19 @@ jest.mock('@/components/Celebration', () => {
   };
 });
 
+// Records the props the screen hands the card, so the felt-count assertion
+// tests real data flow rather than a snapshot of a stub.
+const mockCardProps: Record<string, unknown>[] = [];
+
 jest.mock('@/components/ConfessionCard', () => {
   const React = require('react');
   const { View } = require('react-native');
   return {
     __esModule: true,
-    default: () => React.createElement(View, { testID: 'ConfessionCard' }),
+    default: (p: Record<string, unknown>) => {
+      mockCardProps.push(p);
+      return React.createElement(View, { testID: 'ConfessionCard' });
+    },
     WaveBackground: () => null,
   };
 });
@@ -39,12 +46,17 @@ jest.mock('@/lib/shareCard', () => ({
 jest.mock('@/theme/ThemeProvider', () => ({
   usePalette:      () => ({ name: 'test', you: '#F5996E', them: '#FBBF24', bands: ['#4C40A4'] }),
   useThemeColors:  () => ({ bg: '#0A0A0A', ink: '#141414', paper: '#F5F5F5', dim: '#888888', line: '#2A2A2A', border: '#3A3A3A', accent: '#9C8BF6', feltText: '#A3A3A3', youreNotAlone: '#606060' }),
+  // components/Buttons.tsx calls useTheme() for its shadow colour. Omitting it
+  // here made every test in this file die with "useTheme is not a function"
+  // before reaching a single assertion.
+  useTheme:        () => ({ isDark: true, theme: 'dark', setTheme: jest.fn(), colors: {} }),
 }));
 
 import React from 'react';
 import { render, fireEvent, act } from '@testing-library/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import MatchScreen from '../../app/match';
+import { PER_WRITE } from '@/lib/readAllowance';
 
 const mockBack    = router.back    as jest.Mock;
 const mockUseLocalSearchParams = useLocalSearchParams as jest.Mock;
@@ -87,7 +99,7 @@ describe('MatchScreen — no-match path', () => {
 
   it('shows the unlock hint text', async () => {
     const { getByText } = await render(<MatchScreen />);
-    expect(getByText('writing just unlocked 2 more reads')).toBeTruthy();
+    expect(getByText(new RegExp(`unlocked ${PER_WRITE} more reads`, 'i'))).toBeTruthy();
   });
 
   it('does NOT render report link', async () => {
@@ -130,7 +142,7 @@ describe('MatchScreen — match path', () => {
 
   it('shows the unlock hint text', async () => {
     const { getByText } = await render(<MatchScreen />);
-    expect(getByText('writing just unlocked 2 more reads')).toBeTruthy();
+    expect(getByText(new RegExp(`unlocked ${PER_WRITE} more reads`, 'i'))).toBeTruthy();
   });
 
   it('does NOT render report link', async () => {
@@ -148,5 +160,58 @@ describe('MatchScreen — match path', () => {
     const { getByText } = await render(<MatchScreen />);
     await act(async () => { fireEvent.press(getByText('Share this moment')); });
     expect(shareConfessionCard).toHaveBeenCalled();
+  });
+});
+
+/**
+ * What the match screen is allowed to say about the other confession.
+ *
+ * The server picked it by CATEGORY overlap and then ORDER BY random()
+ * (match_confession_by_category, owner decision 2026-09-13). The two texts
+ * were never compared. So this screen may show the confession and its felt
+ * count, and may say they wrote about the same thing — but it may not suggest
+ * the texts are alike, that this person is the closest, or that they felt what
+ * the reader felt.
+ */
+describe('MatchScreen — says nothing that implies the two texts are related', () => {
+  beforeEach(() => {
+    mockCardProps.length = 0;
+    mockUseLocalSearchParams.mockReturnValue(MATCH_PARAMS);
+  });
+
+  it('shows exactly one confession', async () => {
+    const { getAllByTestId } = await render(<MatchScreen />);
+    expect(getAllByTestId('ConfessionCard')).toHaveLength(1);
+  });
+
+  it('passes the felt count through to the card', async () => {
+    await render(<MatchScreen />);
+    expect(mockCardProps).toHaveLength(1);
+    expect(String(mockCardProps[0].feltCount)).toBe('42');
+  });
+
+  it('renders no similarity language', async () => {
+    const { toJSON } = await render(<MatchScreen />);
+    const rendered = JSON.stringify(toJSON());
+    for (const claim of [
+      /similar/i,
+      /the same ache/i,
+      /wrote the same thing/i,
+      /felt the same/i,
+      /closest/i,
+      /best match/i,
+      /exactly (this|the same)/i,
+    ]) {
+      expect([claim.source, claim.test(rendered)]).toEqual([claim.source, false]);
+    }
+  });
+
+  it('renders no upsell, plan or price on this screen', async () => {
+    // §6: never monetize the moment someone has just opened up.
+    const { toJSON } = await render(<MatchScreen />);
+    const rendered = JSON.stringify(toJSON());
+    for (const claim of [/premium/i, /subscribe/i, /upgrade/i, /₹|\$\d/]) {
+      expect([claim.source, claim.test(rendered)]).toEqual([claim.source, false]);
+    }
   });
 });

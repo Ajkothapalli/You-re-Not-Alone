@@ -1,12 +1,19 @@
 /**
- * Explore — personalized reading surface.
+ * Explore — the reading surface. The only one (CLAUDE.md invariant 2).
  *
- * Shows up to 10 confessions per batch, matched to the reader's chosen
- * categories, as a SCROLLABLE list of truncated preview cards (owner
- * decision 2026-09-12 — see CLAUDE.md invariant 2; this replaced the
- * previous one-card-at-a-time presentation). Tapping a card pushes
- * read-detail for the full text, the same drill-down the onboarding read
- * screen uses. No back button here: during D7 this IS the Read tab.
+ * Shows confessions whose CATEGORIES overlap the reader's chosen ones, as a
+ * SCROLLABLE list of truncated preview cards. Tapping a card pushes
+ * read-detail for the full text. No back button here: this IS the Read tab.
+ *
+ * Two stale claims removed from this comment on 2026-09-15, both superseded by
+ * the 2026-09-13 owner decisions: the fixed 10-per-batch cap is gone (the feed
+ * is however much matches the reader's categories), and "D7" no longer governs
+ * anything here — the intro window only decides whether the write PROMPT
+ * appears, never whether someone may read.
+ *
+ * Selection is by category overlap, not by similarity or taste. There is no
+ * embedding in this path and no ranking by closeness; copy on this screen must
+ * not imply otherwise.
  *
  * Still bounded, deliberately: the batch is capped, nothing loads on scroll,
  * and there is no refresh gesture. A reader inside their first 7 days (D7)
@@ -282,12 +289,14 @@ export default function ExploreScreen() {
         <FeedHeader />
         <View style={styles.endContent}>
           <Text style={styles.endHeading} accessibilityRole="header">Nothing here yet</Text>
-          {/* Should now be near-unreachable: the feed tops up from the curated
-              pool whenever real volume is thin, so an empty feed means the
-              reader's categories matched nothing at all. The premium branch is
-              gone — reading is never gated, so "you must pay" was never an
-              honest reason for an empty screen, and the copy that replaced it
-              ("come back soon") told paywalled readers something untrue. */}
+          {/* Should be near-unreachable: the feed tops up from the curated pool
+              whenever real volume is thin, so an empty feed means the reader's
+              categories matched nothing at all.
+              There is still no premium branch here, and that is deliberate even
+              though reading IS now capped (2026-09-13). A reader at their daily
+              limit is shown a CAP — the end-of-feed state above, naming the
+              number and what lifts it — never this empty state. "You must pay"
+              was never an honest reason to show someone nothing. */}
           <Text style={styles.endBody}>
             Add more reading categories — that will bring more in.
           </Text>
@@ -403,7 +412,7 @@ export default function ExploreScreen() {
                 ? 'Write one of your own to unlock ' + PER_WRITE + ' more right now, or come back tomorrow for another ' + DAILY_ALLOWANCE + '.'
                 : exhausted
                   ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
-                  : 'Come back later. New confessions are matched to your taste as they arrive.'}
+                  : 'Come back later. New confessions appear in your categories as people write them.'}
             </Text>
 
             {/* Deliberately quiet — loading more is a small continuation, not

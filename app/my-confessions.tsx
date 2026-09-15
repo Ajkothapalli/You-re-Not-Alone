@@ -242,7 +242,7 @@ export default function MyConfessionsScreen() {
               </View>
               <Text style={styles.emptyHeading}>Say the one true thing</Text>
               <Text style={styles.emptyText}>
-                Somewhere out there, someone is carrying the exact same thing —
+                Somewhere out there, someone is carrying something like it —
                 write it down, anonymously, and this is where you'll watch it land.
               </Text>
               <PrimaryButton

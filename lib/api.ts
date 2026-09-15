@@ -37,7 +37,13 @@ export function isAuthError(e: unknown): boolean {
 }
 
 // "submitted" = confession stored, no match found yet (first person to feel this)
-// "matched"   = a semantically close past confession was found
+// "matched"   = another confession sharing a category was shown. NOT a
+//               similarity match: match_confession_by_category() filters by
+//               overlapping category + language and then ORDER BY random().
+//               There is no score, no ranking, and nothing "closest" about it
+//               (owner decision 2026-09-13). match_confession(), the cosine
+//               version, still exists and is unused — do not describe this
+//               flow in its terms.
 // "blocked"   = moderation gate rejected the text
 // "crisis"    = crisis keywords detected — resources shown, nothing stored
 export type PipelineType = 'submitted' | 'matched' | 'blocked' | 'crisis';

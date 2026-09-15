@@ -302,12 +302,19 @@ describe('D7 launch route + the write gate it must not break (CLAUDE.md §2)', (
     expect(src).not.toContain('session.readShown');
   });
 
-  it('the write invite is a prompt after the intro window, never a gate', () => {
-    // It must be conditional on the window, and the feed must render
-    // regardless — reading is not withheld before or after 30 days.
+  it('the write invite is a prompt, never a gate', () => {
+    // Rewritten 2026-09-15. This used to assert `!withinIntro && <WriteInviteCard`,
+    // an implementation that no longer exists: the invite is now rendered
+    // unconditionally as a card in the feed, so the invariant holds MORE
+    // strongly than the old assertion could express. What still has to be true
+    // is that nothing withholds the feed behind writing.
     const src = read('app', 'explore.tsx');
-    expect(src).toContain('withinIntro');
-    expect(src).toMatch(/!withinIntro\s*&&\s*<WriteInviteCard/);
+    expect(src).toContain('<WriteInviteCard');
+    // The 30-day window must not gate this surface (owner decision 2026-09-13:
+    // it only decides whether the prompt appears, never whether someone reads).
+    expect(src).not.toContain('isWithinIntroWindow');
+    // And the old read-before-you-write gate stays gone.
+    expect(src).not.toContain('readShown');
   });
 
   it('the intro window is 30 days and fails open', () => {

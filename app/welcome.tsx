@@ -559,7 +559,7 @@ export default function WelcomeScreen() {
               )}
             </View>
             <Text style={s.tagline}>
-              Say the things you can't say out loud — and meet the one person who felt the same.
+              Say the things you can't say out loud — and meet someone who wrote about the same thing.
             </Text>
             <PrimaryButton label="Begin" onPress={() => goToPage(1)} />
           </View>
@@ -578,8 +578,9 @@ export default function WelcomeScreen() {
               <MiniCard />
             </View>
             <Text style={s.body}>
-              Explore what others have shared — free, no writing required.
-              When you're ready, one true thing finds you a real match.
+              Explore what others have shared — no writing required.
+              When you're ready, write one true thing and someone who wrote about
+              the same will find you.
             </Text>
           </View>
         </BeatSlide>

@@ -1,8 +1,17 @@
 /**
  * Match reveal — presented as a formSheet over the feed.
  *
- * noMatch === "1"  → first person to feel this; no paired confession.
- * noMatch === "0"  → paired match found; shows ConfessionCard.
+ * noMatch === "1"  → nobody else has written in this category yet; no second
+ *                    confession to show.
+ * noMatch === "0"  → another confession from a shared category; shows
+ *                    ConfessionCard.
+ *
+ * What "match" means here, so the copy on this screen stays honest: the server
+ * picks a confession that overlaps on CATEGORY and language, at random
+ * (match_confession_by_category, owner decision 2026-09-13). The two texts are
+ * not compared, scored, or ranked. Nothing on this screen may imply the two
+ * confessions are equivalent, or that this person is the closest one — only
+ * that they wrote about the same territory.
  *
  * Share flow: captureRef targets the off-screen StoryCard (360×640),
  * not the on-screen display card.
@@ -13,6 +22,7 @@ import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
 import { logReadEvent } from '@/lib/api';
+import { PER_WRITE } from '@/lib/readAllowance';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
@@ -90,12 +100,12 @@ export default function MatchScreen() {
           >
             <Text style={styles.heading} accessibilityRole="header">You're the first to feel this</Text>
             <Text style={styles.body}>
-              Your words are waiting. When someone else shares something similar, they'll find
-              you — and know they're not alone.
+              Your words are waiting. When someone else writes about the same thing,
+              yours is what they'll find.
             </Text>
             <View style={styles.actions}>
               <PrimaryButton label="Take me to feed" onPress={goToFeed} />
-              <Text style={styles.unlockHint}>Writing just unlocked 2 more reads</Text>
+              <Text style={styles.unlockHint}>Writing just unlocked {PER_WRITE} more reads</Text>
             </View>
           </ScrollView>
         )}
@@ -146,7 +156,7 @@ export default function MatchScreen() {
               onPress={handleShare}
               loading={sharing}
             />
-            <Text style={styles.unlockHint}>Writing just unlocked 2 more reads</Text>
+            <Text style={styles.unlockHint}>Writing just unlocked {PER_WRITE} more reads</Text>
             <GhostButton label="Take me to feed" onPress={goToFeed} />
           </View>
         </ScrollView>

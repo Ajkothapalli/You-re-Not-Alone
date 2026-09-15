@@ -69,7 +69,7 @@ const COPY: Record<RtueState, {
   },
   one: {
     hi:          'Someone felt this',
-    feltLabel:   'person felt exactly this',
+    feltLabel:   'person felt this',
     sub:         () => "one stranger, somewhere, a little less alone because you spoke. that's the whole point.",
     primary:     'say something new',
     primaryDest: '/write',

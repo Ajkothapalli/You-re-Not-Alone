@@ -18,6 +18,7 @@ import { showDialog } from '../components/AppDialog';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { PrimaryButton } from '../components/Buttons';
 import { getLocalPricing, type TierId } from '../lib/pricing';
+import { DAILY_ALLOWANCE, PER_WRITE } from '../lib/readAllowance';
 import {
   billingAvailable, getPackages, isUserCancelled, packageForTier, purchasePackage, restorePurchases,
 } from '../lib/purchases';
@@ -46,7 +47,7 @@ const TIER_META: { id: TierId; label: string; period: string; best?: boolean }[]
 
 const PERKS: { icon: ScrawlIconName; text: string }[] = [
   { icon: 'heart',     text: 'Unlimited reading across your categories' },
-  { icon: 'infinity',  text: 'Explore, tuned to what resonates with you' },
+  { icon: 'infinity',  text: 'Every confession in the categories you chose' },
   { icon: 'lock',      text: 'Funds human review & keeps crisis resources current' },
 ];
 
@@ -144,8 +145,9 @@ export default function PlansScreen() {
         </View>
         <Text style={styles.heading} accessibilityRole="header">Read every voice that matches yours</Text>
         <Text style={styles.sub}>
-          Your first reads are on us. Go deeper — unlimited confessions, tuned
-          to the categories you chose. Cancel anytime.
+          You get {DAILY_ALLOWANCE} reads a day, and writing one unlocks {PER_WRITE} more.
+          Premium lifts the daily limit entirely, across the categories you chose.
+          Cancel anytime.
         </Text>
 
         {/* Perks */}
@@ -208,9 +210,15 @@ export default function PlansScreen() {
           <Text style={styles.restore}>Restore purchases</Text>
         </Pressable>
 
+        {/* Names what premium does NOT buy. The 2026-09-13 decision let plans
+            buy READING VOLUME — knowingly overriding "supporting buys nothing
+            another user is denied" (CLAUDE.md §6) — so the remaining boundaries
+            have to be stated out loud rather than assumed. Writing, reporting,
+            the felt counter and the crisis path are never gated, for anyone. */}
         <Text style={styles.footnote}>
-          Billed through the app store. Cancel anytime. Reading never replaces
-          support — crisis resources are always free and never behind a plan.
+          Billed through the app store. Cancel anytime. Writing, reporting and the
+          felt counter are never behind a plan — and crisis resources are always
+          free, for everyone, always.
         </Text>
     </ScrollView>
   );
