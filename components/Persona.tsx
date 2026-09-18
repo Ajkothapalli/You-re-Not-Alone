@@ -16,6 +16,7 @@
  */
 
 import React from 'react';
+import { useThemeColors } from '../theme/ThemeProvider';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Rect } from 'react-native-svg';
 import { font, fontFamily, radius } from '../theme/tokens';
@@ -364,6 +365,10 @@ interface BadgeProps {
 
 export function PersonaBadge({ persona, size = 27, showName = true }: BadgeProps) {
   const [tint, skin, hair] = persona.colors;
+  // The badge ring was a hardcoded #1A1A1A, which vanishes against the dark
+  // card it sits on (#141414) everywhere a persona appears — feed cards, the
+  // You tab, the profile button. It follows the theme now.
+  const themeColor = useThemeColors();
   // 115% of badge — overflows and clips at the circle edge so the face fills it
   const glyph = Math.round(size * 1.15);
   return (
@@ -376,6 +381,7 @@ export function PersonaBadge({ persona, size = 27, showName = true }: BadgeProps
           {
             width:           size,
             height:          size,
+            borderColor:     themeColor.border,
             // 22% opacity tint — colour is identifiable but not vivid
             backgroundColor: tint + '38',
           },
@@ -404,7 +410,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow:       'hidden',
     borderWidth:    2,
-    borderColor:    '#1A1A1A',
   },
   name: {
     fontFamily:    fontFamily.sansBold,

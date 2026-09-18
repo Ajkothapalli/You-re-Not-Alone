@@ -44,8 +44,30 @@ function sourceFiles(): string[] {
  * the sanctioned replacement — the word "about" is load-bearing. It is the
  * difference between claiming two texts are equivalent and saying they share a
  * subject, which is the only thing the category filter actually establishes.
+ *
+ * Widened 2026-09-17 with the reciprocal-matching claims — "matches you",
+ * "matched to", "finds you", "will find you". Those are a different lie from
+ * the similarity ones and they survived the first sweep because the first
+ * sweep was not looking for them: the app told new readers someone "will find
+ * you" for months after matching became a random pick inside a category.
+ *
+ * There is no allowlist, deliberately. A comment explaining why a phrase is
+ * banned must not contain the phrase — it is the draft the next person copies.
  */
-const BANNED = /semantically|the exact person|same ache|wrote the same thing|one similar past confession/i;
+const BANNED = new RegExp([
+  'semantically',
+  'the exact person',
+  'same ache',
+  'wrote the same thing',
+  'one similar past confession',
+  'matches you',
+  'match(?:ed)? to',
+  'finds you',
+  'will find you',
+  // The write screen's submit button, until 2026-09-17. It is the same claim
+  // in the imperative: nothing here finds a person.
+  'find who feels',
+].join('|'), 'i');
 
 describe('no similarity claims anywhere in app/, lib/ or components/', () => {
   const files = sourceFiles();
@@ -78,8 +100,28 @@ describe('no similarity claims anywhere in app/, lib/ or components/', () => {
 describe('the sanctioned phrasing is actually in use', () => {
   // Guards the other direction: the ban above is satisfiable by deleting all
   // the copy. These assert the honest version survived.
-  it('welcome describes writing about the same thing, not writing the same thing', () => {
+  it('onboarding puts reading first and writing second', () => {
+    // Was "meet someone who wrote about the same thing" — a promise of
+    // reciprocity. The true framing is the one the store listing now uses:
+    // you choose, you read, and writing is an invitation, never a trade.
     const src = fs.readFileSync(path.join(ROOT, 'app', 'welcome.tsx'), 'utf8');
+    expect(src).toMatch(/Read the things people can't say out loud/);
+    expect(src).toMatch(/You choose what you want to read/);
+    expect(src).toMatch(/you can write one of your own/);
+  });
+
+  it('the write button names the act, not a person it will locate', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'app', 'write.tsx'), 'utf8');
+    expect(src).toMatch(/label="Let it out"/);
+  });
+
+  it('the paywall heading sells volume, not a better match', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'app', 'plans.tsx'), 'utf8');
+    expect(src).toMatch(/Read without the daily limit/);
+  });
+
+  it('the match screen still says the other person wrote ABOUT the same thing', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'app', 'match.tsx'), 'utf8');
     expect(src).toMatch(/wrote about the same/);
   });
 

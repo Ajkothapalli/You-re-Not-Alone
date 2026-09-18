@@ -28,7 +28,27 @@ const ThemeContext = createContext<ThemeContextValue>({
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [paletteIndex, setPaletteIndex] = useState(0);
-  const [theme,        setThemeState]   = useState<ThemeMode>('light');
+
+  /**
+   * null means "no explicit choice yet" — the app opens LIGHT.
+   *
+   * Owner decision 2026-09-18, superseding the 2026-09-17 "follow the OS"
+   * default set when the FTUE's Appearance beat was cut. Two reasons that
+   * default was wrong:
+   *
+   *   1. The product opens on paper. Light is the brand's resting state, and
+   *      a first launch should not depend on a setting made somewhere else.
+   *   2. It never actually followed the OS. app.json pinned
+   *      `userInterfaceStyle: "dark"`, which forces the native style and makes
+   *      useColorScheme() return 'dark' on EVERY device — so "follow the OS"
+   *      silently meant "always dark", for everyone. That pin is now "light";
+   *      changing it needs a native rebuild to take effect.
+   *
+   * The picker in the You tab is the only thing that sets this, and a stored
+   * choice always wins over the default.
+   */
+  const [chosen, setChosen] = useState<ThemeMode | null>(null);
+  const theme: ThemeMode    = chosen ?? 'light';
 
   useEffect(() => {
     (async () => {
@@ -40,10 +60,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         await AsyncStorage.setItem(OPEN_COUNT_KEY, String(next));
         setPaletteIndex((next - 1) % palettes.length);
 
-        // Theme preference
+        // Theme preference — absent leaves `chosen` null, i.e. the light default.
         const savedTheme = await AsyncStorage.getItem(THEME_KEY);
         if (savedTheme === 'dark' || savedTheme === 'light') {
-          setThemeState(savedTheme);
+          setChosen(savedTheme);
         }
       } catch {
         setPaletteIndex(0);
@@ -52,7 +72,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setTheme = useCallback(async (t: ThemeMode) => {
-    setThemeState(t);
+    setChosen(t);
     try { await AsyncStorage.setItem(THEME_KEY, t); } catch {}
   }, []);
 

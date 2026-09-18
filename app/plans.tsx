@@ -143,7 +143,11 @@ export default function PlansScreen() {
         <View style={styles.badge}>
           <Text style={styles.badgeText}>Premium</Text>
         </View>
-        <Text style={styles.heading} accessibilityRole="header">Read every voice that matches yours</Text>
+        {/* The old heading promised every voice that resembled the reader's
+            own. Nothing on this screen is chosen for anyone: premium buys
+            VOLUME (owner decision 2026-09-13), so the heading names the limit
+            it lifts and claims nothing else. */}
+        <Text style={styles.heading} accessibilityRole="header">Read without the daily limit</Text>
         <Text style={styles.sub}>
           You get {DAILY_ALLOWANCE} reads a day, and writing one unlocks {PER_WRITE} more.
           Premium lifts the daily limit entirely, across the categories you chose.

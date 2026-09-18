@@ -12,6 +12,9 @@ module.exports = {
       'expo-haptics',
       'expo-apple-authentication',
       'expo-speech-recognition',
+      // lib/dictation.ts imports it for the on-device recogniser's locale, so
+      // any suite touching the write screen loads it. Ships untranspiled ESM.
+      'expo-localization',
       'expo-sharing',
       'expo-font',
       'expo-status-bar',

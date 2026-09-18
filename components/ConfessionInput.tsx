@@ -33,10 +33,16 @@ interface Props extends Omit<TextInputProps, 'multiline' | 'style'> {
   onChangeText: (text: string) => void;
   maxChars?:    number;
   style?:       object;
+  /**
+   * Rendered in the footer row beside the emoji toggle. A slot rather than a
+   * dictation prop on purpose: this component knows about text and nothing
+   * else, and it should stay that way.
+   */
+  accessory?:   React.ReactNode;
 }
 
 export default function ConfessionInput({
-  value, onChangeText, maxChars = MAX_CHARS, style, ...rest
+  value, onChangeText, maxChars = MAX_CHARS, style, accessory, ...rest
 }: Props) {
   const palette      = usePalette();
   const color        = useThemeColors();
@@ -105,18 +111,21 @@ export default function ConfessionInput({
         accessibilityHint="Write what you can't say out loud. This stays private."
       />
 
-      {/* Footer: emoji picker toggle + character budget */}
+      {/* Footer: emoji picker toggle + accessory slot + character budget */}
       <View style={styles.footerRow}>
-        <Pressable
-          onPress={() => setPickerOpen(true)}
-          hitSlop={10}
-          style={styles.toggle}
-          accessibilityRole="button"
-          accessibilityLabel="Emoji picker"
-          accessibilityHint="Browse and insert any emoji into your confession"
-        >
-          <Text style={[styles.toggleFace, { color: color.dim }]}>☺</Text>
-        </Pressable>
+        <View style={styles.footerLeft}>
+          <Pressable
+            onPress={() => setPickerOpen(true)}
+            hitSlop={10}
+            style={styles.toggle}
+            accessibilityRole="button"
+            accessibilityLabel="Emoji picker"
+            accessibilityHint="Browse and insert any emoji into your confession"
+          >
+            <Text style={[styles.toggleFace, { color: color.dim }]}>☺</Text>
+          </Pressable>
+          {accessory}
+        </View>
         <Text
           style={[styles.counter, { color: counterColor }]}
           accessibilityLabel={`${remaining} characters remaining`}
@@ -175,6 +184,11 @@ function createStyles(color: ColorSet) {
       alignItems:     'center',
       justifyContent: 'space-between',
       marginTop:      8,
+    },
+    footerLeft: {
+      flexDirection: 'row',
+      alignItems:    'center',
+      gap:           10,
     },
     toggle: {
       width:          30,

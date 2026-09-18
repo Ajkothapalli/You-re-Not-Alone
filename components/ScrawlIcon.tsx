@@ -96,7 +96,25 @@ const ICON_DEFS: [string, string[]][] = [
   ['magnifier',    ['M20 6A14 14 0 1 0 20 34A14 14 0 1 0 20 6Z', 'M30 30L44 44']],
   ['lightbulb',    ['M18 44H30', 'M19 40H29', 'M24 8C16 8 10 14 10 22C10 28 14 34 18 36V40H30V36C34 34 38 28 38 22C38 14 32 8 24 8Z']],
   ['music_note',   ['M18 38A6 4 0 1 0 30 38A6 4 0 1 0 18 38Z', 'M30 38V14', 'M30 14C34 12 38 12 40 8C38 14 34 18 30 14Z']],
-  ['pencil',       ['M12 40L8 46L14 44L40 18L34 12L12 40Z', 'M34 12L40 6L44 10L40 18']],
+  // Redrawn 2026-09-17. The old path was one long thin barrel with a rounded
+  // cap and no interior detail, which at tab-bar size reads as a MICROPHONE on
+  // a stand — reported against the Write tab, the one place this icon appears
+  // small with nothing but its silhouette to go on.
+  //
+  // Now three separated shapes, which is what makes a pencil legible when it
+  // is 24px wide: a graphite tip, a shorter/wider barrel, and an eraser. Same
+  // 45° axis and the same 48×48 / 2.5-stroke house style.
+  //
+  // Sized to its neighbours in the tab bar, which is the constraint an icon in
+  // a ROW has and one drawn alone does not. The first redraw centred the shape
+  // but left it 26×26 inside the 48×48 box, against book at 38×36 and bell at
+  // 40×37 — so it read as correct but undersized. Now ~31 square, which on a
+  // 45° shape carries a ~44 diagonal and matches them by eye.
+  //
+  // Editing this entry's PATHS is safe; adding an ENTRY would not be.
+  // iconAtOffset() hashes modulo the pool size, so a 104th icon would re-roll
+  // the decorative icons on every card in the app.
+  ['pencil',       ['M8 40L10 28L20 38Z', 'M10 28L25 14L34 23L20 38Z', 'M25 14L31 8L40 17L34 23Z']],
   ['book',         ['M24 10V44', 'M6 8C6 8 16 10 24 14V44C16 40 6 42 6 42V8Z', 'M42 8C42 8 32 10 24 14V44C32 40 42 42 42 42V8Z']],
   ['pin',          ['M24 4C18 4 12 10 12 18C12 28 24 44 24 44C24 44 36 28 36 18C36 10 30 4 24 4Z', 'M24 13A5 5 0 1 0 24 23A5 5 0 1 0 24 13Z']],
   ['gift',         ['M6 22H42V44H6V22Z', 'M6 14H42V22H6V14Z', 'M24 14V44', 'M6 18H42', 'M24 14C24 14 20 10 20 8C20 6 22 4 24 6C26 4 28 6 28 8C28 10 24 14 24 14Z']],

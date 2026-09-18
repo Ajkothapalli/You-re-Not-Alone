@@ -17,7 +17,7 @@ import { GhostButton, PrimaryButton } from '@/components/Buttons';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
-import { EmptyBench } from '@/components/illustrations';
+import { EmptyBench, IllustrationGround } from '@/components/illustrations';
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
@@ -237,7 +237,9 @@ export default function MyConfessionsScreen() {
             <View style={styles.emptyCardInner}>
               <View style={{ width: '100%' }} onLayout={emptyBenchFit.onLayout}>
                 {emptyBenchFit.ready && (
-                  <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+                  <IllustrationGround style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }}>
+                    <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+                  </IllustrationGround>
                 )}
               </View>
               <Text style={styles.emptyHeading}>Say the one true thing</Text>

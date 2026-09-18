@@ -9,3 +9,4 @@ export { Unburdened } from './Unburdened';
 export { Writing } from './Writing';
 export { MoreWaiting } from './MoreWaiting';
 export { IllustrationCard } from './IllustrationCard';
+export { IllustrationGround } from './IllustrationGround';

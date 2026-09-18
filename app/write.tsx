@@ -1,4 +1,6 @@
 import ConfessionInput from '@/components/ConfessionInput';
+import MicButton from '@/components/MicButton';
+import { useDictation } from '@/lib/dictation';
 import { grantForWrite } from '@/lib/readAllowance';
 import ProfileButton from '@/components/ProfileButton';
 import { PrimaryButton } from '@/components/Buttons';
@@ -30,6 +32,11 @@ export default function WriteScreen() {
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading, setLoading]          = useState(false);
   const { prefillText }                = useLocalSearchParams<{ prefillText?: string }>();
+
+  // Dictation writes into the SAME draft state as the keyboard, so spoken text
+  // persists through the existing draft system with no parallel storage path,
+  // stays fully editable, and submits as the plain string it already was.
+  const dictation = useDictation({ value: draft, onChangeText: setDraft });
 
   useEffect(() => {
     // Read-before-write gate removed (owner decision 2026-09-13): reading is
@@ -110,15 +117,27 @@ export default function WriteScreen() {
       <ConfessionInput
         value={draft}
         onChangeText={setDraft}
-        placeholder="Write it here. It stays private."
+        placeholder="Write it here, or say it out loud. It stays private."
         autoFocus
         style={styles.inputArea}
+        accessory={
+          <MicButton
+            available={dictation.available}
+            listening={dictation.listening}
+            onStart={dictation.start}
+            onStop={dictation.stop}
+          />
+        }
       />
 
       {/* Footer */}
       <View style={styles.footer}>
+        {/* The old label promised the app would locate a person who felt this.
+            It locates nobody: the server picks a confession sharing a CATEGORY,
+            at random within it (owner decision 2026-09-13). The button names
+            the act, not a result it cannot promise. */}
         <PrimaryButton
-          label="Find who feels this"
+          label="Let it out"
           onPress={handleSubmit}
           loading={loading}
           disabled={draft.trim().length < MIN_CHARS}
@@ -126,7 +145,12 @@ export default function WriteScreen() {
         <View style={styles.privacyRow}>
           <ScrawlIcon name="lock" size={14} color={color.dim} roughen={false} />
           <Text style={styles.privacyNote}>
-            Your words never appear with your identity
+            {dictation.available
+              // Said plainly, and only where it applies. Someone deciding
+              // whether to speak their worst thing into a phone should not
+              // have to find this in a policy page.
+              ? 'Your words never appear with your identity. Your voice stays on this phone.'
+              : 'Your words never appear with your identity'}
           </Text>
         </View>
       </View>

@@ -14,7 +14,7 @@
     },
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "scheme": "soulyap",
     "ios": {
       "supportsTablet": true,
@@ -51,7 +51,17 @@
           "backgroundColor": "#0E0C13"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "soulyap uses the microphone only to turn what you say into text on this device. The recording is never saved, never uploaded, and never played back.",
+          "speechRecognitionPermission": "soulyap turns your speech into text on this device so you can say a confession instead of typing it. Nothing you say is sent anywhere.",
+          "androidSpeechServicePackages": [
+            "com.google.android.as"
+          ]
+        }
+      ]
     ],
     "extra": {
       "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",

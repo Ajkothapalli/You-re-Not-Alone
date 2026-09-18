@@ -99,9 +99,12 @@ export default function MatchScreen() {
             showsVerticalScrollIndicator={false}
           >
             <Text style={styles.heading} accessibilityRole="header">You're the first to feel this</Text>
+            {/* "yours is what they'll find" promised a reciprocal match this
+                app cannot make: the pool is picked from at random within a
+                category, so being in it is the whole of the claim. */}
             <Text style={styles.body}>
-              Your words are waiting. When someone else writes about the same thing,
-              yours is what they'll find.
+              Your words are in the pool now. When someone else writes about the
+              same thing, yours is one of the ones they could be shown.
             </Text>
             <View style={styles.actions}>
               <PrimaryButton label="Take me to feed" onPress={goToFeed} />

@@ -43,6 +43,9 @@ const LEFT_RATIO = 0.4111;         // split column from the asset (421/1024)
 const LEFT_W     = LOGO_SIZE * LEFT_RATIO;
 const RIGHT_W    = LOGO_SIZE * (1 - LEFT_RATIO);
 
+/** Keep in lockstep with app.json → plugins → expo-splash-screen → backgroundColor. */
+const NATIVE_SPLASH_BG = '#0E0C13';
+
 const LEFT_SRC   = require('../assets/splash-quote-left.png');
 const RIGHT_SRC  = require('../assets/splash-quote-right.png');
 
@@ -260,7 +263,13 @@ function createStyles(color: ColorSet) {
       right:           0,
       bottom:          0,
       left:            0,
-      backgroundColor: color.ink,
+      // Must equal app.json's expo-splash-screen backgroundColor. This read
+      // color.ink — #FFFFFF in light, #141414 in dark — so the handoff from
+      // the native splash (#0E0C13) flashed to a different colour in BOTH
+      // themes, hardest in light where it jumped near-black to white. The
+      // splash is one brand moment, deliberately the same in both themes; the
+      // two logo marks are transparent-backed and read against it either way.
+      backgroundColor: NATIVE_SPLASH_BG,
       alignItems:      'center',
       justifyContent:  'center',
       zIndex:          999,
@@ -276,15 +285,18 @@ function createStyles(color: ColorSet) {
       gap:        4,
       marginTop:  -44,
     },
+    // Fixed light type, not theme type: the splash ground is always
+    // NATIVE_SPLASH_BG. color.paper is #1A1A1A in light mode, which would put
+    // near-black wordmark on a near-black splash.
     wordmarkText: {
       fontFamily: fontFamily.sansBold,
       fontSize:   24,
-      color:      color.paper,
+      color:      '#F3EEE8',
     },
     subText: {
       fontFamily:    fontFamily.sans,
       fontSize:      12,
-      color:         color.dim,
+      color:         'rgba(243,238,232,0.62)',
       letterSpacing: 0.3,
     },
   });

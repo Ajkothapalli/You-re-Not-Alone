@@ -86,7 +86,7 @@ export default function AuthCallbackScreen() {
     // change would buy nothing and risks a replace loop.
   }, []);
 
-  // Pixel-matched to IndexScreen's 'loading' step so the handoff does not
+  // Pixel-identical to IndexScreen's 'loading' step so the handoff does not
   // flash a different screen. The old version showed a bare amber spinner on
   // an empty background — visibly NOT the app's loading splash, which is how
   // this route was identifiable in the wild.

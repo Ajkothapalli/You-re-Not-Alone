@@ -7,6 +7,8 @@
  */
 
 import ConfessionInput from '@/components/ConfessionInput';
+import MicButton from '@/components/MicButton';
+import { useDictation } from '@/lib/dictation';
 import { grantForWrite } from '@/lib/readAllowance';
 import { PrimaryButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
@@ -38,6 +40,11 @@ export default function WriteTabScreen() {
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading, setLoading]          = useState(false);
   const { prefillText }                = useLocalSearchParams<{ prefillText?: string }>();
+
+  // Same draft state the keyboard writes to — see lib/dictation.ts. Kept in
+  // step with app/write.tsx, which is the same screen reached without the tab
+  // bar; a mic that appeared on only one of the two would be worse than none.
+  const dictation = useDictation({ value: draft, onChangeText: setDraft });
 
   useEffect(() => {
     if (prefillText && !draft) setDraft(prefillText);
@@ -122,14 +129,25 @@ export default function WriteTabScreen() {
       <ConfessionInput
         value={draft}
         onChangeText={setDraft}
-        placeholder="Write it here. It stays private."
+        placeholder="Write it here, or say it out loud. It stays private."
         autoFocus={false}
         style={styles.inputArea}
+        accessory={
+          <MicButton
+            available={dictation.available}
+            listening={dictation.listening}
+            onStart={dictation.start}
+            onStop={dictation.stop}
+          />
+        }
       />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 90 }]}>
+        {/* The old label promised the app would locate a person who felt this.
+            It locates nobody: the server picks a confession sharing a CATEGORY,
+            at random within it (owner decision 2026-09-13). */}
         <PrimaryButton
-          label="Find who feels this"
+          label="Let it out"
           onPress={handleSubmit}
           loading={loading}
           disabled={draft.trim().length < MIN_CHARS}
@@ -137,7 +155,9 @@ export default function WriteTabScreen() {
         <View style={styles.privacyRow}>
           <ScrawlIcon name="lock" size={14} color={color.dim} roughen={false} />
           <Text style={styles.privacyNote}>
-            Your words never appear with your identity
+            {dictation.available
+              ? 'Your words never appear with your identity. Your voice stays on this phone.'
+              : 'Your words never appear with your identity'}
           </Text>
         </View>
       </View>

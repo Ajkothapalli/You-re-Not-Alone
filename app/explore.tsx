@@ -41,6 +41,7 @@ import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
 import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
+import { takePrimedFeed } from '@/lib/feedPrefetch';
 import { getDailyLimit, recordRead, DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
 import { checkPremium } from '@/lib/purchases';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
@@ -118,7 +119,13 @@ export default function ExploreScreen() {
       // reader forever, and it would quietly shrink the REAL pool — most
       // genuine confessions are short — leaning the feed harder on generated
       // ones, which is the opposite of letting AI content recede.
-      const { confessions: data } = await getRecommendations(false);
+      // The FTUE starts this exact request as its last act, so a reader
+      // arriving straight from onboarding lands on confessions rather than on
+      // a spinner (lib/feedPrefetch.ts). Null on every other entry to the
+      // feed, and null if that prefetch went stale or failed — in which case
+      // this fetches as it always has.
+      const primed = await takePrimedFeed();
+      const data   = primed ?? (await getRecommendations(false)).confessions;
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
     } catch (e) {

@@ -42,7 +42,9 @@ export default function BottomSheet({ children, title, onClose }: Props) {
           <View style={styles.header}>
             <Text style={styles.title}>{title}</Text>
             <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
-              <ScrawlIcon name="x_mark" size={18} color="#1A1A1A" roughen={false} strokeWidth={2.5} />
+              {/* The sheet is #17131F in BOTH themes, so a #1A1A1A close icon was
+                    dark-on-dark and effectively invisible — in light mode too. */}
+                <ScrawlIcon name="x_mark" size={18} color="#F3EEE8" roughen={false} strokeWidth={2.5} />
             </Pressable>
           </View>
         ) : null}

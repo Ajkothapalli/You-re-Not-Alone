@@ -21,7 +21,7 @@ import { evaluateRtue } from '@/lib/rtue';
 import { signInWithGoogle } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/withTimeout';
-import { Lantern } from '@/components/illustrations';
+import { Lantern, IllustrationGround } from '@/components/illustrations';
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
@@ -608,7 +608,9 @@ export default function IndexScreen() {
           {step === 'email' && (
             <View style={styles.illustrationWrap} onLayout={lanternFit.onLayout}>
               {lanternFit.ready && (
-                <Lantern style={{ width: lanternFit.width, height: lanternFit.height }} />
+                <IllustrationGround style={{ width: lanternFit.width, height: lanternFit.height }}>
+                  <Lantern style={{ width: lanternFit.width, height: lanternFit.height }} />
+                </IllustrationGround>
               )}
             </View>
           )}

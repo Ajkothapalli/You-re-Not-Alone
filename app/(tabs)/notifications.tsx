@@ -9,7 +9,7 @@
  * On focus: fetch notifications, mark all unread as read, clear badge.
  */
 
-import { NotificationsEmpty } from '@/components/illustrations';
+import { NotificationsEmpty, IllustrationGround } from '@/components/illustrations';
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { getNotifications, markNotificationsRead, type AppNotification } from '@/lib/notifications';
 import { useNotificationsContext } from '@/lib/notificationsContext';
@@ -152,7 +152,9 @@ function AlertsEmptyState() {
     <View style={emptyStyles.root}>
       <View style={{ width: '100%' }} onLayout={fit.onLayout}>
         {fit.ready && (
-          <NotificationsEmpty style={{ width: fit.width, height: fit.height }} />
+          <IllustrationGround style={{ width: fit.width, height: fit.height }}>
+            <NotificationsEmpty style={{ width: fit.width, height: fit.height }} />
+          </IllustrationGround>
         )}
       </View>
       <Text style={[emptyStyles.headline, { color: color.paper }]}>Still quiet</Text>

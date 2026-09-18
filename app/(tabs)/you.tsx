@@ -9,7 +9,7 @@
  * Edit re-runs the full safety pipeline — no bypass.
  */
 
-import { EmptyBench } from '@/components/illustrations';
+import { EmptyBench, IllustrationGround } from '@/components/illustrations';
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { GhostButton } from '@/components/Buttons';
 import { showDialog } from '@/components/AppDialog';
@@ -322,7 +322,9 @@ export default function YouScreen() {
           >
             <View style={{ width: '100%' }} onLayout={emptyBenchFit.onLayout}>
               {emptyBenchFit.ready && (
-                <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+                <IllustrationGround style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }}>
+                  <EmptyBench style={{ width: emptyBenchFit.width, height: emptyBenchFit.height }} />
+                </IllustrationGround>
               )}
             </View>
             <View style={styles.emptyCardText}>
