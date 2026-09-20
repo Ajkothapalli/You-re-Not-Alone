@@ -174,8 +174,34 @@ Before any public release: purge the test rows, set `ENVIRONMENT=production`,
 and rotate `AUTHOR_TOKEN_SECRET` — or complete the split.
 
 NOTE: `eas.json`'s inline `env` block overrides the EAS remote environment
-variables of the same name. Both currently agree; if the inline block is ever
-removed, check the remote values still point where you expect.
+variables of the same name **for BUILDS**. It does not apply to `eas update`.
+
+*Incident 2026-09-19.* This note used to say "both currently agree". They did
+not. `eas.json`'s production profile pointed at `sjywjerlqxwfniwqjojs` (the
+real production project) while the EAS remote `production` environment pointed
+at `tmpqadweifuwbmktbmzg` (closed testing). Builds were unaffected — the inline
+block won — so the drift was invisible and this note kept asserting agreement.
+
+It surfaced on the first OTA push: `eas update` prompts for an environment and
+resolves the REMOTE values, so publishing to the production channel would have
+inlined the closed-testing URL into the bundle and silently moved every updated
+install onto the wrong database. Nothing would have looked broken for a while.
+The remote values were corrected to match before publishing.
+
+Two things follow, and they are the point of this note:
+- `EXPO_PUBLIC_*` are inlined into the JS bundle at publish time. An OTA can
+  repoint the live app's backend. Treat the Supabase URL as part of the payload,
+  not as configuration that travels with the binary.
+- `.github/workflows/ota-update.yml` passes `secrets.EXPO_PUBLIC_SUPABASE_URL`
+  and `..._ANON_KEY`, and **neither secret exists on the repo** (`gh secret list`
+  shows only `EXPO_TOKEN` and `SEED_CRON_SECRET`). A missing secret interpolates
+  to an empty string, so that workflow would publish a bundle falling back to
+  `https://placeholder.supabase.co` — a dead app for everyone who updates. Add
+  both secrets before using it, or publish from a checkout with the values set
+  explicitly.
+
+Before trusting either path, check that `eas.json` build.production.env and
+`eas env:list production` name the same project.
 
 ### Stub rule (hard requirement)
 If `MODERATION_API_KEY` is not set in the Edge Function environment:
