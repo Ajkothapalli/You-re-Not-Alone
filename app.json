@@ -33,7 +33,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "me.soulyap.app",
-      "versionCode": 31
+      "versionCode": 32
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -61,7 +61,8 @@
             "com.google.android.as"
           ]
         }
-      ]
+      ],
+      "./plugins/withOptionalMicrophone"
     ],
     "extra": {
       "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",
