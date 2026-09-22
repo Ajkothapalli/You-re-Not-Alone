@@ -1,5 +1,6 @@
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { showToast } from '@/components/Toast';
+import { showDialog } from '@/components/AppDialog';
 import { supabase } from '@/lib/supabase';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import * as Linking from 'expo-linking';
@@ -38,25 +39,66 @@ export default function ContactScreen() {
   const [msg,     setMsg]     = useState('');
   const [sending, setSending] = useState(false);
 
+  /**
+   * Three outcomes, and the user is told which one happened.
+   *
+   * This used to announce "Message sent! We'll reply to your email." after the
+   * try/catch, unconditionally — so someone whose message reached neither the
+   * server nor their mail app was told it had arrived, and then the screen
+   * closed. On a support form for this app that is the worst available lie:
+   * the people who reach it are the ones something has already gone wrong for,
+   * and they would have had no reason to try again.
+   *
+   *   'sent'   — the edge function accepted it. It is durable at that point:
+   *              send-support-message writes to support_messages BEFORE
+   *              attempting email, so the record survives a Resend failure.
+   *   'mailto' — the function was unreachable and the mail app opened. NOT
+   *              sent: the user still has to press send there, so the copy
+   *              says so.
+   *   'failed' — neither worked. Say so, and show the address so the message
+   *              can be sent by hand rather than lost.
+   */
   async function handleSend() {
     setSending(true);
+    let outcome: 'sent' | 'mailto' | 'failed' = 'failed';
+
     try {
       const { error } = await supabase.functions.invoke('send-support-message', {
         body: { email: email.trim(), message: msg.trim() },
       });
       if (error) throw error;
+      outcome = 'sent';
     } catch {
-      // Edge function not yet deployed — fall back to mailto so nothing is lost
+      // Edge function unreachable or not deployed — hand off to the mail app.
+      // support@soulyap.com had no MX record, so the old fallback address
+      // swallowed everything (owner decision 2026-09-22).
       const subject = encodeURIComponent('Support — soulyap');
       const body    = encodeURIComponent(`From: ${email.trim()}\n\n${msg.trim()}`);
-      // support@soulyap.com had no MX record — every fallback mail bounced or
-      // vanished. Owner decision 2026-09-22: point at a real inbox until a
-      // support address on a domain that actually receives mail exists.
-      await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {});
+      const url     = `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`;
+      try {
+        await Linking.openURL(url);
+        outcome = 'mailto';
+      } catch {
+        outcome = 'failed';
+      }
     } finally {
       setSending(false);
     }
-    showToast('Message sent! We\'ll reply to your email.');
+
+    if (outcome === 'failed') {
+      showDialog(
+        "Couldn't send",
+        `Something went wrong reaching us. Please email ${SUPPORT_EMAIL} directly — ` +
+        'your message has not been sent.',
+      );
+      return; // stay on the screen so the text is not lost
+    }
+
+    showToast(
+      outcome === 'sent'
+        ? "Message sent. We'll reply to your email."
+        : 'Opening your email app — send it from there.',
+    );
     setTimeout(() => router.back(), 1200);
   }
 
