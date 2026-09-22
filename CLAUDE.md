@@ -226,12 +226,14 @@ Two things follow, and they are the point of this note:
   repoint the live app's backend. Treat the Supabase URL as part of the payload,
   not as configuration that travels with the binary.
 - `.github/workflows/ota-update.yml` passes `secrets.EXPO_PUBLIC_SUPABASE_URL`
-  and `..._ANON_KEY`, and **neither secret exists on the repo** (`gh secret list`
-  shows only `EXPO_TOKEN` and `SEED_CRON_SECRET`). A missing secret interpolates
-  to an empty string, so that workflow would publish a bundle falling back to
-  `https://placeholder.supabase.co` — a dead app for everyone who updates. Add
-  both secrets before using it, or publish from a checkout with the values set
-  explicitly.
+  and `..._ANON_KEY`. Both were **missing** until 2026-09-22 — `gh secret list`
+  showed only `EXPO_TOKEN` and `SEED_CRON_SECRET`. A missing secret interpolates
+  to an empty string, so running that workflow would have published a bundle
+  falling back to `https://placeholder.supabase.co`: a dead app for everyone who
+  updated, landing automatically with no store review to catch it. Both are now
+  set to the production project, so the workflow is the preferred path for
+  JS-only pushes. If either is ever rotated or removed, the failure is silent —
+  the workflow succeeds and ships a broken bundle.
 
 Before trusting either path, check that `eas.json` build.production.env and
 `eas env:list production` name the same project.
