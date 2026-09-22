@@ -173,6 +173,39 @@ Consequences to carry until the split happens, none of them hypothetical:
 Before any public release: purge the test rows, set `ENVIRONMENT=production`,
 and rotate `AUTHOR_TOKEN_SECRET` — or complete the split.
 
+**The production project's own config is a separate checklist from the code,
+and it has been wrong twice.** Because dev work all happens against
+`tmpqadweifuwbmktbmzg`, nothing ever exercises `sjywjerlqxwfniwqjojs` until
+real users hit it — so its gaps surface in production, not in testing.
+
+*Incident 2026-09-22 (versionCode 32).* Google sign-in was broken for every
+new user: after authenticating, Supabase redirected to `http://localhost:3000`
+and the browser showed ERR_CONNECTION_REFUSED. The Google provider WAS enabled;
+what was missing was the redirect allowlist. When Supabase receives a
+`redirectTo` it does not recognise, it silently falls back to the Site URL —
+which was still the default `http://localhost:3000`. The allowlist had been
+configured on the dev project months earlier and never on production.
+
+`lib/oauth.ts` had warned about exactly this in its header since it was
+written ("REDIRECT_URL must be added to Supabase Auth → URL Configuration →
+Allowed Redirect URLs before either provider will work in production"). The
+warning was correct and was read; what was missing was anything that checked
+it. Treat a code comment naming a dashboard setting as a to-do that nothing
+will remind you about.
+
+Verify on the PRODUCTION project before any release that changes auth:
+- Auth → URL Configuration → Redirect URLs contains `soulyap://auth` (what
+  `Linking.createURL('auth')` produces in a store build) and `soulyap://**`
+  for dev-client variants.
+- Site URL is a real URL, not `localhost` — it is the fallback for every
+  redirect mismatch, so localhost turns a misconfiguration into a dead page.
+- `curl -s -H "apikey: <anon>" https://<ref>.supabase.co/auth/v1/settings`
+  lists the enabled providers without needing dashboard access.
+
+**Apple sign-in is currently `false` on production.** Harmless on Android, but
+App Store review requires Sign in with Apple wherever Google is offered —
+enable it on `sjywjerlqxwfniwqjojs` before submitting iOS.
+
 NOTE: `eas.json`'s inline `env` block overrides the EAS remote environment
 variables of the same name **for BUILDS**. It does not apply to `eas update`.
 
