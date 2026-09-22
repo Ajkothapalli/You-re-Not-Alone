@@ -152,26 +152,45 @@ is a USER-FACING guarantee.
 
 ### Environments
 
-**One Supabase project serves every environment: `tmpqadweifuwbmktbmzg`**
-(ap-northeast-1). All three build profiles — `development`, `preview`,
-`production` — point at it.
+**Two Supabase projects (split completed; verified 2026-09-22):**
 
-*Owner decision 2026-09-13:* the environment split is DEFERRED on cost
-grounds, to be done before real users arrive. A migrated, empty production
-project exists at `sjywjerlqxwfniwqjojs` (ap-south-1, Mumbai — chosen for
-latency and the DPDP data-residency item) and is not referenced by any build.
+| Project | Region | Role | Used by |
+|---|---|---|---|
+| `sjywjerlqxwfniwqjojs` | ap-south-1 (Mumbai) | **PRODUCTION** | `production` build profile, the Play release, real users |
+| `tmpqadweifuwbmktbmzg` | ap-northeast-1 | dev / closed testing | `development` + `preview` profiles, local `.env`, the linked Supabase CLI |
 
-Consequences to carry until the split happens, none of them hypothetical:
-- The live database holds test confessions. A public release puts real users'
-  writing in the same table, and dev testing touches real user data.
-- `ENVIRONMENT=development` on the Edge Functions, so rate limits are the dev
-  values (500/hour, 1000/day) rather than 5/hour and 10/day. The moderation
-  gate is NOT affected — it fails closed in every environment (see below).
-- One `AUTHOR_TOKEN_SECRET` across dev and prod, so author tokens are
-  derivable across environments.
+The Mumbai region was chosen for latency and the DPDP data-residency item.
 
-Before any public release: purge the test rows, set `ENVIRONMENT=production`,
-and rotate `AUTHOR_TOKEN_SECRET` — or complete the split.
+*History, because the rest of this file was written under it:* the 2026-09-13
+owner decision DEFERRED this split on cost grounds, and this section used to
+read "One Supabase project serves every environment". That stopped being true
+and the file kept asserting it — which is how two production-config gaps
+shipped (see below). If a paragraph elsewhere assumes one project, it predates
+the split.
+
+*Verified against the live projects on 2026-09-22.*
+
+Production's Edge Function secrets were checked directly (`supabase secrets list`
+returns SHA-256 digests; candidate values were hashed and compared):
+- `ENVIRONMENT` = **production** — so rate limits are the tight ones,
+  5/hour and 10/day. NOT the 500/1000 dev values this section used to claim.
+- `MODERATION_API_KEY` — set and non-empty, i.e. not the empty string behind
+  the 2026-09-13 incident. The gate is live.
+- `AUTHOR_TOKEN_SECRET`, `OPENAI_API_KEY` — both set, and distinct from dev's.
+
+What is still true and still carried:
+- Dev work runs against `tmpqadweifuwbmktbmzg`, so the production project's
+  own CONFIG is exercised only by real users. Two gaps reached production
+  this way: the auth redirect allowlist (broke Google sign-in) and a missing
+  `RESEND_API_KEY` (support mail silently emailed nobody). Check the
+  production project's dashboard settings as part of any release that touches
+  auth, email, or secrets — the code being right is not the same as the
+  project being configured.
+- The DEV database still holds test confessions. That is now harmless to
+  users, but it means dev numbers are not real numbers.
+
+Still open before the next release: confirm nothing in the PRODUCTION
+database is seed/test data left from the migration.
 
 **The production project's own config is a separate checklist from the code,
 and it has been wrong twice.** Because dev work all happens against
