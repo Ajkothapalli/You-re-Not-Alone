@@ -64,16 +64,21 @@ serve(async (req) => {
           'Content-Type':  'application/json',
         },
         body: JSON.stringify({
-          // support@soulyap.com has no MX record, so every message sent here
-          // was accepted by Resend and then went nowhere. Owner decision
-          // 2026-09-22: deliver to a real inbox until a support address exists
-          // on a domain that receives mail.
+          // `from` was noreply@soulyap.com — a domain with no MX record and,
+          // as of 2026-09-22, not verified in Resend at all (the Domains tab
+          // is empty). Resend rejects any send from an unverified domain, so
+          // this failed regardless of the `to` address or the API key.
           //
-          // NOTE the `from` domain still has to be verified in Resend (SPF +
-          // DKIM). If soulyap.com is not verified there, Resend rejects the
-          // send regardless of the `to`, the app falls through to its mailto
-          // fallback, and the user is still told "Message sent".
-          from:    'soulyap support <noreply@soulyap.com>',
+          // onboarding@resend.dev is Resend's shared sender and needs no DNS.
+          // Its restriction — it may only deliver to the Resend account's own
+          // email — costs nothing here, because SUPPORT_EMAIL *is* that
+          // address. Nobody but the recipient ever sees this From line.
+          //
+          // To send from soulyap: add the domain in Resend (soulyap.me, the
+          // one that actually exists — NOT soulyap.com), publish the SPF/DKIM
+          // records it gives you, then set RESEND_FROM in the function
+          // secrets. No redeploy needed.
+          from:    Deno.env.get('RESEND_FROM') ?? 'soulyap support <onboarding@resend.dev>',
           to:      [SUPPORT_EMAIL],
           reply_to: email.trim(),
           subject: `Support request from ${email.trim()}`,
