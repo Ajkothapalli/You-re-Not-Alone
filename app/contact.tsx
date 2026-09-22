@@ -15,6 +15,20 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+/**
+ * Where support mail goes when the Edge Function path fails.
+ *
+ * Kept in sync with supabase/functions/send-support-message/index.ts, which is
+ * the PRIMARY route — this constant only matters when that function is
+ * unreachable or not deployed.
+ *
+ * Interim (owner decision 2026-09-22). A personal address in a shipped bundle
+ * is scrapeable, and this repo is public, so expect spam. Replace it with an
+ * address on a domain that actually receives mail — soulyap.com has no MX
+ * record, which is why the previous value silently swallowed every message.
+ */
+const SUPPORT_EMAIL = 'nani.ajay@gmail.com';
+
 export default function ContactScreen() {
   const color   = useThemeColors();
   const styles  = useMemo(() => createStyles(color), [color]);
@@ -35,7 +49,10 @@ export default function ContactScreen() {
       // Edge function not yet deployed — fall back to mailto so nothing is lost
       const subject = encodeURIComponent('Support — soulyap');
       const body    = encodeURIComponent(`From: ${email.trim()}\n\n${msg.trim()}`);
-      await Linking.openURL(`mailto:support@soulyap.com?subject=${subject}&body=${body}`).catch(() => {});
+      // support@soulyap.com had no MX record — every fallback mail bounced or
+      // vanished. Owner decision 2026-09-22: point at a real inbox until a
+      // support address on a domain that actually receives mail exists.
+      await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`).catch(() => {});
     } finally {
       setSending(false);
     }

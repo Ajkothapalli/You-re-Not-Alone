@@ -2,7 +2,11 @@
  * Edge Function: send-support-message
  *
  * Saves the support message to the support_messages table (service_role)
- * and forwards it to support@soulyap.com via Resend.
+ * and forwards it by email via Resend.
+ *
+ * The DB write is the durable record; the email is a convenience. If Resend
+ * is unconfigured or rejects the send, the message is still in
+ * support_messages — check there before assuming a report was lost.
  *
  * Required env vars:
  *   RESEND_API_KEY  — from resend.com dashboard
@@ -10,6 +14,9 @@
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+/** Overridable without a redeploy: set SUPPORT_EMAIL in the function secrets. */
+const SUPPORT_EMAIL = Deno.env.get('SUPPORT_EMAIL') ?? 'nani.ajay@gmail.com';
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -57,8 +64,17 @@ serve(async (req) => {
           'Content-Type':  'application/json',
         },
         body: JSON.stringify({
+          // support@soulyap.com has no MX record, so every message sent here
+          // was accepted by Resend and then went nowhere. Owner decision
+          // 2026-09-22: deliver to a real inbox until a support address exists
+          // on a domain that receives mail.
+          //
+          // NOTE the `from` domain still has to be verified in Resend (SPF +
+          // DKIM). If soulyap.com is not verified there, Resend rejects the
+          // send regardless of the `to`, the app falls through to its mailto
+          // fallback, and the user is still told "Message sent".
           from:    'soulyap support <noreply@soulyap.com>',
-          to:      ['support@soulyap.com'],
+          to:      [SUPPORT_EMAIL],
           reply_to: email.trim(),
           subject: `Support request from ${email.trim()}`,
           text:    `From: ${email.trim()}\nAccount: ${user.id}\n\n${message.trim()}`,

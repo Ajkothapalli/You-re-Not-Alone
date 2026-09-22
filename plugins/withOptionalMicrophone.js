@@ -24,6 +24,7 @@ const { withAndroidManifest } = require('expo/config-plugins');
 
 const FEATURE = 'android.hardware.microphone';
 
+/** @type {import('expo/config-plugins').ConfigPlugin} */
 module.exports = function withOptionalMicrophone(config) {
   return withAndroidManifest(config, (cfg) => {
     const manifest = cfg.modResults.manifest;
