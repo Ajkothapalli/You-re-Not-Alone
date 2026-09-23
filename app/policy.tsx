@@ -100,14 +100,40 @@ export default function PolicyScreen() {
           <Text style={styles.body}>
             {'• Your email address — used only to sign you in.\n'}
             {'• Your date of birth — verified once to confirm you are 18+, then used only for compliance.\n'}
-            {'• Confession text — submitted anonymously; never linked to your name or profile.'}
+            {'• Confession text — submitted anonymously; never linked to your name or profile.\n'}
+            {'• Voice recordings — only if you choose to record one instead of typing. Stored privately and played back exactly as you said it.'}
           </Text>
 
           <Text style={styles.section}>Your anonymity</Text>
           <Text style={styles.body}>
             Every confession carries a random persona, not your name or account. There are no
-            public profiles, no replies, and no direct messages. No one — including other users
-            or our team — can trace a confession back to you from what they see in the app.
+            public profiles, no replies, and no direct messages. Nothing we show alongside a
+            written confession can be traced back to you.
+          </Text>
+
+          {/* This section exists because the sentence above used to end "no one
+              can trace a confession back to you", full stop — which stopped
+              being true the moment raw voice shipped (owner decision
+              2026-09-23). A privacy policy that overstates anonymity is worse
+              than one that says nothing: it is the document someone relies on
+              when deciding whether it is safe to speak. */}
+          <Text style={styles.section}>Voice recordings</Text>
+          <Text style={styles.body}>
+            A recording is different, and you should decide about it differently.
+            {'\n\n'}
+            Your voice is not disguised or altered. People who know you may recognise it.
+            That is true however carefully we protect the file, because the thing that
+            identifies you is the recording itself.
+            {'\n\n'}
+            {'• Recordings are stored privately and are never public or shareable by link.\n'}
+            {'• Shared cards never include audio — only text.\n'}
+            {'• A written transcript is always shown, so your confession can be read without playing it.\n'}
+            {'• Deleting the confession, or your account, deletes the recording itself.\n'}
+            {'• We may keep a recording that has been reported, so a human can review it.'}
+            {'\n\n'}
+            Voice recordings may be treated as personal data of a sensitive kind under laws
+            including the GDPR and India's DPDP Act. You never have to record one — typing is
+            always available and is treated exactly the same everywhere else in the app.
           </Text>
 
           <Text style={styles.section}>What we don't do</Text>
@@ -120,7 +146,10 @@ export default function PolicyScreen() {
 
           <Text style={styles.section}>Deletion</Text>
           <Text style={styles.body}>
-            Deleting your account permanently removes or unlinks all confessions you submitted.
+            Deleting your account permanently removes or unlinks all confessions you submitted,
+            and deletes any voice recordings with them. If you choose to keep your confessions
+            in the pool but unlink them from you, recordings are deleted rather than kept —
+            a voice cannot be made anonymous.
             You can request full deletion from the Settings screen.
           </Text>
 

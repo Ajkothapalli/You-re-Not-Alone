@@ -1,6 +1,11 @@
 import ConfessionInput from '@/components/ConfessionInput';
 import MicButton from '@/components/MicButton';
+import VoiceComposer, { VoiceProgress } from '@/components/VoiceComposer';
+import VoiceConsentSheet from '@/components/VoiceConsentSheet';
 import { useDictation } from '@/lib/dictation';
+import { useVoiceRecorder } from '@/lib/voiceRecorder';
+import { acceptVoiceConsent, hasAcceptedVoiceConsent } from '@/lib/voiceConsent';
+import { submitVoiceConfession, type VoicePhase } from '@/lib/voiceSubmit';
 import { grantForWrite } from '@/lib/readAllowance';
 import ProfileButton from '@/components/ProfileButton';
 import { PrimaryButton } from '@/components/Buttons';
@@ -16,6 +21,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -37,6 +43,35 @@ export default function WriteScreen() {
   // persists through the existing draft system with no parallel storage path,
   // stays fully editable, and submits as the plain string it already was.
   const dictation = useDictation({ value: draft, onChangeText: setDraft });
+
+  // ── Voice mode ──────────────────────────────────────────────────────────────
+  // A confession is EITHER typed OR recorded (owner decision 2026-09-23), so
+  // this is a mode switch, not an extra affordance on the text field.
+  const recorder = useVoiceRecorder();
+  const [voiceMode,   setVoiceMode]   = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [phase,       setPhase]       = useState<VoicePhase | null>(null);
+  const [phasePct,    setPhasePct]    = useState(0);
+
+  /**
+   * Entering voice mode is gated on consent the FIRST time, every time it has
+   * not been given. The sheet is shown here — in the flow, before any recording
+   * — because that is the only moment the warning can still change a decision
+   * (CLAUDE.md invariant 3).
+   */
+  async function enterVoiceMode() {
+    if (await hasAcceptedVoiceConsent()) {
+      setVoiceMode(true);
+      return;
+    }
+    setConsentOpen(true);
+  }
+
+  function exitVoiceMode() {
+    recorder.discard();
+    setVoiceMode(false);
+    setDraft('');
+  }
 
   useEffect(() => {
     // Read-before-write gate removed (owner decision 2026-09-13): reading is
@@ -62,7 +97,21 @@ export default function WriteScreen() {
       const deviceHash = await getDeviceHash();
       const region = Intl.DateTimeFormat().resolvedOptions().timeZone.startsWith('Asia/Kolkata')
         ? 'IN' : 'US';
-      const result = await submitConfession(trimmed, deviceHash, region);
+
+      // Voice: the TEXT goes first and the audio only follows if it passes.
+      // submitVoiceConfession owns that order and deletes the local file on
+      // every exit — see lib/voiceSubmit.ts.
+      const rec = recorder.recording;
+      const result = (voiceMode && rec)
+        ? await submitVoiceConfession({
+            text:          trimmed,
+            rawTranscript: rec.transcript,
+            audioUri:      rec.uri,
+            deviceHash,
+            region,
+            onPhase: (p, pct) => { setPhase(p); setPhasePct(pct ?? 0); },
+          })
+        : await submitConfession(trimmed, deviceHash, region);
 
       if (result.type === 'crisis')  { router.push('/crisis'); return; }
       if (result.type === 'blocked') { analytics.blockedByModeration(result.blockReason); return; }
@@ -113,21 +162,60 @@ export default function WriteScreen() {
         <Text style={styles.prompt} accessibilityRole="header">What do you carry that you've never said out loud?</Text>
       </View>
 
-      {/* Input */}
-      <ConfessionInput
-        value={draft}
-        onChangeText={setDraft}
-        placeholder="Write it here, or say it out loud. It stays private."
-        autoFocus
-        style={styles.inputArea}
-        accessory={
-          <MicButton
-            available={dictation.available}
-            listening={dictation.listening}
-            onStart={dictation.start}
-            onStop={dictation.stop}
+      {/* Input — text OR voice, never both at once */}
+      {voiceMode ? (
+        <View style={styles.inputArea}>
+          <VoiceComposer
+            recorder={recorder}
+            value={draft}
+            onChangeText={setDraft}
+            onExit={exitVoiceMode}
+            disabled={loading}
           />
-        }
+        </View>
+      ) : (
+        <ConfessionInput
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="Write it here, or say it out loud. It stays private."
+          autoFocus
+          style={styles.inputArea}
+          accessory={
+            <MicButton
+              available={dictation.available}
+              listening={dictation.listening}
+              onStart={dictation.start}
+              onStop={dictation.stop}
+            />
+          }
+        />
+      )}
+
+      {/* Offered only when there is an on-device recogniser — absent, not
+          disabled, exactly as the dictation mic is (CLAUDE.md invariant 3's
+          consent gate is upstream of this in enterVoiceMode). */}
+      {!voiceMode && recorder.available && (
+        <Pressable
+          onPress={enterVoiceMode}
+          disabled={loading}
+          hitSlop={10}
+          style={{ alignSelf: 'center', paddingVertical: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Record your voice instead"
+          testID="switch-to-voice"
+        >
+          <Text style={styles.voiceSwitch}>Or record your voice</Text>
+        </Pressable>
+      )}
+
+      <VoiceConsentSheet
+        visible={consentOpen}
+        onAccept={async () => {
+          await acceptVoiceConsent();
+          setConsentOpen(false);
+          setVoiceMode(true);
+        }}
+        onCancel={() => setConsentOpen(false)}
       />
 
       {/* Footer */}
@@ -136,21 +224,35 @@ export default function WriteScreen() {
             It locates nobody: the server picks a confession sharing a CATEGORY,
             at random within it (owner decision 2026-09-13). The button names
             the act, not a result it cannot promise. */}
-        <PrimaryButton
-          label="Let it out"
-          onPress={handleSubmit}
-          loading={loading}
-          disabled={draft.trim().length < MIN_CHARS}
-        />
+        {loading && phase ? (
+          <VoiceProgress phase={phase} progress={phasePct} />
+        ) : null}
+        {/* Hidden mid-recording: there is nothing to post until the writer
+            stops, and a live submit button invites posting a half-sentence. */}
+        {recorder.state !== 'recording' && recorder.state !== 'stopping' && (
+          <PrimaryButton
+            label="Let it out"
+            onPress={handleSubmit}
+            loading={loading}
+            disabled={draft.trim().length < MIN_CHARS}
+          />
+        )}
         <View style={styles.privacyRow}>
           <ScrawlIcon name="lock" size={14} color={color.dim} roughen={false} />
+          {/* Three different truths, and saying the wrong one here would be
+              the worst place in the app to be wrong.
+
+              "Your voice stays on this phone" is TRUE of dictation — that
+              transcribes on-device and stores no audio. It is FALSE of a voice
+              confession, where the recording is uploaded and played, raw, by
+              strangers. Left unconditional, this line would have reassured
+              exactly the person the consent sheet exists to warn. */}
           <Text style={styles.privacyNote}>
-            {dictation.available
-              // Said plainly, and only where it applies. Someone deciding
-              // whether to speak their worst thing into a phone should not
-              // have to find this in a policy page.
-              ? 'Your words never appear with your identity. Your voice stays on this phone.'
-              : 'Your words never appear with your identity'}
+            {voiceMode
+              ? 'Your recording is shared as you said it. Your name is never attached.'
+              : dictation.available
+                ? 'Your words never appear with your identity. Dictation stays on this phone.'
+                : 'Your words never appear with your identity'}
           </Text>
         </View>
       </View>
@@ -201,6 +303,12 @@ function createStyles(color: ColorSet) {
       fontSize:   13,
       textAlign:  'center',
       color:      color.dim,
+    },
+    voiceSwitch: {
+      fontFamily:         fontFamily.sansBold,
+      fontSize:           13,
+      color:              color.dim,
+      textDecorationLine: 'underline',
     },
   });
 }

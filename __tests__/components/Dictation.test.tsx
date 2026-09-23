@@ -340,7 +340,16 @@ describe('no audio is stored, uploaded, or kept', () => {
     expect(JSON.stringify([text, ...rest])).not.toMatch(/file:\/\/|\.wav|\.m4a|\.caf|audio/i);
   });
 
-  it('nothing in the app uploads audio or names an audio bucket', () => {
+  it('DICTATION never uploads audio — only voice confessions may', () => {
+    // This assertion used to be blanket: no storage.from( and no audio file
+    // extensions anywhere in app/, lib/ or components/. That was correct when
+    // dictation was the only audio feature and nothing was ever stored.
+    //
+    // Voice confessions (owner decision 2026-09-23) deliberately DO upload, so
+    // a blanket ban would now be a test asserting the product does not do what
+    // it does. Re-scoped instead of deleted: exactly ONE module may touch the
+    // bucket, and the dictation path is not it. Dictation still produces text
+    // and nothing else.
     const root = path.join(__dirname, '..', '..');
     const walk = (p: string): string[] =>
       fs.readdirSync(p, { withFileTypes: true }).flatMap((e) => {
@@ -350,16 +359,36 @@ describe('no audio is stored, uploaded, or kept', () => {
       });
     const sources = ['app', 'lib', 'components'].flatMap(d => walk(path.join(root, d)));
 
+    // The only module permitted to reach the audio bucket.
+    const ALLOWED = ['lib/voiceSubmit.ts'];
+
     for (const file of sources) {
-      const src = fs.readFileSync(file, 'utf8');
       const rel = path.relative(root, file);
-      // storage.from(...) is how anything would reach Supabase storage; the
-      // audio extensions catch a file path taking any other route out.
+      if (ALLOWED.includes(rel)) continue;
+      const src = fs.readFileSync(file, 'utf8');
       expect([rel, /storage\s*\.\s*from\(/.test(src)]).toEqual([rel, false]);
-      expect([rel, /\.(wav|m4a|caf|mp3|aac)\b/i.test(src)]).toEqual([rel, false]);
     }
   });
-});
+
+  it('the dictation module itself stores nothing', () => {
+    // The specific guarantee dictation makes: recordingOptions is never passed,
+    // so persist stays at its false default and no file is ever written.
+    // Matches the PROPERTY (with its colon), not the word: the file's header
+    // explains at length that recordingOptions is never passed, and a guard
+    // that bans the explanation along with the thing is a guard that gets
+    // deleted the first time it is inconvenient.
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'lib', 'dictation.ts'), 'utf8');
+    expect(src).not.toMatch(/recordingOptions\s*:/);
+    expect(src).not.toMatch(/storage\s*\.\s*from\(/);
+  });
+
+  it('the voice recorder is the one that DOES persist, and only it', () => {
+    // Guards the other direction: if recordingOptions ever migrates into
+    // dictation.ts, the test above catches it; this one catches the recorder
+    // silently losing its file.
+    const src = fs.readFileSync(path.join(__dirname, '..', '..', 'lib', 'voiceRecorder.ts'), 'utf8');
+    expect(src).toMatch(/recordingOptions:\s*\{\s*persist:\s*true\s*\}/);
+  });});
 
 // ─── The pipeline is untouched ────────────────────────────────────────────────
 

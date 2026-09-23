@@ -50,6 +50,46 @@ async function hmacSha256(message: string, secret: string): Promise<string> {
     .join('');
 }
 
+/**
+ * Erase the actual recordings.
+ *
+ * The DSAR SQL functions clear the rows and hand back the keys; they cannot
+ * touch storage. CLAUDE.md invariant 3 promises erasure, and for raw voice an
+ * orphaned object is not a stale file — it is the person's voice, still on
+ * disk, after they asked for it to be gone.
+ *
+ * Failures are logged LOUDLY with the individual keys rather than swallowed:
+ * orphaned_confession_audio exists to surface exactly this, and somebody has to
+ * be able to find them. Account deletion still proceeds — refusing to delete an
+ * account because a file delete failed would trap the user the other way.
+ */
+async function eraseAudioObjects(keys: unknown): Promise<{ deleted: number; failed: string[] }> {
+  const list = Array.isArray(keys)
+    ? keys.filter((k): k is string => typeof k === 'string' && k.length > 0)
+    : [];
+  if (list.length === 0) return { deleted: 0, failed: [] };
+
+  const { data, error } = await supabase.storage.from('confession-audio').remove(list);
+
+  if (error) {
+    console.error(
+      '[delete-account] AUDIO ERASURE FAILED — recordings remain in the bucket after an ' +
+      'erasure request. Keys:', list.join(', '), '| Error:', error.message,
+    );
+    return { deleted: 0, failed: list };
+  }
+
+  const removed = Array.isArray(data) ? data.map((d: { name: string }) => d.name) : [];
+  const missed  = list.filter((k) => !removed.includes(k));
+  if (missed.length > 0) {
+    console.error(
+      '[delete-account] AUDIO ERASURE INCOMPLETE — storage did not confirm removal of:',
+      missed.join(', '),
+    );
+  }
+  return { deleted: removed.length, failed: missed };
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: CORS });
@@ -120,11 +160,17 @@ serve(async (req: Request) => {
         );
       }
 
+      // Anonymize STRIPS the audio (migration 20260923000002): a raw voice
+      // cannot be anonymised, so keeping it would give the user none of the
+      // protection they chose this option for.
+      const anonAudio = await eraseAudioObjects(counts?.deleted_audio_keys);
+
       return json({
         ok:                     true,
         mode:                   'anonymize',
         anonymized_confessions: counts?.anonymized_confessions ?? 0,
         deleted_devices:        counts?.deleted_devices        ?? 0,
+        deleted_audio:          anonAudio.deleted,
       });
 
     } else {
@@ -150,9 +196,13 @@ serve(async (req: Request) => {
         );
       }
 
+      // Erasure is not complete until the recordings are gone, not just the rows.
+      const eraseAudio = await eraseAudioObjects(counts?.deleted_audio_keys);
+
       return json({
         ok:                  true,
         mode:                'erase',
+        deleted_audio:       eraseAudio.deleted,
         deleted_confessions: counts?.deleted_confessions ?? 0,
         held_confessions:    counts?.held_confessions    ?? 0,
         deleted_matches:     counts?.deleted_matches     ?? 0,

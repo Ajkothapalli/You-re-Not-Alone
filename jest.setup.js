@@ -170,6 +170,47 @@ jest.mock('@/lib/supabase', () => {
   };
 });
 
+// expo-file-system
+//
+// lib/voiceSubmit.ts imports File for local-recording cleanup, so every suite
+// that reaches the write screen loads it. Ships untranspiled TS.
+//
+// The mock is a real in-memory filesystem rather than a set of jest.fn()s,
+// because the thing tests must be able to assert is whether the recording was
+// actually DELETED — "was delete() called" is weaker than "is the file gone",
+// and the guarantee here is that a voice recording does not outlive its
+// submission.
+const mockFs = new Map();
+jest.mock('expo-file-system', () => ({
+  File: class MockFile {
+    uri;
+    constructor(uri) { this.uri = typeof uri === 'string' ? uri : String(uri); }
+    get exists() { return mockFs.has(this.uri); }
+    delete() { mockFs.delete(this.uri); }
+    bytes() { return Promise.resolve(mockFs.get(this.uri) ?? new Uint8Array()); }
+  },
+  Paths: { cache: 'file:///cache', document: 'file:///documents' },
+  __mockFs: mockFs,
+}));
+
+// expo-audio
+//
+// Mocked rather than transformed: it pulls in expo-asset -> expo-constants ->
+// expo-modules-core, all untranspiled ESM, and adding each to
+// transformIgnorePatterns in turn is chasing a chain that will grow again. No
+// test here exercises real playback; the ones that care about audio assert on
+// what is UPLOADED and STORED, not on the player.
+jest.mock('expo-audio', () => ({
+  useAudioPlayer: () => ({
+    play:   jest.fn(),
+    pause:  jest.fn(),
+    seekTo: jest.fn(),
+    remove: jest.fn(),
+  }),
+  useAudioPlayerStatus: () => ({ playing: false, didJustFinish: false, currentTime: 0 }),
+  setAudioModeAsync: jest.fn().mockResolvedValue(undefined),
+}));
+
 // expo-font
 jest.mock('expo-font', () => ({
   useFonts: jest.fn(() => [true, null]),

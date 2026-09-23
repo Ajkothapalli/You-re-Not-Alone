@@ -8,7 +8,12 @@
 
 import ConfessionInput from '@/components/ConfessionInput';
 import MicButton from '@/components/MicButton';
+import VoiceComposer, { VoiceProgress } from '@/components/VoiceComposer';
+import VoiceConsentSheet from '@/components/VoiceConsentSheet';
 import { useDictation } from '@/lib/dictation';
+import { useVoiceRecorder } from '@/lib/voiceRecorder';
+import { acceptVoiceConsent, hasAcceptedVoiceConsent } from '@/lib/voiceConsent';
+import { submitVoiceConfession, type VoicePhase } from '@/lib/voiceSubmit';
 import { grantForWrite } from '@/lib/readAllowance';
 import { PrimaryButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
@@ -22,6 +27,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   View,
@@ -46,6 +52,26 @@ export default function WriteTabScreen() {
   // bar; a mic that appeared on only one of the two would be worse than none.
   const dictation = useDictation({ value: draft, onChangeText: setDraft });
 
+  // Voice mode. Kept identical to app/write.tsx on purpose — these two screens
+  // are near-duplicates and the dictation feature drifted between them within a
+  // day of being added to only one.
+  const recorder = useVoiceRecorder();
+  const [voiceMode,   setVoiceMode]   = useState(false);
+  const [consentOpen, setConsentOpen] = useState(false);
+  const [phase,       setPhase]       = useState<VoicePhase | null>(null);
+  const [phasePct,    setPhasePct]    = useState(0);
+
+  async function enterVoiceMode() {
+    if (await hasAcceptedVoiceConsent()) { setVoiceMode(true); return; }
+    setConsentOpen(true);
+  }
+
+  function exitVoiceMode() {
+    recorder.discard();
+    setVoiceMode(false);
+    setDraft('');
+  }
+
   useEffect(() => {
     if (prefillText && !draft) setDraft(prefillText);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,7 +88,17 @@ export default function WriteTabScreen() {
       const deviceHash = await getDeviceHash();
       const region = Intl.DateTimeFormat().resolvedOptions().timeZone.startsWith('Asia/Kolkata')
         ? 'IN' : 'US';
-      const result = await submitConfession(trimmed, deviceHash, region);
+      const rec = recorder.recording;
+      const result = (voiceMode && rec)
+        ? await submitVoiceConfession({
+            text:          trimmed,
+            rawTranscript: rec.transcript,
+            audioUri:      rec.uri,
+            deviceHash,
+            region,
+            onPhase: (p, pct) => { setPhase(p); setPhasePct(pct ?? 0); },
+          })
+        : await submitConfession(trimmed, deviceHash, region);
 
       if (result.type === 'crisis') { router.push('/crisis'); return; }
       if (result.type === 'blocked') {
@@ -126,38 +162,79 @@ export default function WriteTabScreen() {
         </Text>
       </View>
 
-      <ConfessionInput
-        value={draft}
-        onChangeText={setDraft}
-        placeholder="Write it here, or say it out loud. It stays private."
-        autoFocus={false}
-        style={styles.inputArea}
-        accessory={
-          <MicButton
-            available={dictation.available}
-            listening={dictation.listening}
-            onStart={dictation.start}
-            onStop={dictation.stop}
+      {voiceMode ? (
+        <View style={styles.inputArea}>
+          <VoiceComposer
+            recorder={recorder}
+            value={draft}
+            onChangeText={setDraft}
+            onExit={exitVoiceMode}
+            disabled={loading}
           />
-        }
+        </View>
+      ) : (
+        <ConfessionInput
+          value={draft}
+          onChangeText={setDraft}
+          placeholder="Write it here, or say it out loud. It stays private."
+          autoFocus={false}
+          style={styles.inputArea}
+          accessory={
+            <MicButton
+              available={dictation.available}
+              listening={dictation.listening}
+              onStart={dictation.start}
+              onStop={dictation.stop}
+            />
+          }
+        />
+      )}
+
+      {!voiceMode && recorder.available && (
+        <Pressable
+          onPress={enterVoiceMode}
+          disabled={loading}
+          hitSlop={10}
+          style={{ alignSelf: 'center', paddingVertical: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Record your voice instead"
+          testID="switch-to-voice"
+        >
+          <Text style={styles.voiceSwitch}>Or record your voice</Text>
+        </Pressable>
+      )}
+
+      <VoiceConsentSheet
+        visible={consentOpen}
+        onAccept={async () => {
+          await acceptVoiceConsent();
+          setConsentOpen(false);
+          setVoiceMode(true);
+        }}
+        onCancel={() => setConsentOpen(false)}
       />
 
       <View style={[styles.footer, { paddingBottom: insets.bottom + 90 }]}>
         {/* The old label promised the app would locate a person who felt this.
             It locates nobody: the server picks a confession sharing a CATEGORY,
             at random within it (owner decision 2026-09-13). */}
-        <PrimaryButton
-          label="Let it out"
-          onPress={handleSubmit}
-          loading={loading}
-          disabled={draft.trim().length < MIN_CHARS}
-        />
+        {loading && phase ? <VoiceProgress phase={phase} progress={phasePct} /> : null}
+        {recorder.state !== 'recording' && recorder.state !== 'stopping' && (
+          <PrimaryButton
+            label="Let it out"
+            onPress={handleSubmit}
+            loading={loading}
+            disabled={draft.trim().length < MIN_CHARS}
+          />
+        )}
         <View style={styles.privacyRow}>
           <ScrawlIcon name="lock" size={14} color={color.dim} roughen={false} />
           <Text style={styles.privacyNote}>
-            {dictation.available
-              ? 'Your words never appear with your identity. Your voice stays on this phone.'
-              : 'Your words never appear with your identity'}
+            {voiceMode
+              ? 'Your recording is shared as you said it. Your name is never attached.'
+              : dictation.available
+                ? 'Your words never appear with your identity. Dictation stays on this phone.'
+                : 'Your words never appear with your identity'}
           </Text>
         </View>
       </View>
@@ -195,6 +272,12 @@ function createStyles(color: ColorSet) {
       fontSize:   13,
       textAlign:  'center',
       color:      color.dim,
+    },
+    voiceSwitch: {
+      fontFamily:         fontFamily.sansBold,
+      fontSize:           13,
+      color:              color.dim,
+      textDecorationLine: 'underline',
     },
   });
 }

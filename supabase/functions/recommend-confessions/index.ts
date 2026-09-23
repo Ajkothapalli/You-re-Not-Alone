@@ -62,6 +62,8 @@ interface Candidate {
   categories: string[];
   created_at: string;
   distance:   number | null;
+  /** Non-null on voice confessions. The object KEY is never selected. */
+  audio_duration_ms: number | null;
   // 'user' | 'generated' | 'seed'. Drives the authenticity bonus in score():
   // real confessions outrank AI ones so generated content recedes on its own
   // as real volume arrives. Optional because older rows may predate the column.
@@ -332,11 +334,14 @@ serve(async (req: Request) => {
   const diverse = selectWithDiversity(explored, RETURN_N);
 
   // Strip internal scoring fields before returning (never return distance or score)
-  const result = diverse.map(({ id, text, felt_count, categories: cats }) => ({
+  const result = diverse.map(({ id, text, felt_count, categories: cats, audio_duration_ms }) => ({
     id,
     text,
     feltCount:  felt_count,
     categories: cats,
+    // Duration only — enough to render a play control and its length. The
+    // storage key stays server-side (CLAUDE.md invariant 3).
+    ...(audio_duration_ms ? { audioDurationMs: audio_duration_ms } : {}),
   }));
 
   return json({ confessions: result });

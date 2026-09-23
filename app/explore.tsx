@@ -42,6 +42,7 @@ import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
 import { takePrimedFeed } from '@/lib/feedPrefetch';
+import { stopAllPlayback } from '@/lib/audioPlayback';
 import { getDailyLimit, recordRead, DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
 import { checkPremium } from '@/lib/purchases';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
@@ -53,6 +54,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   FlatList,
   Pressable,
   StyleSheet,
@@ -92,7 +94,20 @@ export default function ExploreScreen() {
   // Rotate icons each time the user navigates back to this screen
   useFocusEffect(useCallback(() => {
     setIconSession(Math.floor(Math.random() * 102));
+    // Leaving the feed stops any voice mid-sentence. A recording that keeps
+    // playing after the reader has navigated away is playing to nobody, out
+    // loud, wherever they happen to be.
+    return () => stopAllPlayback();
   }, []));
+
+  // Backgrounding does the same. Nothing of this app should be audible once it
+  // is not on screen.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') stopAllPlayback();
+    });
+    return () => sub.remove();
+  }, []);
 
   // Session-scoped id sets. shownIds keeps "keep reading" batches from
   // repeating; the other two make sure each read signal fires at most once
@@ -360,6 +375,8 @@ export default function ExploreScreen() {
           <ReadCard
             text={item.text}
             feltCount={item.feltCount}
+            confessionId={item.id}
+            audioDurationMs={item.audioDurationMs}
             palette={palettes[index % palettes.length]}
             personaSeed={item.id}
             onReport={() => handleReport(item.id)}

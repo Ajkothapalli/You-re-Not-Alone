@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
 import { HeartIcon } from './HeartIcon';
 import { getPersona, PersonaBadge } from './Persona';
+import VoicePlayButton from './VoicePlayButton';
 import { ScrawlIcon, iconAtOffset } from './ScrawlIcon';
 import type { Palette } from '../theme/palettes';
 import { useTheme } from '../theme/ThemeProvider';
@@ -15,6 +16,9 @@ const SHADOW = 5;
 interface Props {
   text:               string;
   feltCount:          number;
+  /** Set only for voice confessions. The transcript above always renders. */
+  confessionId?:      string;
+  audioDurationMs?:   number;
   palette:            Palette;
   onReport:           () => void;
   onPress?:           () => void;
@@ -64,7 +68,7 @@ function TickChar({ char, isChanged, felt, reduceMotion, style }: {
 
 const MAX_LINES = 6;
 
-export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0 }: Props) {
+export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0, confessionId, audioDurationMs }: Props) {
   const { colors: color, isDark } = useTheme();
   const styles = useMemo(() => createStyles(color), [color]);
 
@@ -187,6 +191,18 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
               {isTruncated && onPress && (
                 <Text style={styles.readMore}>read more</Text>
               )}
+
+              {/* BELOW the text, never in place of it. A reader who cannot play
+                  sound — deaf, hard of hearing, no headphones, dead battery —
+                  still has the entire confession. */}
+              {confessionId && audioDurationMs ? (
+                <View style={{ marginTop: 10 }}>
+                  <VoicePlayButton
+                    confessionId={confessionId}
+                    durationMs={audioDurationMs}
+                  />
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.spacer} />

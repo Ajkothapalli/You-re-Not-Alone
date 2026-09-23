@@ -75,18 +75,33 @@ export interface SubmitResult {
  * @param deviceHash — stable per-install hash from lib/deviceHash.ts
  * @param region     — coarse hint for crisis resources (e.g. "IN", "US")
  */
+/**
+ * Voice fields (owner decision 2026-09-23).
+ *
+ * `rawTranscript` is what the recogniser heard, BEFORE the writer edited it.
+ * The server classifies both it and `text`, and either flagging blocks the
+ * post — otherwise someone could say something the gate rejects, delete it
+ * from the transcript, and publish the recording of themselves saying it.
+ * Sending it is therefore not optional for a voice confession.
+ */
+export interface VoicePayload {
+  rawTranscript:   string;
+  audioDurationMs: number;
+}
+
 export async function submitConfession(
   text:        string,
   deviceHash:  string,
   region?:     string,
   authorship?: AuthorshipPayload,
+  voice?:      VoicePayload,
 ): Promise<SubmitResult> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
   const { data, error } = await supabase.functions.invoke<SubmitResult>(
     'submit-confession',
-    { body: { text, deviceHash, region, authorship } },
+    { body: { text, deviceHash, region, authorship, ...(voice ?? {}) } },
   );
 
   if (error) {
@@ -297,6 +312,13 @@ export interface Recommendation {
   text:       string;
   feltCount:  number;
   categories: string[];
+  /**
+   * Present when this confession has a recording. The object KEY is never sent
+   * — it is revoked at column level and absent from confessions_public
+   * (CLAUDE.md invariant 3) — so the card learns only that audio exists and how
+   * long it is. Playback fetches a short-lived signed URL separately.
+   */
+  audioDurationMs?: number;
 }
 
 export interface RecommendationsResult {

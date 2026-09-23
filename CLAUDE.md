@@ -87,6 +87,54 @@
    stay unlinked forever; seeds keep `account_id NULL`. Account deletion must
    erase or permanently unlink (`account_id NULL`) the user's confessions.
 
+   **VOICE CONFESSIONS ARE RAW, UNMODULATED AUDIO (owner decision 2026-09-23).
+   This knowingly breaks "no user can ever tie a confession to a person."**
+
+   A voice is recognisable. Anyone who knows the writer — family, colleagues,
+   a partner — can identify them from a recording, and no amount of random
+   persona assignment changes that. This is not a leak that a column REVOKE or
+   a view definition can close: the identifying information IS the content.
+   Pitch/formant modulation was considered and rejected by the owner; audio
+   ships as recorded.
+
+   Read that against the threat model's "Another user links author→confession"
+   row, which this decision partially defeats, and against the population this
+   app exists for. The worst case is specific and foreseeable: someone
+   confessing about an abusive partner, and the partner recognising the voice
+   in the feed. Every other anonymity control is intact; this one is a hole
+   opened on purpose.
+
+   What the decision does NOT license, and what must hold in code:
+   - The writer is told, in the flow and before the first recording, in these
+     words: **"People who know you may recognise your voice."** Explicit
+     acknowledgement, persisted, no pre-tick, not behind a "Learn more", and
+     the wording is not to be softened. It is the only thing standing between
+     a writer and a consequence they cannot undo.
+   - Typing stays a first-class choice, never a fallback. A confession is
+     EITHER typed OR recorded.
+   - The audio object key is random and derivable from nothing user-identifying
+     — not `account_id`, not `author_token`. Same REVOKE discipline as
+     `account_id`; never in `confessions_public`.
+   - Private bucket, RLS on, short-lived signed URLs only. A permanent public
+     URL makes a recognisable voice hotlinkable off-platform forever.
+   - Share cards NEVER carry audio (`lib/shareCard.ts`).
+   - Deletion means the OBJECT is deleted, not just the row. An orphaned
+     recording in a bucket is not erasure, and erasure is what this invariant
+     promises.
+   - Crisis submissions upload nothing and delete the local file immediately.
+
+   **KNOWN GAP, stated plainly because it cannot be engineered away here:**
+   the safety gate classifies TEXT. Moderation reads the transcript, so
+   audio-only signals — a third party's voice in the background, tone,
+   distress, sounds, anything said that the recogniser did not capture — are
+   NEVER classified. Reporting and human review are the only controls covering
+   that content. Do not describe voice confessions as "moderated" without this
+   qualification.
+
+   Voice recordings are biometric-adjacent personal data under GDPR and the
+   DPDP Act. The compliance checklist below is not optional for this feature:
+   retention, deletion and the Play Data Safety audio declaration all change.
+
 4. **Adults only.** Age gate (18+) enforced server-side. CSAM detection, reporting
    (NCMEC hook), and human review stay on permanently in all environments.
 
@@ -123,7 +171,9 @@
 | Threat | Mitigation |
 |---|---|
 | Client tampers with pipeline order | Pipeline runs 100% server-side; client cannot call steps individually |
-| Another user links author→confession | account_id never in any client payload or view; random per-confession personas; no profiles, replies, or author pages |
+| Another user links author→confession | account_id never in any client payload or view; random per-confession personas; no profiles, replies, or author pages. **PARTIALLY DEFEATED for voice confessions (owner decision 2026-09-23): raw audio is recognisable to anyone who knows the writer. Mitigated only by mandatory pre-recording consent — see invariant 3.** |
+| Audio-only harmful content | **NOT MITIGATED by the safety gate.** Moderation classifies the transcript, so background voices, tone and uncaptured speech are never scanned. Reporting + human review only. |
+| Voice recording leaves the platform | Private bucket, RLS, short-lived signed URLs; random object keys; audio never attached to share cards |
 | Mod or crisis step bypassed | Steps 2+3 are hard early-returns; STORE is code-unreachable if either fires |
 | Dev bypass via missing key | Stub BLOCKS (never passes) when MODERATION_API_KEY is absent |
 | Leaked service-role key | Service role stays in Edge Function runtime only |

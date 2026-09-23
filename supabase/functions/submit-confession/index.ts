@@ -1125,7 +1125,14 @@ serve(async (req: Request) => {
     }
 
     // ── Input validation ──────────────────────────────────────────────────────
-    let body: { text?: string; region?: string; deviceHash?: string; authorship?: AuthorshipPayload };
+    let body: {
+      text?: string; region?: string; deviceHash?: string; authorship?: AuthorshipPayload;
+      // Voice confessions (owner decision 2026-09-23). The writer may edit the
+      // transcript before posting, so the ORIGINAL recogniser output is sent
+      // alongside the edited text and both are classified — see [2].
+      rawTranscript?: string;
+      audioDurationMs?: number;
+    };
     try {
       body = await req.json();
     } catch {
@@ -1136,6 +1143,25 @@ serve(async (req: Request) => {
     if (rawText.length < 10)   return json({ error: 'Confession is too short.' }, 400);
     if (rawText.length > 2000) return json({ error: 'Confession is too long (max 2000 characters).' }, 400);
     const region = body.region ?? 'IN';
+
+    // ── Voice submission shape ────────────────────────────────────────────────
+    // `isVoice` decides whether this request may later attach audio. It is
+    // derived from the presence of a transcript + duration, never from a client
+    // flag that could be set on a text post to unlock the upload path.
+    const rawTranscript   = body.rawTranscript?.trim() ?? '';
+    const audioDurationMs = Number.isFinite(body.audioDurationMs) ? Number(body.audioDurationMs) : 0;
+    const isVoice         = rawTranscript.length > 0 && audioDurationMs > 0;
+
+    if (isVoice) {
+      // The DB CHECK enforces this too; rejecting here means a bad client gets
+      // a clear error instead of a constraint violation.
+      if (audioDurationMs > 180_000) {
+        return json({ error: 'Recording is too long (max 3 minutes).' }, 400);
+      }
+      if (rawTranscript.length > 4000) {
+        return json({ error: 'Transcript is too long.' }, 400);
+      }
+    }
 
     // ── [1] Rate limit ────────────────────────────────────────────────────────
     const serverHash = await computeDeviceHash(user.id, req);
@@ -1150,7 +1176,34 @@ serve(async (req: Request) => {
     // runModeration() throws on API failure AND on a missing key, in every
     // environment (fail closed) — nothing below this line runs unless the
     // submission was actually classified.
+    //
+    // VOICE: the writer edits the transcript before posting, so classifying the
+    // edited text alone would let anyone say something the gate blocks, delete
+    // it from the transcript, and post the recording of themselves saying it.
+    // The audio is canonical — it is what other people hear — so BOTH the
+    // edited text and the ORIGINAL recogniser output are classified, and either
+    // one flagging blocks the whole submission.
+    //
+    // This cannot close the gap fully and must not be described as if it does:
+    // the recogniser only produces what it heard and understood. Background
+    // voices, tone, and anything it failed to transcribe are never classified
+    // at all. Reporting and human review are the only controls on that
+    // (CLAUDE.md invariant 3, "KNOWN GAP").
     const modResult = await runModeration(rawText);
+
+    if (modResult.pass && isVoice && rawTranscript !== rawText) {
+      const transcriptMod = await runModeration(rawTranscript);
+      if (!transcriptMod.pass) {
+        if (transcriptMod.csam) {
+          await reportCsam();
+          return json({ error: 'This content cannot be submitted.' }, 400);
+        }
+        return json({
+          type:        'blocked',
+          blockReason: transcriptMod.reason ?? 'policy_violation',
+        });
+      }
+    }
 
     if (!modResult.pass) {
       if (modResult.csam) {
@@ -1166,9 +1219,18 @@ serve(async (req: Request) => {
 
     // ── [3] CRISIS CHECK ──────────────────────────────────────────────────────
     // Hard early-return: if crisis fires, STORE/MATCH/RETURN are code-unreachable.
+    //
+    // Checked against the raw transcript as well, for the same reason as
+    // moderation: someone can say the thing out loud, edit it out of the
+    // transcript, and post the recording. The crisis path is the one where
+    // getting this wrong means a person in danger is handed a confession card
+    // instead of resources.
     const crisisResult = await runCrisisCheck(rawText);
+    const transcriptCrisis = (!crisisResult.crisis && isVoice && rawTranscript !== rawText)
+      ? await runCrisisCheck(rawTranscript)
+      : { crisis: false };
 
-    if (crisisResult.crisis) {
+    if (crisisResult.crisis || transcriptCrisis.crisis) {
       // Store for human review (no account_id — see CLAUDE.md)
       await supabase.from('crisis_events').insert({ text: rawText, reviewed: false });
 

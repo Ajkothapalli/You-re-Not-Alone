@@ -149,6 +149,52 @@ serve(async (req: Request) => {
     return json({ error: 'Failed to retire confession.' }, 500);
   }
 
+  // ── Erase the recording ───────────────────────────────────────────────────────
+  // "Retire" is what the DELETE button in the You tab calls. Whatever it is
+  // named internally, the user pressed Delete — and a raw voice recording that
+  // survives that is the promise in CLAUDE.md invariant 3 broken in the most
+  // literal way available. A retired row is also unplayable forever
+  // (get-audio-url signs only for live/approved), so the object is both a
+  // retained voice and dead weight.
+  //
+  // EXCEPT under an active report: that recording is the evidence a human
+  // reviewer needs, and audio-only harm is exactly what the text gate cannot
+  // see. Same carve-out as the legal hold in dsar_delete_author_data, and the
+  // row is already out of the pool either way.
+  const { count: reportCount } = await supabase
+    .from('reports')
+    .select('id', { count: 'exact', head: true })
+    .eq('confession_id', confessionId);
+
+  let audioDeleted = false;
+
+  if ((reportCount ?? 0) === 0) {
+    const { data: key, error: keyErr } = await supabase.rpc('take_confession_audio_key', {
+      p_confession_id: confessionId,
+      p_account_id:    user.id,
+    });
+
+    if (keyErr) {
+      console.error('[manage-confession] could not take audio key:', keyErr.message);
+    } else if (typeof key === 'string' && key.length > 0) {
+      const { error: rmErr } = await supabase.storage.from('confession-audio').remove([key]);
+      if (rmErr) {
+        // Loud, and names the key: the row no longer references it, so this is
+        // now an orphan and orphaned_confession_audio is how it gets found.
+        console.error(
+          '[manage-confession] AUDIO ERASURE FAILED — recording remains after delete. Key:',
+          key, '| Error:', rmErr.message,
+        );
+      } else {
+        audioDeleted = true;
+      }
+    }
+  } else {
+    console.log(
+      '[manage-confession] audio retained under active report, confession_id:', confessionId,
+    );
+  }
+
   console.log('[manage-confession] retired confession_id:', confessionId);
-  return json({ ok: true });
+  return json({ ok: true, audio_deleted: audioDeleted });
 });

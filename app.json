@@ -62,7 +62,8 @@
           ]
         }
       ],
-      "./plugins/withOptionalMicrophone"
+      "./plugins/withOptionalMicrophone",
+      "expo-audio"
     ],
     "extra": {
       "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",
