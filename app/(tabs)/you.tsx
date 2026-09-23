@@ -19,6 +19,7 @@ import { clearProfile, getProfile, setProfileName, setProfilePersona } from '@/l
 import { usePremium } from '@/lib/premiumContext';
 import { billingAvailable, restorePurchases } from '@/lib/purchases';
 import { supabase } from '@/lib/supabase';
+import { clearAudioUrlCache } from '@/lib/audioPlayback';
 import { useTheme } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import Constants from 'expo-constants';
@@ -116,6 +117,10 @@ export default function YouScreen() {
   }
 
   async function handleSignOut() {
+    // Signed playback urls live in memory and stay valid for their TTL. Leaving
+    // them resolvable after sign-out would mean the next person on this device
+    // could still reach recordings the previous account was listening to.
+    clearAudioUrlCache();
     await supabase.auth.signOut();
     router.replace('/');
   }
@@ -178,6 +183,9 @@ export default function YouScreen() {
     setDeleting(true);
     try {
       await deleteAccount(mode);
+      // The account is gone and its recordings with it; any signed url still
+      // held in memory would outlive the erasure it was just promised.
+      clearAudioUrlCache();
       await clearProfile();
       router.replace('/');
     } catch {

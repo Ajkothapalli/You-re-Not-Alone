@@ -205,6 +205,46 @@ describe('nothing autoplays', () => {
   });
 });
 
+describe('signed urls do not outlive the session', () => {
+  it('sign-out clears the url cache', () => {
+    // Signed playback urls live in memory for their TTL. Left resolvable after
+    // sign-out, the next person on the device could still reach recordings the
+    // previous account had been listening to. clearAudioUrlCache existed for
+    // this and was called from nowhere until 2026-09-23.
+    for (const f of [['app', '(tabs)', 'you.tsx'], ['app', 'settings.tsx']]) {
+      const src = read(...f);
+      const fn  = src.slice(src.indexOf('async function handleSignOut'));
+      expect([f.join('/'), /clearAudioUrlCache\(\)/.test(fn.slice(0, 400))])
+        .toEqual([f.join('/'), true]);
+    }
+  });
+
+  it('account deletion clears it too', () => {
+    // The recordings have just been erased server-side; a url still held in
+    // memory would outlive the erasure it was promised.
+    const src = read('app', '(tabs)', 'you.tsx');
+    const blk = src.slice(src.indexOf('await deleteAccount(mode)'));
+    expect(blk.slice(0, 400)).toMatch(/clearAudioUrlCache\(\)/);
+  });
+});
+
+describe('the full-text view keeps the audio', () => {
+  it('read-detail offers playback for voice confessions', () => {
+    // The feed card truncates long text, so a voice confession with a long
+    // transcript is opened HERE. Without this the play control disappeared at
+    // exactly the point someone chose to engage with it properly.
+    const src = read('app', 'read-detail.tsx');
+    expect(src).toMatch(/audioDurationMs/);
+    expect(src).toMatch(/confessionId=\{audioMs \? id : undefined\}/);
+  });
+
+  it('the feed carries the duration through the handoff', () => {
+    const src = read('app', 'explore.tsx');
+    const blk = src.slice(src.indexOf('setConfessionHandoff({'));
+    expect(blk.slice(0, 300)).toMatch(/audioDurationMs/);
+  });
+});
+
 describe('the transcript is always visible', () => {
   it('the play control is rendered in addition to the text, not instead of it', () => {
     const src = read('components', 'ReadCard.tsx');

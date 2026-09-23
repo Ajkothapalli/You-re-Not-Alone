@@ -387,10 +387,11 @@ export default function ExploreScreen() {
               // Params lose newlines in transit — hand the confession over in
               // memory and let params serve only as a deep-link fallback.
               setConfessionHandoff({
-                id:           item.id,
-                text:         item.text,
-                feltCount:    item.feltCount,
-                paletteIndex: index % palettes.length,
+                id:              item.id,
+                text:            item.text,
+                feltCount:       item.feltCount,
+                paletteIndex:    index % palettes.length,
+                audioDurationMs: item.audioDurationMs,
               });
               router.push({
                 pathname: '/read-detail',

@@ -24,6 +24,13 @@
  */
 
 export interface ConfessionHandoff {
+  /**
+   * Set on voice confessions. Carried so read-detail can offer playback: the
+   * feed card truncates long text, so a voice confession with a long
+   * transcript is read HERE — and without this the play control vanished at
+   * exactly the point someone chose to engage with it properly.
+   */
+  audioDurationMs?: number;
   id:           string;
   text:         string;
   feltCount:    number;
