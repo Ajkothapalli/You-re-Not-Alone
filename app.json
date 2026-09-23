@@ -48,7 +48,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-blank.png",
-          "backgroundColor": "#0E0C13"
+          "backgroundColor": "#F7F4EF"
         }
       ],
       "expo-sharing",

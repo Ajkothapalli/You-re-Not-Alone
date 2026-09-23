@@ -31,18 +31,8 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { QuoteLeft, QuoteRight } from '@/components/brand/SoulyapLogo';
 
 type Step = 'loading' | 'email' | 'otp' | 'password' | 'dob' | 'retry';
 
@@ -568,8 +558,8 @@ export default function IndexScreen() {
     return (
       <View style={styles.center}>
         <View style={styles.logoRow}>
-          <Image source={require('../assets/splash-quote-left.png')}  style={styles.logoLeft}  resizeMode="stretch" />
-          <Image source={require('../assets/splash-quote-right.png')} style={styles.logoRight} resizeMode="stretch" />
+          <QuoteLeft style={styles.logoLeft} />
+          <QuoteRight style={styles.logoRight} />
         </View>
         <Text style={styles.wordmark} accessibilityRole="header">soulyap</Text>
         <ActivityIndicator
@@ -592,8 +582,8 @@ export default function IndexScreen() {
       >
         <View style={styles.header}>
           <View style={styles.logoRow}>
-            <Image source={require('../assets/splash-quote-left.png')}  style={styles.logoLeft}  resizeMode="stretch" />
-            <Image source={require('../assets/splash-quote-right.png')} style={styles.logoRight} resizeMode="stretch" />
+            <QuoteLeft style={styles.logoLeft} />
+            <QuoteRight style={styles.logoRight} />
           </View>
           <Text style={styles.wordmark} accessibilityRole="header">soulyap</Text>
           {/* First-impression-on-return only: Lantern ("come in, we're

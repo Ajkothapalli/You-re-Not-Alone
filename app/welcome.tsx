@@ -25,14 +25,7 @@
 
 import * as Haptics from 'expo-haptics';
 import React, { useMemo, useState } from 'react';
-import {
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -63,6 +56,7 @@ import { randomPersona, type Persona, PersonaBadge, getPersonaById } from '@/com
 import { PrimaryButton } from '@/components/Buttons';
 import { type ColorSet, fontFamily, radius } from '@/theme/tokens';
 import { useThemeColors } from '@/theme/ThemeProvider';
+import { QuoteLeft, QuoteRight } from '@/components/brand/SoulyapLogo';
 
 // ─── Design constants ─────────────────────────────────────────────────────────
 
@@ -481,8 +475,8 @@ export default function WelcomeScreen() {
             {/* Logo + wordmark compact at top */}
             <View style={{ alignItems: 'center', gap: 2 }}>
               <View style={s.logoRowSm}>
-                <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
-                <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+                <QuoteLeft style={s.logoSmLeft} />
+                <QuoteRight style={s.logoSmRight} />
               </View>
               <Text style={s.wordmark}>soulyap</Text>
             </View>
@@ -530,8 +524,8 @@ export default function WelcomeScreen() {
         <BeatSlide {...commonSlideProps} index={1} showSkip onSkip={handleSkip} accent="#FF4F00">
           <View style={s.col}>
             <View style={s.logoRowSm}>
-              <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
-              <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+              <QuoteLeft style={s.logoSmLeft} />
+              <QuoteRight style={s.logoSmRight} />
             </View>
             <Text style={s.kick}>How it works</Text>
             <Text style={s.title}>Read first.{'\n'}Write when ready.</Text>
@@ -550,8 +544,8 @@ export default function WelcomeScreen() {
         <BeatSlide {...commonSlideProps} index={2} showSkip onSkip={handleSkip} accent="#00D4FF">
           <View style={s.col}>
             <View style={s.logoRowSm}>
-              <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
-              <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+              <QuoteLeft style={s.logoSmLeft} />
+              <QuoteRight style={s.logoSmRight} />
             </View>
             <Text style={s.kick}>You're safe here</Text>
             <Text style={s.title}>Nothing here{'\n'}can reach you</Text>
@@ -608,8 +602,8 @@ export default function WelcomeScreen() {
         <BeatSlide {...commonSlideProps} index={3} showSkip={false} onSkip={handleSkip} accent="#CCFF00">
           <View style={s.col}>
             <View style={s.logoRowSm}>
-              <Image source={require('../assets/splash-quote-left.png')}  style={s.logoSmLeft}  resizeMode="stretch" />
-              <Image source={require('../assets/splash-quote-right.png')} style={s.logoSmRight} resizeMode="stretch" />
+              <QuoteLeft style={s.logoSmLeft} />
+              <QuoteRight style={s.logoSmRight} />
             </View>
             <Text style={s.kick}>What resonates</Text>
             <Text style={s.title}>What do you{'\n'}want to read?</Text>

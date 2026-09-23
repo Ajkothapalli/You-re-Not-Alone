@@ -39,7 +39,8 @@ import { type ColorSet, fontFamily } from '@/theme/tokens';
 import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { QuoteLeft, QuoteRight } from '@/components/brand/SoulyapLogo';
 
 export default function AuthCallbackScreen() {
   const color  = useThemeColors();
@@ -93,8 +94,8 @@ export default function AuthCallbackScreen() {
   return (
     <View style={styles.center}>
       <View style={styles.logoRow}>
-        <Image source={require('../assets/splash-quote-left.png')}  style={styles.logoLeft}  resizeMode="stretch" />
-        <Image source={require('../assets/splash-quote-right.png')} style={styles.logoRight} resizeMode="stretch" />
+        <QuoteLeft style={styles.logoLeft} />
+        <QuoteRight style={styles.logoRight} />
       </View>
       <Text style={styles.wordmark} accessibilityRole="header">soulyap</Text>
       <ActivityIndicator

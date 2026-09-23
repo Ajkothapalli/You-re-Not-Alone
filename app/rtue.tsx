@@ -10,16 +10,7 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Animated,
-  Easing,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { StoryCard } from '@/components/StoryCard';
 import { analytics } from '@/lib/analytics';
 import { shareConfessionCard } from '@/lib/shareCard';
@@ -36,6 +27,7 @@ import { evaluateRtue, markRtueSeen, clearRtueCache, type RtueMoment, type RtueS
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '@/theme/tokens';
 import { announce } from '@/lib/a11y';
+import { LogoMark, LOGO_ASPECT } from '@/components/brand/SoulyapLogo';
 
 // ─── Glow configs per state ───────────────────────────────────────────────────
 
@@ -282,12 +274,7 @@ export default function RtueScreen() {
       <View style={styles.content}>
 
         {/* Logo + kick */}
-        <Image
-          source={require('../assets/splash-icon.png')}
-          style={staticSt.logo}
-          resizeMode="contain"
-          accessibilityElementsHidden
-        />
+        <LogoMark style={staticSt.logo} accessibilityElementsHidden />
         <Text style={staticSt.kick}>Welcome back</Text>
 
         {/* Headline */}
@@ -353,9 +340,11 @@ export default function RtueScreen() {
 // ─── Static styles (no color tokens) ─────────────────────────────────────────
 
 const staticSt = StyleSheet.create({
+  // The logo is ~3:1 (LOGO_ASPECT). A square box rendered it ~8px tall inside
+  // 24px of padding — and it pointed at a blurred glow rather than the logo.
   logo: {
-    width:     24,
-    height:    24,
+    height:    16,
+    width:     16 * LOGO_ASPECT,
     opacity:   0.95,
     alignSelf: 'center',
     marginBottom: 2,

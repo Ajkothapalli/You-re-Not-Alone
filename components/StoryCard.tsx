@@ -21,11 +21,12 @@
  */
 
 import React, { forwardRef, useMemo } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, LinearGradient, Path, Rect, Stop } from 'react-native-svg';
 import type { Palette } from '../theme/palettes';
 import { useTheme } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '../theme/tokens';
+import { LogoMark, LOGO_ASPECT } from '@/components/brand/SoulyapLogo';
 
 export const STORY_W = 360;
 export const STORY_H = 640;
@@ -101,11 +102,7 @@ export const StoryCard = forwardRef<View, Props>(function StoryCard(
 
       {/* ── Brand lockup — logo + domain ── */}
       <View style={styles.brand}>
-        <Image
-          source={require('../assets/splash-icon.png')}
-          style={styles.brandIcon}
-          resizeMode="contain"
-        />
+        <LogoMark style={styles.brandIcon} />
         <Text style={styles.brandDomain}>soulyap.me</Text>
       </View>
 
@@ -220,9 +217,11 @@ function createStyles(color: ColorSet) {
       gap:            7,
       marginTop:      28,
     },
+    // LOGO_ASPECT to match the mark, sized to sit balanced beside the 13px
+    // domain text. A square box squashed it to a sliver.
     brandIcon: {
-      width:  20,
-      height: 20,
+      height: 12,
+      width:  12 * LOGO_ASPECT,
     },
     brandDomain: {
       fontFamily: fontFamily.sansBold,

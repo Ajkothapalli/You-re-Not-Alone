@@ -653,6 +653,12 @@ For any icon used in-line (not as a card decoration), omit the filter — roughe
 
 ## Assets
 
+The logo itself is no longer a PNG. It is drawn as vector by
+`components/brand/SoulyapLogo.tsx` — `LogoMark` (full), plus `QuoteLeft` and
+`QuoteRight` (the two halves, keeping the 41.1% / 58.9% split the retired
+`splash-quote-*.png` files had). The PNGs below are only the ones a platform
+cannot take vector for: launcher, adaptive, themed and store icons.
+
 Located at `assets/`:
 
 | File | Description |
@@ -660,9 +666,6 @@ Located at `assets/`:
 | `icon.png` | App Store / Play Store icon |
 | `favicon.png` | Web favicon |
 | `splash-blank.png` | Native splash background (`#0E0C13`) |
-| `splash-icon.png` | Full quote-mark logo (combined) |
-| `splash-quote-left.png` | Left quote glyph (41.1% of 220px ≈ 90px) |
-| `splash-quote-right.png` | Right quote glyph (58.9% of 220px ≈ 130px) |
 | `android-icon-foreground.png` | Android adaptive icon foreground |
 | `android-icon-background.png` | Android adaptive icon bg (`#0E0B18`) |
 | `android-icon-monochrome.png` | Monochrome layer for themed icons |

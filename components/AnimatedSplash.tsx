@@ -2,11 +2,16 @@
  * AnimatedSplash — takes over from the static native splash and animates
  * ONLY the two quote glyphs. No halo, no background elements.
  *
- * The logo PNG is pre-split into assets/splash-quote-left.png (the warm ")
- * and assets/splash-quote-right.png (the cool ") at the exact gap column,
- * so rendering them side by side at LEFT/RIGHT widths reconstructs the
- * native splash pixel-for-pixel. The choreography starts from that exact
- * pose — the native → JS handoff is invisible.
+ * The logo is split into QuoteLeft (the warm ") and QuoteRight (the cool ")
+ * at the exact gap column, so rendering them side by side at LEFT/RIGHT
+ * widths reconstructs the native splash pixel-for-pixel. The choreography
+ * starts from that exact pose — the native → JS handoff is invisible.
+ *
+ * Both halves are now VECTOR (components/brand/SoulyapLogo). They keep the
+ * frames of the PNGs they replaced — viewBox "0 0 421 1024" and
+ * "421 0 603 1024" with preserveAspectRatio="none", which is exactly what
+ * the old <Image resizeMode="stretch"> did — so LEFT_RATIO and every width
+ * derived from it still land the seam on the same column.
  *
  * Choreography:
  *   1. hold      — identical to the native splash (handoff)
@@ -37,17 +42,23 @@ import { useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '../theme/tokens';
 import { DURATION, EASING, SPRING } from '../theme/motion';
 import { useReducedMotion } from '../lib/a11y';
+import { QuoteLeft, QuoteRight } from '@/components/brand/SoulyapLogo';
 
 const LOGO_SIZE  = 220;            // must match app.json imageWidth
 const LEFT_RATIO = 0.4111;         // split column from the asset (421/1024)
 const LEFT_W     = LOGO_SIZE * LEFT_RATIO;
 const RIGHT_W    = LOGO_SIZE * (1 - LEFT_RATIO);
 
-/** Keep in lockstep with app.json → plugins → expo-splash-screen → backgroundColor. */
-const NATIVE_SPLASH_BG = '#0E0C13';
-
-const LEFT_SRC   = require('../assets/splash-quote-left.png');
-const RIGHT_SRC  = require('../assets/splash-quote-right.png');
+/**
+ * Keep in lockstep with app.json → plugins → expo-splash-screen →
+ * backgroundColor. A mismatch flashes one colour to another during the
+ * handoff, which is what this constant exists to prevent.
+ *
+ * #F7F4EF, not #FFFFFF: it is lightColors.bg — the exact background the app
+ * opens on. Pure white would be a hair brighter than the first screen and the
+ * handoff would show a step. The point of matching is that nothing changes.
+ */
+const NATIVE_SPLASH_BG = '#F7F4EF';
 
 interface Props {
   onDone: () => void;
@@ -227,16 +238,17 @@ export default function AnimatedSplash({ onDone }: Props) {
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
       >
-        <Animated.Image
-          source={LEFT_SRC}
-          style={leftStyle}
-          resizeMode="stretch"
-        />
-        <Animated.Image
-          source={RIGHT_SRC}
-          style={rightStyle}
-          resizeMode="stretch"
-        />
+        {/* Vector halves. leftStyle/rightStyle carry only width, height and
+            transform, so they apply to an Animated.View unchanged — the
+            choreography is untouched. The Svg fills its parent, and the two
+            viewBoxes are the exact frames of the retired PNGs, so the seam
+            still lands on the same column at LEFT_RATIO. */}
+        <Animated.View style={leftStyle}>
+          <QuoteLeft style={StyleSheet.absoluteFill} />
+        </Animated.View>
+        <Animated.View style={rightStyle}>
+          <QuoteRight style={StyleSheet.absoluteFill} />
+        </Animated.View>
       </Animated.View>
 
       <Animated.View
@@ -285,18 +297,20 @@ function createStyles(color: ColorSet) {
       gap:        4,
       marginTop:  -44,
     },
-    // Fixed light type, not theme type: the splash ground is always
-    // NATIVE_SPLASH_BG. color.paper is #1A1A1A in light mode, which would put
-    // near-black wordmark on a near-black splash.
+    // Fixed INK, not theme type: the splash ground is always NATIVE_SPLASH_BG,
+    // which is light. These were '#F3EEE8' and a light rgba while the splash
+    // was #0E0C13 — correct then, invisible the moment the ground turned white.
+    // They are pinned rather than themed for the same reason the ground is: the
+    // splash is one brand moment and does not follow the reader's theme.
     wordmarkText: {
       fontFamily: fontFamily.sansBold,
       fontSize:   24,
-      color:      '#F3EEE8',
+      color:      '#1A1A1A',
     },
     subText: {
       fontFamily:    fontFamily.sans,
       fontSize:      12,
-      color:         'rgba(243,238,232,0.62)',
+      color:         'rgba(26,26,26,0.62)',
       letterSpacing: 0.3,
     },
   });
