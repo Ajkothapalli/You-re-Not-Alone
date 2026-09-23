@@ -87,9 +87,16 @@ ON CONFLICT (id) DO UPDATE
       file_size_limit    = EXCLUDED.file_size_limit,
       allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- ── 5. Storage RLS — nobody but service_role ─────────────────────────────────
--- No anon or authenticated policy is created, and that is deliberate: with RLS
--- enabled and no permissive policy, every direct client read/write is denied.
+-- ── 5. Storage access — nobody but service_role ──────────────────────────────
+-- No anon or authenticated policy is created for this bucket, and that is the
+-- whole access model: Supabase ships storage.objects with RLS already enabled,
+-- so a bucket with no permissive policy denies every direct client read and
+-- write by default.
+--
+-- This migration does NOT run `ALTER TABLE storage.objects ENABLE ROW LEVEL
+-- SECURITY` or drop policies on it. Attempting that fails with "must be owner
+-- of table objects" — the migration role does not own the storage schema — and
+-- it is unnecessary: RLS is already on. Verified against production 2026-09-23.
 --
 -- Clients never touch this bucket directly. Both directions go through edge
 -- functions holding service_role:
@@ -97,12 +104,8 @@ ON CONFLICT (id) DO UPDATE
 --              passed the safety gate and the row exists
 --   playback → a short-lived SIGNED url, issued per request
 -- Signed URLs are validated by the storage service itself and do not depend on
--- these policies, so denying everything here costs nothing and closes the
--- direct path.
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "confession audio: no direct client read"  ON storage.objects;
-DROP POLICY IF EXISTS "confession audio: no direct client write" ON storage.objects;
+-- policies at all, which is why `public = false` on the bucket above is the
+-- load-bearing setting.
 
 -- ── 6. Orphan detection ──────────────────────────────────────────────────────
 -- Deleting a confession must delete the OBJECT, not just the row (invariant 3:
