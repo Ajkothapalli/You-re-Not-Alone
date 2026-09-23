@@ -13,7 +13,8 @@
  */
 
 import React from 'react';
-import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
+import { render, fireEvent, act, waitFor, within } from '@testing-library/react-native';
 
 const handlers: Record<string, ((e: unknown) => void)[]> = {};
 const mockStart = jest.fn();
@@ -234,6 +235,87 @@ describe('the submit button while recording', () => {
     await act(async () => { fireEvent.press(getByTestId('voice-record')); });
     await waitFor(() => expect(getByTestId('voice-recording')).toBeTruthy());
     expect(queryByText('Let it out')).toBeNull();
+  });
+});
+
+describe('the idle card illustration', () => {
+  /**
+   * Speaking is a BUST, cropped at the bottom edge of its own viewBox. That
+   * only works in an exactly-4:3 box: letterbox it inside a wider one and
+   * preserveAspectRatio="xMidYMid meet" leaves paper below the crop, so the
+   * shoulders end in mid-air. The box comes from a measurement, so a layout
+   * regression would not throw — the scene would just quietly go missing or
+   * go wrong. Both are pinned here.
+   */
+  async function layOutIdle(width: number, height: number) {
+    await AsyncStorage.setItem('@yana/voice_consent_v1', '1');
+    const utils = await renderWrite();
+    await act(async () => { fireEvent.press(utils.getByTestId('switch-to-voice')); });
+    await waitFor(() => utils.getByTestId('voice-idle'));
+    await act(async () => {
+      fireEvent(utils.getByTestId('voice-illustration-box'), 'layout', {
+        nativeEvent: { layout: { x: 0, y: 0, width, height } },
+      });
+    });
+    return utils;
+  }
+
+  it('mounts the scene on a paper ground once the box is measured', async () => {
+    const { getByTestId } = await layOutIdle(320, 176);
+    // The ground is what keeps the print-colour ink visible in dark mode, so
+    // the scene has to be INSIDE it, not a sibling.
+    const ground = getByTestId('voice-illustration');
+    expect(within(ground).getAllByTestId('Svg')).toHaveLength(1);
+  });
+
+  it('gives the scene an exactly 4:3 box, so the bust is not letterboxed', async () => {
+    // 320×176 is wider than 4:3, so height binds and width is derived.
+    const { getByTestId } = await layOutIdle(320, 176);
+    const { width, height } = StyleSheet.flatten(
+      getByTestId('voice-illustration').props.style,
+    ) as { width: number; height: number };
+
+    expect(height).toBe(176);
+    expect(width / height).toBeCloseTo(4 / 3, 5);
+    expect(width).toBeLessThanOrEqual(320);
+  });
+
+  it('fits to width instead when the box is narrower than 4:3', async () => {
+    const { getByTestId } = await layOutIdle(200, 176);
+    const { width, height } = StyleSheet.flatten(
+      getByTestId('voice-illustration').props.style,
+    ) as { width: number; height: number };
+
+    expect(width).toBe(200);
+    expect(width / height).toBeCloseTo(4 / 3, 5);
+    expect(height).toBeLessThanOrEqual(176);
+  });
+
+  it('gives Record the primary treatment, in the same place Stop appears', async () => {
+    // Record used to be an outlined circle floating in the centre, so the one
+    // action this screen exists for read as less important than the Stop that
+    // replaced it, and the control moved under the user's thumb mid-gesture.
+    const { getByTestId, getByText } = await layOutIdle(320, 176);
+    const record = StyleSheet.flatten(getByTestId('voice-record').props.style) as {
+      backgroundColor: string; borderRadius: number;
+    };
+    expect(getByText('Record')).toBeTruthy();
+    expect(record.backgroundColor).toBe('#FFE500');   // color.accent, both themes
+
+    await act(async () => { fireEvent.press(getByTestId('voice-record')); });
+    await waitFor(() => getByTestId('voice-recording'));
+    const stop = StyleSheet.flatten(getByTestId('voice-stop').props.style) as {
+      backgroundColor: string; borderRadius: number;
+    };
+    expect(stop.backgroundColor).toBe(record.backgroundColor);
+    expect(stop.borderRadius).toBe(record.borderRadius);
+  });
+
+  it('is gone while recording — the timer and live transcript need the room', async () => {
+    const { getByTestId, queryByTestId } = await layOutIdle(320, 176);
+    await act(async () => { fireEvent.press(getByTestId('voice-record')); });
+    await waitFor(() => expect(getByTestId('voice-recording')).toBeTruthy());
+    expect(queryByTestId('voice-illustration')).toBeNull();
   });
 });
 

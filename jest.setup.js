@@ -77,9 +77,48 @@ jest.mock('react-native-purchases', () => ({
 }));
 
 // react-native-reanimated
-jest.mock('react-native-reanimated', () =>
-  require('react-native-reanimated/mock'),
-);
+//
+// NOT `require('react-native-reanimated/mock')` — that mock pulls in the real
+// reanimated entry, which loads react-native-worklets' native bindings and
+// THROWS. Because jest.mock factories are lazy, this global mock only ran in
+// suites that actually reach reanimated, so for a long time it looked fine:
+// the scene suites had each pasted their own inline mock to dodge it, and
+// everything else never touched it. The moment any other screen imported an
+// illustration, its suite died on a mock that had never worked.
+//
+// Keep this in sync with the shape the scenes use (see components/
+// illustrations/behaviours/*). Suites needing to assert on calls still define
+// their own factory, which overrides this one.
+jest.mock('react-native-reanimated', () => {
+  const identity = (v) => v;
+  const makeEasing = () => identity;
+  return {
+    __esModule: true,
+    default: { createAnimatedComponent: (c) => c },
+    createAnimatedComponent: (c) => c,
+    useSharedValue:   jest.fn((init) => ({ value: init })),
+    useAnimatedProps: jest.fn((fn) => fn()),
+    useAnimatedStyle: jest.fn((fn) => fn()),
+    withRepeat:       jest.fn((anim) => anim),
+    withTiming:       jest.fn((val) => val),
+    withDelay:        jest.fn((_, anim) => anim),
+    withSequence:     jest.fn((...anims) => anims[anims.length - 1]),
+    cancelAnimation:  jest.fn(),
+    ReduceMotion: { Never: 'never', Always: 'always', System: 'system' },
+    Easing: {
+      linear:  identity,
+      out:     makeEasing,
+      in:      makeEasing,
+      inOut:   makeEasing,
+      sin:     identity,
+      cubic:   identity,
+      quad:    identity,
+      bezier:  makeEasing,
+      elastic: makeEasing,
+      back:    makeEasing,
+    },
+  };
+});
 
 // expo-web-browser
 jest.mock('expo-web-browser', () => ({

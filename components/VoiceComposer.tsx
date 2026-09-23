@@ -22,6 +22,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { IllustrationGround, Speaking } from '@/components/illustrations';
+import { useAspectFit } from '@/hooks/useAspectFit';
 import {
   formatDuration, MAX_RECORDING_MS, type VoiceRecorder,
 } from '@/lib/voiceRecorder';
@@ -44,6 +46,10 @@ export default function VoiceComposer({
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
   const [playing, setPlaying] = useState(false);
+
+  // Only the idle state draws the scene, but the idle state is the LAST branch
+  // here — the hook has to run before the early returns above it.
+  const illFit = useAspectFit(4 / 3);
 
   const uri    = recorder.recording?.uri ?? null;
   const player = useAudioPlayer(uri ? { uri } : null);
@@ -194,20 +200,43 @@ export default function VoiceComposer({
   return (
     <View style={styles.root} testID="voice-idle">
       <View style={styles.center}>
-        <Pressable
-          onPress={() => { Haptics.selectionAsync().catch(() => {}); recorder.start(); }}
-          disabled={disabled}
-          style={({ pressed }) => [styles.recordBtn, pressed && styles.pressed]}
-          accessibilityRole="button"
-          accessibilityLabel="Start recording"
-          testID="voice-record"
-        >
-          <View style={styles.recordDot} />
-        </Pressable>
+        {/* The scene is a BUST cropped at the bottom of its own viewBox, so it
+            only works in an exact 4:3 box — letterboxed inside a wider ground,
+            the shoulders would end in mid-air with paper below them. That is
+            what useAspectFit's "contain" flavour returns, and why the ground
+            and the SVG are both given the same measured pixel box. */}
+        <View style={styles.illBox} onLayout={illFit.onLayout} testID="voice-illustration-box">
+          {illFit.ready && (
+            <IllustrationGround
+              style={{ width: illFit.width, height: illFit.height }}
+              testID="voice-illustration"
+            >
+              <Speaking style={{ width: illFit.width, height: illFit.height }} />
+            </IllustrationGround>
+          )}
+        </View>
+
         <Text style={styles.idleHint}>
           Say it out loud. Up to {formatDuration(MAX_RECORDING_MS)}.
         </Text>
       </View>
+
+      {/* Record is the primary action and sits where Stop sits, in the same
+          treatment. It used to be an outlined circle in the middle of the
+          screen, which made it read as secondary to nothing, and meant the
+          control JUMPED from the centre to the bottom the moment you pressed
+          it. One button, one place, Record → Stop. */}
+      <Pressable
+        onPress={() => { Haptics.selectionAsync().catch(() => {}); recorder.start(); }}
+        disabled={disabled}
+        style={({ pressed }) => [styles.primaryBtn, styles.recordBtn, pressed && styles.pressed]}
+        accessibilityRole="button"
+        accessibilityLabel="Start recording"
+        testID="voice-record"
+      >
+        <View style={styles.recordDot} />
+        <Text style={styles.primaryBtnText}>Record</Text>
+      </Pressable>
 
       <Pressable
         onPress={onExit}
@@ -267,12 +296,21 @@ function createStyles(color: ColorSet) {
       fontFamily: fontFamily.serif, fontSize: 15, lineHeight: 23, color: color.paper,
     },
 
-    recordBtn: {
-      width: 96, height: 96, borderRadius: 48,
-      borderWidth: 2, borderColor: color.border,
+    // An explicit height so the box measures non-zero on the first layout pass
+    // (an empty View reports 0 and the contain-fit would deadlock at 0×0);
+    // flexShrink so a short screen takes it out of the illustration rather than
+    // pushing the record button off the bottom.
+    illBox: {
+      width: '100%', height: 200, flexShrink: 1,
       alignItems: 'center', justifyContent: 'center',
     },
-    recordDot: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E5484D' },
+
+    // Layered over primaryBtn: same pill, plus room for the dot beside the word.
+    recordBtn: { flexDirection: 'row', justifyContent: 'center', gap: 10 },
+    // Red carries "record" the way nothing else does, and it is never load-
+    // bearing — the label says Record, so the dot is reinforcement, not the
+    // only signal (its contrast on the accent pill would not carry meaning).
+    recordDot: { width: 13, height: 13, borderRadius: 7, backgroundColor: '#E5484D' },
     idleHint:  { fontFamily: fontFamily.sans, fontSize: 14, color: color.dim, textAlign: 'center' },
 
     playerRow: {

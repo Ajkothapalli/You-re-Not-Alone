@@ -116,6 +116,8 @@ import { EmptyBench }         from '@/components/illustrations/EmptyBench';
 import { NotificationsEmpty } from '@/components/illustrations/NotificationsEmpty';
 import { Release }            from '@/components/illustrations/Release';
 import { Resonance }          from '@/components/illustrations/Resonance';
+import { Writing }            from '@/components/illustrations/Writing';
+import { Speaking }           from '@/components/illustrations/Speaking';
 import { IllustrationCard }   from '@/components/illustrations/IllustrationCard';
 import { useReducedMotion }   from '@/lib/a11y';
 
@@ -173,6 +175,66 @@ describe('palette purity', () => {
     const stray  = hexes.filter(h => !PALETTE.has(h));
     expect(stray).toHaveLength(0);
   });
+});
+
+// ─── 2b. The deliberately-static scenes ───────────────────────────────────────
+//
+// SCENES above is the ANIMATED cast, and everything keyed to it asserts
+// animation behaviour (registers useFocusEffect, cancels on blur), so a still
+// scene cannot be added to that list. The result was that Writing — shipped in
+// EndOfReadingCards since 2026-09-13 — had no structural or palette check at
+// all. These scenes carry an owner decision to stay still, so the thing worth
+// pinning is the opposite of the animated suite: that they register NO loop,
+// in either motion setting.
+
+const STATIC_SCENES: [string, React.ComponentType<any>][] = [
+  ['Writing',  Writing],
+  ['Speaking', Speaking],
+];
+
+describe('static scenes', () => {
+  test.each(STATIC_SCENES)('%s renders exactly one Svg', async (_name, Scene) => {
+    const { getAllByTestId } = await render(<Scene />);
+    expect(getAllByTestId('Svg')).toHaveLength(1);
+  });
+
+  test.each(STATIC_SCENES)('%s has no filter elements', async (_name, Scene) => {
+    const { queryAllByTestId } = await render(<Scene />);
+    expect(queryAllByTestId('Filter')).toHaveLength(0);
+    expect(queryAllByTestId('FeTurbulence')).toHaveLength(0);
+    expect(queryAllByTestId('FeDisplacementMap')).toHaveLength(0);
+  });
+
+  test.each(STATIC_SCENES.map(([name]) => name))(
+    '%s.tsx uses only ILL_COLOR palette colours',
+    (name) => {
+      const stray = hexesInSource(`${name}.tsx`).filter(h => !PALETTE.has(h));
+      expect(stray).toHaveLength(0);
+    },
+  );
+
+  // The owner decision, made executable: still means still, whatever the
+  // device's motion setting says.
+  test.each([false, true])(
+    'stay still with reduced motion = %s (no animation loop registered)',
+    async (reduced) => {
+      mockUseReducedMotion.mockReturnValue(reduced);
+      for (const [, Scene] of STATIC_SCENES) {
+        mockFocusEffect.mockClear();
+        await render(<Scene />);
+        expect(mockFocusEffect).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  test.each(STATIC_SCENES.map(([name]) => name))(
+    '%s.tsx imports no animation machinery',
+    (name) => {
+      const src = fs.readFileSync(path.join(SCENES_DIR, `${name}.tsx`), 'utf8');
+      expect(src).not.toMatch(/from 'react-native-reanimated'/);
+      expect(src).not.toMatch(/useFocusEffect/);
+    },
+  );
 });
 
 // ─── 3. Reduced motion — no animation loop registered ────────────────────────
