@@ -38,6 +38,30 @@ jest.mock('react-native-svg', () => {
     LinearGradient: mock('LinearGradient'),
     RadialGradient: mock('RadialGradient'),
     Stop:           mock('Stop'),
+    // Filter primitives. ScrawlIcon imports all three and renders them whenever
+    // roughen is set (its default), so omitting them made every icon resolve to
+    // `undefined` and React threw "Element type is invalid" — which surfaced as
+    // six unrelated-looking failures in ReadCard's felt-interaction tests, none
+    // of which mention SVG. Any component drawing a roughened icon hits this.
+    Filter:             mock('Filter'),
+    FeTurbulence:       mock('FeTurbulence'),
+    FeDisplacementMap:  mock('FeDisplacementMap'),
+    FeColorMatrix:      mock('FeColorMatrix'),
+    FeGaussianBlur:     mock('FeGaussianBlur'),
+    FeOffset:           mock('FeOffset'),
+    FeMerge:            mock('FeMerge'),
+    FeMergeNode:        mock('FeMergeNode'),
+    ClipPath:           mock('ClipPath'),
+    Mask:               mock('Mask'),
+    Line:               mock('Line'),
+    Polygon:            mock('Polygon'),
+    Polyline:           mock('Polyline'),
+    Text:               mock('Text'),
+    TSpan:              mock('TSpan'),
+    Use:                mock('Use'),
+    Symbol:             mock('Symbol'),
+    Image:              mock('Image'),
+    Pattern:            mock('Pattern'),
   };
 });
 

@@ -20,19 +20,32 @@ describe('HeartIcon', () => {
     expect(getAllByTestId('Path')).toHaveLength(1);
   });
 
-  it('filled=true: fill=color, strokeWidth=0', async () => {
+  /**
+   * Stroke width is a CONSTANT 2.5 in both states, not 0-when-filled.
+   *
+   * These two assertions expected 0 and 2 and had been failing since 5fc25e7,
+   * which folded HeartIcon into the ScrawlIcon system — whose documented house
+   * standard is "48×48 viewBox, 2.5px round stroke" for every icon. The test
+   * was written one commit earlier (4613386) and never updated.
+   *
+   * The component is the correct one here, for a reason the sibling test below
+   * already guards: a stroke that vanishes when the heart fills would change
+   * the heart's SIZE on every tap. Felt is a toggle people press repeatedly,
+   * and it should not wobble. `fill` alone carries the state change.
+   */
+  it('filled=true: fill=color, stroke stays at the house 2.5', async () => {
     const { getByTestId } = await render(<HeartIcon filled color="#F5996E" size={18} />);
     const path = getByTestId('Path');
     expect(path.props.fill).toBe('#F5996E');
-    expect(path.props.strokeWidth).toBe(0);
+    expect(path.props.strokeWidth).toBe(2.5);
   });
 
-  it('filled=false: fill=none, stroke=color, strokeWidth=2', async () => {
+  it('filled=false: fill=none, stroke=color, stroke stays at the house 2.5', async () => {
     const { getByTestId } = await render(<HeartIcon filled={false} color="#F5996E" size={18} />);
     const path = getByTestId('Path');
     expect(path.props.fill).toBe('none');
     expect(path.props.stroke).toBe('#F5996E');
-    expect(path.props.strokeWidth).toBe(2);
+    expect(path.props.strokeWidth).toBe(2.5);
   });
 
   it('Svg is square: width === height === size', async () => {
