@@ -238,6 +238,7 @@ describe('Edit → Save: success path', () => {
     updated_at: '2026-01-16T12:00:00Z',
     status:     'live',
     created_at: '2026-01-15T10:00:00Z',
+    audio_duration_ms: null,
   };
 
   beforeEach(() => {
@@ -446,6 +447,7 @@ describe('Security: client payloads never contain account_id or internal fields'
       updated_at: null,
       status:     'live',
       created_at: '2026-01-01T00:00:00Z',
+      audio_duration_ms: null,
     };
     expect(own).not.toHaveProperty('account_id');
     expect(own).not.toHaveProperty('real_felt_count');
@@ -464,6 +466,7 @@ describe('Security: client payloads never contain account_id or internal fields'
         updated_at: '2026-01-01T00:00:00Z',
         status:     'live',
         created_at: '2026-01-01T00:00:00Z',
+        audio_duration_ms: null,
       },
     };
     expect(result.confession).not.toHaveProperty('account_id');
@@ -555,5 +558,41 @@ describe('Delete confession', () => {
         expect.objectContaining({ style: 'destructive' }),
       ]),
     );
+  });
+});
+
+// ─── Voice confessions ────────────────────────────────────────────────────────
+
+describe('voice confessions in the owner view', () => {
+  // This screen and my-confessions both rendered a voice confession as its
+  // transcript and nothing else — the owner could not play back what they had
+  // actually recorded. The duration arrives as a route param; 0/absent means
+  // the confession was typed.
+  const VOICE_PARAMS = { ...EDITABLE_PARAMS, audioDurationMs: '42000' };
+
+  it('renders a play control when the confession carries audio', async () => {
+    const { getByTestId } = await renderDetail(VOICE_PARAMS);
+    expect(getByTestId(`voice-play-${VOICE_PARAMS.id}`)).toBeTruthy();
+  });
+
+  it('renders none for a typed confession', async () => {
+    const { queryByTestId } = await renderDetail(EDITABLE_PARAMS);
+    expect(queryByTestId(`voice-play-${EDITABLE_PARAMS.id}`)).toBeNull();
+  });
+
+  it('renders none when the status is one get-audio-url will not serve', async () => {
+    // It serves 'live' and 'approved' only, so a play control here would fail
+    // on tap and read to the owner as "your recording is gone".
+    const { queryByTestId } = await renderDetail({
+      ...VOICE_PARAMS, status: 'under_review',
+    });
+    expect(queryByTestId(`voice-play-${VOICE_PARAMS.id}`)).toBeNull();
+  });
+
+  it('keeps the transcript visible alongside the audio', async () => {
+    // Audio is an addition to the card, never a replacement: someone with no
+    // headphones, no hearing, or a dying battery still gets the confession.
+    const { getByText } = await renderDetail(VOICE_PARAMS);
+    expect(getByText(VOICE_PARAMS.text)).toBeTruthy();
   });
 });

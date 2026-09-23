@@ -29,6 +29,7 @@ import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
+import VoicePlayButton from '@/components/VoicePlayButton';
 import { getConfessionHandoff } from '@/lib/confessionHandoff';
 import { editConfession, retireConfession } from '@/lib/api';
 import { useReducedMotion } from '@/lib/a11y';
@@ -80,7 +81,15 @@ export default function ConfessionDetailScreen() {
     createdAt: string;
     updatedAt: string;
     status:    string;
+    audioDurationMs: string;
   }>();
+
+  // A voice confession reached this screen as its transcript alone — no way to
+  // play back what was actually recorded, on the one screen whose job is to
+  // show the owner their own confession in full. get-audio-url serves 'live'
+  // and 'approved' only, so anything else gets no play control.
+  const audioDurationMs = Number(params.audioDurationMs ?? 0);
+  const canPlayAudio    = params.status === 'live' || params.status === 'approved';
 
   // ── Mutable UI state ─────────────────────────────────────────────────────────
   const [mode,       setMode]       = useState<Mode>('view');
@@ -277,6 +286,9 @@ export default function ConfessionDetailScreen() {
             <View pointerEvents="none" style={styles.cardShadow} />
             <View style={styles.card}>
               <Text style={styles.confessionText}>{text}</Text>
+              {audioDurationMs > 0 && canPlayAudio && (
+                <VoicePlayButton confessionId={params.id} durationMs={audioDurationMs} />
+              )}
             </View>
           </View>
 

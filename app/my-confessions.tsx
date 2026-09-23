@@ -14,6 +14,8 @@
  */
 
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
+import VoicePlayButton from '@/components/VoicePlayButton';
+import { formatDuration } from '@/lib/voiceRecorder';
 import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
@@ -70,6 +72,8 @@ function ConfessionRow({
   const statusLabel = STATUS_LABEL[item.status] ?? item.status;
   const statusColor = STATUS_COLOR[item.status] ?? color.dim;
   const isGone      = item.status === 'retired' || item.status === 'removed' || item.status === 'deleted';
+  const hasAudio    = (item.audio_duration_ms ?? 0) > 0;
+  const canPlayAudio = item.status === 'live' || item.status === 'approved';
 
   return (
     <View style={[styles.cardOuter, isGone && styles.cardGone]}>
@@ -86,6 +90,22 @@ function ConfessionRow({
       <Text style={[styles.text, isGone && styles.textDim]} numberOfLines={5}>
         {item.text}
       </Text>
+
+      {/* A voice confession showed up here as its transcript and nothing else,
+          so the owner had no way to tell it carried a recording at all, let
+          alone hear it back. The text always renders either way — the audio is
+          an addition to the card, never the card itself (VoicePlayButton).
+
+          get-audio-url serves 'live' and 'approved' only, so anything else
+          gets the duration as a plain label rather than a play control that
+          would fail on tap and read as "your recording is gone". */}
+      {hasAudio && (canPlayAudio ? (
+        <VoicePlayButton confessionId={item.id} durationMs={item.audio_duration_ms!} />
+      ) : (
+        <Text style={[styles.audioNote, isGone && styles.textDim]}>
+          Voice · {formatDuration(item.audio_duration_ms!)}
+        </Text>
+      ))}
 
       {!isGone && (
         <View style={styles.actions}>
@@ -169,6 +189,7 @@ export default function MyConfessionsScreen() {
         createdAt: item.created_at,
         updatedAt: item.updated_at ?? '',
         status:    item.status,
+        audioDurationMs: String(item.audio_duration_ms ?? 0),
       },
     });
   }
@@ -398,6 +419,11 @@ function createStyles(color: ColorSet) {
       color:      color.paper,
     },
     textDim: { color: color.dim },
+    audioNote: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      color:      color.dim,
+    },
     actions: {
       flexDirection:  'row',
       alignItems:     'center',

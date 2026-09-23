@@ -54,6 +54,8 @@ export interface OwnConfession {
   updated_at: string | null; // null until first edit
   status:     string;
   created_at: string;
+  /** Null for a typed confession. Present = there is a recording to play. */
+  audio_duration_ms: number | null;
 }
 
 serve(async (req: Request) => {
@@ -114,7 +116,13 @@ serve(async (req: Request) => {
     : null;
 
   const STATUSES = ['live', 'approved', 'under_review', 'removed', 'retired'];
-  const SELECT   = 'id, text, felt_count, status, created_at, updated_at, real_felt_count';
+  // audio_duration_ms, never audio_key — the key is REVOKEd from clients for
+  // the same reason account_id is (invariant 3), and playback goes through
+  // get-audio-url's signed, short-lived URL. Without the duration the owner
+  // view cannot tell a voice confession from a typed one, which is how voice
+  // confessions shipped showing only their transcript here.
+  const SELECT =
+    'id, text, felt_count, status, created_at, updated_at, real_felt_count, audio_duration_ms';
 
   const [newResult, legacyResult] = await Promise.all([
     supabase

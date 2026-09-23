@@ -128,6 +128,27 @@ describe('Identity separation — account_id never surfaces to clients (CLAUDE.m
     expect(returnBlock).not.toContain('account_id');
   });
 
+  it('get-my-confessions selects audio_duration_ms but never audio_key', () => {
+    // Voice confessions shipped invisible in the owner's own view: the SELECT
+    // never asked for audio_duration_ms, so "My confessions" rendered a
+    // recording as its transcript with nothing to play. The duration is what
+    // tells the client a recording exists at all.
+    //
+    // audio_key stays out for the same reason account_id does (invariant 3):
+    // the object key is REVOKEd from clients, and playback goes through
+    // get-audio-url's short-lived signed URL.
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'get-my-confessions', 'index.ts'),
+      'utf8',
+    );
+    const selectList = src.match(/const SELECT\s*=\s*([\s\S]*?);/)?.[1] ?? '';
+    expect(selectList).toContain('audio_duration_ms');
+    expect(selectList).not.toContain('audio_key');
+    expect(src).not.toMatch(/select\([^)]*audio_key/);
+  });
+
   it('manage-confession returns 403 on non-owner attempt (code path present)', () => {
     const fs   = require('fs');
     const path = require('path');

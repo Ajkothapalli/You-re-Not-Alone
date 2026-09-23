@@ -205,6 +205,8 @@ export interface OwnConfession {
   updated_at: string | null; // null until first edit; shown as "· edited" in owner view
   status:     'live' | 'approved' | 'under_review' | 'removed' | 'retired' | 'deleted';
   created_at: string;
+  /** Null for a typed confession. Present = there is a recording to play. */
+  audio_duration_ms: number | null;
 }
 
 export interface EditResult {
