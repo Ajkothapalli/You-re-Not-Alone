@@ -268,6 +268,7 @@ export default function IndexScreen() {
           () => ({ data: { session: null } }),
         );
         if (!session?.user) {
+          console.warn('[auth] code exchange failed:', err?.message ?? err);
           setError(err.message ?? 'Sign-in failed. Try again.');
           setStep('email');
         } else {
@@ -440,6 +441,14 @@ export default function IndexScreen() {
       if (!user) throw new Error('No user after sign-in');
       await routeAfterAuth(user.id);
     } catch (err: any) {
+      // The message stays friendly — a provider error string is no use to the
+      // person signing in. But it used to be DISCARDED, which made every
+      // provider failure look identical from both the screen and the logs:
+      // a redirect that was never allowlisted, a cancelled browser and an
+      // expired code all produced this one sentence and nothing else. Logging
+      // the real reason costs nothing and is the difference between reading
+      // one logcat line and guessing.
+      console.warn('[auth] provider sign-in failed:', err?.message ?? err);
       setError('Sign-in didn\'t complete. Try again.');
     } finally {
       if (!waitingForDeepLink) setBusy(false);

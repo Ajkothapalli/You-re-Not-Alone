@@ -81,7 +81,14 @@ export async function signInWithGoogle(): Promise<boolean> {
   if (error) throw error;
   if (!data.url) throw new Error('Supabase did not return an OAuth URL.');
 
+  // Logged because a redirect mismatch is invisible from the app's side: if
+  // REDIRECT_URL is not in the project's allowlist, Supabase silently falls
+  // back to the Site URL and the browser simply never returns here. Knowing
+  // what we asked for, and how the browser came back, separates "not
+  // allowlisted" from "user cancelled" in one line of logcat.
+  console.warn('[auth] oauth redirect requested:', REDIRECT_URL);
   const result = await WebBrowser.openAuthSessionAsync(data.url, REDIRECT_URL);
+  console.warn('[auth] browser returned:', result.type);
   if (result.type !== 'success') {
     // Android: browser closed (dismiss). The deep-link handler in index.tsx
     // will complete the exchange and clear the loading state. Signal the
@@ -116,5 +123,7 @@ export async function signInWithGoogle(): Promise<boolean> {
     return true;
   }
 
-  throw new Error('OAuth completed but no token was returned.');
+  throw new Error(
+    `OAuth returned ${result.type} to ${url.split('?')[0].split('#')[0]} with no code or token.`,
+  );
 }
