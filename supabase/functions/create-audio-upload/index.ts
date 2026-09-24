@@ -67,7 +67,7 @@ serve(async (req) => {
     const { data: { user }, error: userErr } = await supabase.auth.getUser(jwt);
     if (userErr || !user) return json({ error: 'Unauthorized' }, 401);
 
-    let body: { confessionId?: string; durationMs?: number };
+    let body: { confessionId?: string; durationMs?: number; waveform?: unknown[] };
     try {
       body = await req.json();
     } catch {
@@ -76,6 +76,7 @@ serve(async (req) => {
 
     const confessionId = body.confessionId ?? '';
     const durationMs   = Number(body.durationMs ?? 0);
+    const rawWaveform  = body.waveform;
 
     if (!confessionId) return json({ error: 'Missing confessionId.' }, 400);
     if (!Number.isFinite(durationMs) || durationMs <= 0 || durationMs > MAX_DURATION_MS) {
@@ -135,9 +136,24 @@ serve(async (req) => {
     // recording in the bucket that nothing references and nothing will ever
     // delete: a voice that outlives its confession. orphaned_confession_audio
     // exists to catch that; this ordering is what makes it rare.
+    // Sanitised here, not trusted from the client: the column is bounded by a
+    // CHECK, and a bad array would fail the whole attach and cost the writer
+    // their recording. Clamp to 0..100 ints, cap the length, drop anything that
+    // is not a finite number.
+    const waveform = Array.isArray(rawWaveform)
+      ? rawWaveform
+          .slice(0, 64)
+          .map((n: unknown) => Math.max(0, Math.min(100, Math.round(Number(n)))))
+          .filter((n: number) => Number.isFinite(n))
+      : [];
+
     const { error: updateErr } = await supabase
       .from('confessions')
-      .update({ audio_key: key, audio_duration_ms: Math.round(durationMs) })
+      .update({
+        audio_key:         key,
+        audio_duration_ms: Math.round(durationMs),
+        ...(waveform.length > 0 ? { audio_waveform: waveform } : {}),
+      })
       .eq('id', confessionId)
       .eq('account_id', user.id);
 

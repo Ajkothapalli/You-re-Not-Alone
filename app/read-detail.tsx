@@ -33,7 +33,8 @@ export default function ReadDetailScreen() {
   // Voice confessions keep their recording here. Text stays primary and always
   // renders; audio is the addition (CLAUDE.md invariant 3's known gap means the
   // transcript is also the only part the safety gate ever read).
-  const audioMs = handoff?.audioDurationMs;
+  const audioMs   = handoff?.audioDurationMs;
+  const audioWave = handoff?.audioWaveform;
   // Explore passes a real index across the whole palette set; the onboarding
   // read screen passes 0 or 3. Modulo handles both.
   const palette = palettes[palIdx % palettes.length] ?? palettes[0];
@@ -88,6 +89,7 @@ export default function ReadDetailScreen() {
         personaSeed={id ?? ''}
         confessionId={audioMs ? id : undefined}
         audioDurationMs={audioMs}
+        audioWaveform={audioWave}
       />
     </ScrollView>
     </View>

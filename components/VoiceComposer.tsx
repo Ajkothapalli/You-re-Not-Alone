@@ -23,9 +23,10 @@ import {
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { IllustrationGround, Speaking } from '@/components/illustrations';
+import Waveform from '@/components/Waveform';
 import { useAspectFit } from '@/hooks/useAspectFit';
 import {
-  formatDuration, MAX_RECORDING_MS, type VoiceRecorder,
+  formatDuration, MAX_RECORDING_MS, WAVEFORM_BARS, type VoiceRecorder,
 } from '@/lib/voiceRecorder';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius } from '@/theme/tokens';
@@ -104,6 +105,16 @@ export default function VoiceComposer({
             ]} />
           </View>
 
+          {/* Loudness as it arrives. Padded to a full strip so the bars do not
+              stretch from two to forty-eight in the first five seconds. */}
+          <Waveform
+            levels={recorder.levels}
+            minBars={WAVEFORM_BARS}
+            height={36}
+            style={styles.wave}
+            testID="voice-live-waveform"
+          />
+
           {/* The live transcript, so the writer can see it is hearing them.
               Not editable yet — editing a moving target is worse than useless. */}
           <ScrollView style={styles.liveBox} contentContainerStyle={{ padding: 14 }}>
@@ -148,6 +159,14 @@ export default function VoiceComposer({
             <Text style={styles.playMeta}>
               {formatDuration(recorder.recording.durationMs)} · this is what others will hear
             </Text>
+            {recorder.recording.waveform.length > 0 && (
+              <Waveform
+                levels={recorder.recording.waveform}
+                height={22}
+                style={{ marginTop: 8 }}
+                testID="voice-review-waveform"
+              />
+            )}
           </View>
         </View>
 
@@ -280,6 +299,8 @@ function createStyles(color: ColorSet) {
     },
     timerWarn: { color: color.accent },
     remaining: { fontFamily: fontFamily.sans, fontSize: 13, color: color.dim },
+
+    wave: { width: '100%', marginTop: 14 },
 
     track: {
       width: '100%', height: 4, borderRadius: 2,

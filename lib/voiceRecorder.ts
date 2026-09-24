@@ -36,6 +36,45 @@ export const MAX_RECORDING_MS = 180_000;
 /** The writer is warned with this long left — enough to finish a sentence. */
 export const WARN_REMAINING_MS = 15_000;
 
+/**
+ * How often the recogniser reports input loudness, and how many bars we keep.
+ *
+ * This is AMPLITUDE, not pitch. The recogniser owns the mic stream, so there is
+ * no raw PCM to run an FFT over — and opening a second capture client to get it
+ * is the thing Android refuses (see the header above). Loudness over time is
+ * what a waveform draws anyway.
+ */
+export const LEVEL_INTERVAL_MS = 100;
+/** Bars kept on the confession. 48 reads cleanly at card width and stores small. */
+export const WAVEFORM_BARS = 48;
+
+/** volumechange reports roughly -2..10; below 0 is inaudible. Map to 0..1. */
+export function normaliseLevel(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value / 10));
+}
+
+/**
+ * Squash an arbitrary-length capture down to WAVEFORM_BARS buckets, as 0..100
+ * integers so the row stores smallint[] rather than floats.
+ *
+ * Buckets take the PEAK, not the mean: averaging a three-minute recording into
+ * 48 buckets flattens everything toward the middle and every confession ends up
+ * drawing the same shape.
+ */
+export function downsampleLevels(levels: number[], bars = WAVEFORM_BARS): number[] {
+  if (levels.length === 0) return [];
+  const out: number[] = [];
+  for (let i = 0; i < bars; i++) {
+    const from = Math.floor((i       * levels.length) / bars);
+    const to   = Math.max(from + 1, Math.floor(((i + 1) * levels.length) / bars));
+    let peak = 0;
+    for (let j = from; j < to && j < levels.length; j++) peak = Math.max(peak, levels[j]);
+    out.push(Math.round(peak * 100));
+  }
+  return out;
+}
+
 type SpeechModule = {
   start:                       (o: ExpoSpeechRecognitionOptions) => void;
   stop:                        () => void;
@@ -84,6 +123,8 @@ export interface VoiceRecording {
   /** What the recogniser heard. Never mutated; the EDITED copy lives in UI state. */
   transcript: string;
   durationMs: number;
+  /** WAVEFORM_BARS peaks, 0..100. Empty if the device reported no levels. */
+  waveform:   number[];
 }
 
 export interface VoiceRecorder {
@@ -96,6 +137,8 @@ export interface VoiceRecorder {
   nearlyUp:    boolean;
   /** Live, partial. The committed value arrives on the recording. */
   liveText:    string;
+  /** Loudness 0..1 as it arrives, for the live waveform. Cleared on discard. */
+  levels:      number[];
   recording:   VoiceRecording | null;
   start:       () => Promise<void>;
   stop:        () => void;
@@ -109,7 +152,11 @@ export function useVoiceRecorder(): VoiceRecorder {
   const [elapsedMs, setElapsed]   = useState(0);
   const [liveText,  setLiveText]  = useState('');
   const [recording, setRecording] = useState<VoiceRecording | null>(null);
+  const [levels,    setLevels]    = useState<number[]>([]);
 
+  // Kept in a ref as well as state: 'end' needs the complete capture, and
+  // reading it from state there would see whatever React last committed.
+  const levelsRef  = useRef<number[]>([]);
   const finalRef   = useRef('');
   const startedRef = useRef(0);
   const uriRef     = useRef<string | null>(null);
@@ -145,6 +192,8 @@ export function useVoiceRecorder(): VoiceRecorder {
     discardLocalRecording(uriRef.current);
     uriRef.current = null;
     finalRef.current = '';
+    levelsRef.current = [];
+    setLevels([]);
     setLiveText('');
     setElapsed(0);
     setRecording(null);
@@ -182,6 +231,14 @@ export function useVoiceRecorder(): VoiceRecorder {
     }
   });
 
+  useNativeEvent('volumechange', (event) => {
+    const v = normaliseLevel(event?.value ?? 0);
+    levelsRef.current.push(v);
+    // The live bar strip only ever shows the tail, so there is no point
+    // re-rendering with the whole history behind it.
+    setLevels(levelsRef.current.slice(-WAVEFORM_BARS));
+  });
+
   // Where the audio file actually arrives.
   useNativeEvent('audioend', (event) => {
     if (event?.uri) uriRef.current = event.uri;
@@ -213,7 +270,12 @@ export function useVoiceRecorder(): VoiceRecorder {
       return;
     }
 
-    setRecording({ uri, transcript: text, durationMs: Math.min(ms, MAX_RECORDING_MS) });
+    setRecording({
+      uri,
+      transcript: text,
+      durationMs: Math.min(ms, MAX_RECORDING_MS),
+      waveform:   downsampleLevels(levelsRef.current),
+    });
     setState('captured');
   });
 
@@ -223,8 +285,10 @@ export function useVoiceRecorder(): VoiceRecorder {
     // Any previous take goes now, not when the next one finishes — two files
     // of someone's voice should never coexist on disk.
     discardLocalRecording(uriRef.current);
-    uriRef.current   = null;
-    finalRef.current = '';
+    uriRef.current    = null;
+    finalRef.current  = '';
+    levelsRef.current = [];
+    setLevels([]);
     setLiveText('');
     setRecording(null);
     setElapsed(0);
@@ -247,6 +311,8 @@ export function useVoiceRecorder(): VoiceRecorder {
         addsPunctuation:             true,
         // THE difference from dictation: here we DO want the file.
         recordingOptions: { persist: true },
+        // Loudness for the waveform. Cheap — one float per interval.
+        volumeChangeEventOptions: { enabled: true, intervalMillis: LEVEL_INTERVAL_MS },
       });
     } catch {
       setState('idle');
@@ -276,6 +342,7 @@ export function useVoiceRecorder(): VoiceRecorder {
     remainingMs,
     nearlyUp: state === 'recording' && remainingMs <= WARN_REMAINING_MS,
     liveText,
+    levels,
     recording,
     start,
     stop,

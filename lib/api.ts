@@ -87,6 +87,7 @@ export interface SubmitResult {
 export interface VoicePayload {
   rawTranscript:   string;
   audioDurationMs: number;
+  audioWaveform?: number[];
 }
 
 export async function submitConfession(
@@ -207,6 +208,8 @@ export interface OwnConfession {
   created_at: string;
   /** Null for a typed confession. Present = there is a recording to play. */
   audio_duration_ms: number | null;
+  /** Loudness envelope, 0..100 peaks. Null for a typed confession. */
+  audio_waveform: number[] | null;
 }
 
 export interface EditResult {
@@ -321,6 +324,7 @@ export interface Recommendation {
    * long it is. Playback fetches a short-lived signed URL separately.
    */
   audioDurationMs?: number;
+  audioWaveform?: number[];
 }
 
 export interface RecommendationsResult {

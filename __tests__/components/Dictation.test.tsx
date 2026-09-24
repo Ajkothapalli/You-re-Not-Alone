@@ -505,7 +505,12 @@ describe('the tab write screen has dictation too', () => {
   });
 
   it('stores no audio of its own', () => {
-    expect(tab).not.toMatch(/recordingOptions|persist|\.wav/i);
+    // `\.wav\b` not `\.wav`: the screen legitimately forwards `rec.waveform`
+    // (a loudness envelope, an array of integers) to the voice path, and the
+    // unbounded pattern matched that property name. The guard is about this
+    // screen never handling a WAV FILE or setting the recorder's persist flag
+    // — both of those still fail it.
+    expect(tab).not.toMatch(/recordingOptions|persist|\.wav\b/i);
   });
 });
 

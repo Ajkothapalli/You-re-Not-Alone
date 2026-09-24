@@ -48,6 +48,8 @@ export interface VoiceSubmitArgs {
   audioUri:      string;
   deviceHash:    string;
   region:        string;
+  /** Loudness envelope captured while recording — 0..100 peaks, may be empty. */
+  waveform?:     number[];
   onPhase?:      (phase: VoicePhase, progress?: number) => void;
 }
 
@@ -82,6 +84,8 @@ export async function submitVoiceConfession(
   args: VoiceSubmitArgs,
 ): Promise<SubmitResult & { audioAttached: boolean }> {
   const { text, rawTranscript, audioUri, deviceHash, region, onPhase } = args;
+  // Captured while recording; empty if the device reported no levels.
+  const waveform = args.waveform ?? [];
 
   try {
     // ── 1. TEXT FIRST. Nothing has left the device yet. ──────────────────────
@@ -129,7 +133,7 @@ export async function submitVoiceConfession(
       onPhase?.('uploading');
       const { data: signed, error: signErr } = await supabase.functions.invoke(
         'create-audio-upload',
-        { body: { confessionId, durationMs: ms } },
+        { body: { confessionId, durationMs: ms, waveform } },
       );
       if (signErr || !signed?.path || !signed?.token) {
         return { ...result, audioAttached: false };

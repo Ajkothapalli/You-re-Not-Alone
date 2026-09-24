@@ -56,6 +56,8 @@ export interface OwnConfession {
   created_at: string;
   /** Null for a typed confession. Present = there is a recording to play. */
   audio_duration_ms: number | null;
+  /** Loudness envelope, 0..100 peaks. Null for a typed confession. */
+  audio_waveform: number[] | null;
 }
 
 serve(async (req: Request) => {
@@ -122,7 +124,8 @@ serve(async (req: Request) => {
   // view cannot tell a voice confession from a typed one, which is how voice
   // confessions shipped showing only their transcript here.
   const SELECT =
-    'id, text, felt_count, status, created_at, updated_at, real_felt_count, audio_duration_ms';
+    'id, text, felt_count, status, created_at, updated_at, real_felt_count, '
+    + 'audio_duration_ms, audio_waveform';
 
   const [newResult, legacyResult] = await Promise.all([
     supabase

@@ -377,6 +377,7 @@ export default function ExploreScreen() {
             feltCount={item.feltCount}
             confessionId={item.id}
             audioDurationMs={item.audioDurationMs}
+            audioWaveform={item.audioWaveform}
             palette={palettes[index % palettes.length]}
             personaSeed={item.id}
             onReport={() => handleReport(item.id)}
@@ -392,6 +393,7 @@ export default function ExploreScreen() {
                 feltCount:       item.feltCount,
                 paletteIndex:    index % palettes.length,
                 audioDurationMs: item.audioDurationMs,
+                audioWaveform:   item.audioWaveform,
               });
               router.push({
                 pathname: '/read-detail',

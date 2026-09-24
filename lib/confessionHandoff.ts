@@ -31,6 +31,8 @@ export interface ConfessionHandoff {
    * exactly the point someone chose to engage with it properly.
    */
   audioDurationMs?: number;
+  /** Loudness envelope, so read-detail draws the same bars as the card. */
+  audioWaveform?:   number[];
   id:           string;
   text:         string;
   feltCount:    number;

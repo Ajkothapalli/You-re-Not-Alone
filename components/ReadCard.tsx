@@ -4,6 +4,7 @@ import { Animated, Pressable, StyleSheet, Text, TextStyle, View } from 'react-na
 import { HeartIcon } from './HeartIcon';
 import { getPersona, PersonaBadge } from './Persona';
 import VoicePlayButton from './VoicePlayButton';
+import Waveform from './Waveform';
 import { ScrawlIcon, iconAtOffset } from './ScrawlIcon';
 import type { Palette } from '../theme/palettes';
 import { useTheme } from '../theme/ThemeProvider';
@@ -19,6 +20,7 @@ interface Props {
   /** Set only for voice confessions. The transcript above always renders. */
   confessionId?:      string;
   audioDurationMs?:   number;
+  audioWaveform?:     number[];
   palette:            Palette;
   onReport:           () => void;
   onPress?:           () => void;
@@ -68,7 +70,7 @@ function TickChar({ char, isChanged, felt, reduceMotion, style }: {
 
 const MAX_LINES = 6;
 
-export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0, confessionId, audioDurationMs }: Props) {
+export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0, confessionId, audioDurationMs, audioWaveform }: Props) {
   const { colors: color, isDark } = useTheme();
   const styles = useMemo(() => createStyles(color), [color]);
 
@@ -201,6 +203,12 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
                     confessionId={confessionId}
                     durationMs={audioDurationMs}
                   />
+                  {/* The shape the writer saw while recording. Decorative only —
+                      it is never the affordance, and it carries no meaning the
+                      transcript above does not already give. */}
+                  {audioWaveform && audioWaveform.length > 0 ? (
+                    <Waveform levels={audioWaveform} height={20} style={{ marginTop: 8 }} />
+                  ) : null}
                 </View>
               ) : null}
             </View>

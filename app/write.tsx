@@ -107,6 +107,7 @@ export default function WriteScreen() {
             text:          trimmed,
             rawTranscript: rec.transcript,
             audioUri:      rec.uri,
+            waveform:      rec.waveform,
             deviceHash,
             region,
             onPhase: (p, pct) => { setPhase(p); setPhasePct(pct ?? 0); },
