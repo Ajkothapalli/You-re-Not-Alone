@@ -123,6 +123,30 @@
      promises.
    - Crisis submissions upload nothing and delete the local file immediately.
 
+   **NO SYNTHETIC VOICE IN THE POOL (owner decision 2026-09-24).** Seeded
+   confessions are text-only. Audio is NEVER generated — no TTS, no voice
+   cloning, no synthesised speech attached to a seed, in any environment.
+   Every recording in the pool is a real person who chose to record it.
+
+   This was asked and answered directly: the proposal was to seed voice
+   across all seven categories to fill the feature before real volume
+   arrives, and it was rejected.
+
+   Why it is a harder line than the text pool, which IS generated and which
+   `confessions_public` deliberately does not mark as such: the voice feature
+   rests entirely on the listener believing they are hearing a real person.
+   That belief is what the consent line ("People who know you may recognise
+   your voice") asks the WRITER to accept a real cost for. Seeding synthetic
+   voices would take that cost from real writers while handing readers
+   manufactured intimacy — and because `source` is hidden by design, nobody
+   could tell. If a listener ever recognised a synthetic voice, the doubt
+   would not stay contained to audio; it would reach every confession in the
+   pool, including the real ones.
+
+   The feed does not need it. FEED_FLOOR and the generated TEXT pool already
+   guarantee the feed is never empty (invariant 2), so a thin voice pool
+   costs nothing but patience.
+
    **KNOWN GAP, stated plainly because it cannot be engineered away here:**
    the safety gate classifies TEXT. Moderation reads the transcript, so
    audio-only signals — a third party's voice in the background, tone,
