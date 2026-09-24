@@ -123,7 +123,14 @@ export async function signInWithGoogle(): Promise<boolean> {
     return true;
   }
 
-  throw new Error(
-    `OAuth returned ${result.type} to ${url.split('?')[0].split('#')[0]} with no code or token.`,
+  // No code and no token means the provider round-trip FAILED and Supabase
+  // put the reason in the URL. Log it — redacting only the three params that
+  // are actually credentials, because "no code or token" on its own says
+  // nothing about why, which cost a full debug cycle to discover.
+  const redacted = url.replace(
+    /\b(code|access_token|refresh_token)=[^&#]*/g,
+    '$1=<redacted>',
   );
+  console.warn('[auth] no credential in redirect:', redacted);
+  throw new Error(`OAuth returned ${result.type} with no code or token.`);
 }
