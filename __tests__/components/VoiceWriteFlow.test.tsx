@@ -319,6 +319,54 @@ describe('the idle card illustration', () => {
   });
 });
 
+describe('after recording, posting is the action', () => {
+  async function toReview(u: any) {
+    await act(async () => { fireEvent.press(u.getByTestId('switch-to-voice')); });
+    await waitFor(() => u.getByTestId('voice-idle'));
+    await act(async () => { await capture(u.getByTestId); });
+    await waitFor(() => u.getByTestId('voice-review'));
+  }
+
+  it('does not offer "Record again" beside the post button', async () => {
+    // It used to sit here as an equal-weight button next to "Type instead",
+    // with "Let it out" underneath: three competing choices at the moment the
+    // writer had already done the hard part.
+    await AsyncStorage.setItem('@yana/voice_consent_v1', '1');
+    const u = await renderWrite();
+    await toReview(u);
+
+    expect(u.queryByText('Record again')).toBeNull();
+    expect(u.getByText('Let it out')).toBeTruthy();
+  });
+
+  it('still lets someone abandon a recording they regret', async () => {
+    // Removing every escape would trap a writer on this screen with a
+    // recording they do not want to post. It is a quiet link now, not a button
+    // competing with the post action — but it is still here.
+    await AsyncStorage.setItem('@yana/voice_consent_v1', '1');
+    const u = await renderWrite();
+    await toReview(u);
+
+    await act(async () => { fireEvent.press(u.getByTestId('voice-rerecord')); });
+    await waitFor(() => expect(u.getByTestId('voice-idle')).toBeTruthy());
+  });
+
+  it('returns to the record screen once posted, so nothing can be posted twice', async () => {
+    // /match is pushed over this screen rather than replacing it, so the write
+    // screen stays mounted. Without the reset it would still be holding the
+    // review card for a confession that is already live.
+    await AsyncStorage.setItem('@yana/voice_consent_v1', '1');
+    const u = await renderWrite();
+    await toReview(u);
+
+    await act(async () => { fireEvent.press(u.getByText('Let it out')); });
+    await waitFor(() => expect(mockSubmitVoice).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => expect(u.getByTestId('voice-idle')).toBeTruthy());
+    expect(u.queryByTestId('voice-review')).toBeNull();
+  });
+});
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 async function capture(getByTestId: (id: string) => any) {

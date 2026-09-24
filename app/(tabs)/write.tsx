@@ -110,6 +110,12 @@ export default function WriteTabScreen() {
 
       clearDraft();
 
+      // Posted. Clear the recorder so coming back to this screen starts at the
+      // record button, not at a review card holding a confession that is
+      // already live — which is also how the same recording could be posted
+      // twice. The screen stays mounted under /match (push, not replace), so
+      // nothing else resets it.
+      if (voiceMode) recorder.discard();
       if (result.type === 'submitted') {
         analytics.confessionSubmitted(result.match?.id ?? '');
         void grantForWrite();

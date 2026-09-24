@@ -190,27 +190,26 @@ export default function VoiceComposer({
           Editing this fixes the text only — the audio stays as you said it.
         </Text>
 
-        <View style={styles.row}>
-          <Pressable
-            onPress={() => { recorder.discard(); onChangeText(''); }}
-            disabled={disabled}
-            style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Record again"
-            testID="voice-rerecord"
-          >
-            <Text style={styles.ghostBtnText}>Record again</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => { recorder.discard(); onChangeText(''); onExit(); }}
-            disabled={disabled}
-            style={({ pressed }) => [styles.ghostBtn, pressed && styles.pressed]}
-            accessibilityRole="button"
-            accessibilityLabel="Type instead"
-          >
-            <Text style={styles.ghostBtnText}>Type instead</Text>
-          </Pressable>
-        </View>
+        {/* Once there is a recording, posting it is the action. "Record again"
+            used to sit here as an equal-weight button beside "Type instead",
+            with the screen's "Let it out" underneath — three competing choices
+            at the moment the writer has already done the hard part.
+
+            Starting over is still possible: discard below is a quiet link, and
+            it is kept rather than removed because without it someone who
+            recorded something they regret has no way out of this screen except
+            the back arrow, which is not where anyone looks to undo. */}
+        <Pressable
+          onPress={() => { recorder.discard(); onChangeText(''); }}
+          disabled={disabled}
+          hitSlop={10}
+          style={{ alignSelf: 'center' }}
+          accessibilityRole="button"
+          accessibilityLabel="Discard this recording and start again"
+          testID="voice-rerecord"
+        >
+          <Text style={styles.ghostLink}>Discard and start again</Text>
+        </Pressable>
       </View>
     );
   }
