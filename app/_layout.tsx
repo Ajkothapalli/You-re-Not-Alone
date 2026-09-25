@@ -1,4 +1,5 @@
 import AnimatedSplash from '../components/AnimatedSplash';
+import { markSplashDone } from '../lib/splashGate';
 import { DialogHost } from '../components/AppDialog';
 import { ToastHost } from '../components/Toast';
 import WriteFAB from '../components/WriteFAB';
@@ -93,7 +94,7 @@ function ThemedStack() {
         <Stack.Screen name="write"   />
       </Stack>
       <DialogHost />
-      {!splashDone && <AnimatedSplash onDone={() => setSplashDone(true)} />}
+      {!splashDone && <AnimatedSplash onDone={() => { setSplashDone(true); markSplashDone(); }} />}
     </>
   );
 }

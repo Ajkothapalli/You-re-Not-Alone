@@ -43,6 +43,7 @@ import { Svg, G, Path, Rect, Circle, Ellipse } from 'react-native-svg';
 import { useFocusEffect } from 'expo-router';
 
 import { useReducedMotion } from '@/lib/a11y';
+import { isSplashDone, subscribeSplashDone } from '@/lib/splashGate';
 import { ILL_COLOR, STROKE } from '@/theme/illustration';
 import { useIdleLayer } from '@/components/illustrations/behaviours';
 
@@ -220,34 +221,54 @@ function LanternAnimated({ style }: { style?: ViewStyle }) {
   useFocusEffect(useCallback(() => {
     idle.start();
 
-    const T = 5000;
-    const d = (p: number) => Math.round(T * p);
-    const EIO = Easing.inOut(Easing.sin);
+    // The wave must not run behind the splash. AnimatedSplash is an in-tree
+    // overlay, so this screen mounts and animates underneath it: the wave
+    // occupies 0-2.4s of the 5s cycle and the splash dismisses at 2.8s, which
+    // meant the greeting was always spent unseen and the first thing anyone
+    // watched was a figure sitting still until t=5s.
+    //
+    // isSplashDone() is sticky and already true on any later visit, so this
+    // costs nothing after the first launch.
+    let cancelled = false;
+    let unsubscribe: (() => void) | undefined;
 
-    // raise: up (0→10%), hold raised (10→38%), down (38→48%), rest (48→100%)
-    raise.value = withRepeat(withSequence(
-      withTiming(1, { duration: d(0.10), easing: Easing.out(Easing.cubic) }),
-      withTiming(1, { duration: d(0.28) }),
-      withTiming(0, { duration: d(0.10), easing: Easing.in(Easing.cubic) }),
-      withTiming(0, { duration: d(0.52) }),
-    ), -1);
+    const startWave = () => {
+      if (cancelled) return;
 
-    // swing: neutral until raised, then a decaying oscillation, then neutral/rest
-    swing.value = withRepeat(withSequence(
-      withTiming(0,    { duration: d(0.12) }),
-      withTiming(0.5,  { duration: d(0.05), easing: EIO }),
-      withTiming(-0.4, { duration: d(0.05), easing: EIO }),
-      withTiming(0.3,  { duration: d(0.04), easing: EIO }),
-      withTiming(-0.2, { duration: d(0.04), easing: EIO }),
-      withTiming(0.1,  { duration: d(0.04), easing: EIO }),
-      withTiming(0,    { duration: d(0.03), easing: EIO }),
-      withTiming(0,    { duration: d(0.63) }),
-    ), -1);
+      const T = 5000;
+      const d = (p: number) => Math.round(T * p);
+      const EIO = Easing.inOut(Easing.sin);
 
-    // glow: gentle independent pulse on the lantern
-    glowT.value = withRepeat(withTiming(1, { duration: 1400, easing: EIO }), -1, true);
+      // raise: up (0→10%), hold raised (10→38%), down (38→48%), rest (48→100%)
+      raise.value = withRepeat(withSequence(
+        withTiming(1, { duration: d(0.10), easing: Easing.out(Easing.cubic) }),
+        withTiming(1, { duration: d(0.28) }),
+        withTiming(0, { duration: d(0.10), easing: Easing.in(Easing.cubic) }),
+        withTiming(0, { duration: d(0.52) }),
+      ), -1);
+
+      // swing: neutral until raised, then a decaying oscillation, then neutral/rest
+      swing.value = withRepeat(withSequence(
+        withTiming(0,    { duration: d(0.12) }),
+        withTiming(0.5,  { duration: d(0.05), easing: EIO }),
+        withTiming(-0.4, { duration: d(0.05), easing: EIO }),
+        withTiming(0.3,  { duration: d(0.04), easing: EIO }),
+        withTiming(-0.2, { duration: d(0.04), easing: EIO }),
+        withTiming(0.1,  { duration: d(0.04), easing: EIO }),
+        withTiming(0,    { duration: d(0.03), easing: EIO }),
+        withTiming(0,    { duration: d(0.63) }),
+      ), -1);
+
+      // glow: gentle independent pulse on the lantern
+      glowT.value = withRepeat(withTiming(1, { duration: 1400, easing: EIO }), -1, true);
+    };
+
+    if (isSplashDone()) startWave();
+    else unsubscribe = subscribeSplashDone(startWave);
 
     return () => {
+      cancelled = true;
+      unsubscribe?.();
       idle.stop();
       [raise, swing, glowT].forEach(sv => cancelAnimation(sv));
       raise.value = 0; swing.value = 0; glowT.value = 0;
