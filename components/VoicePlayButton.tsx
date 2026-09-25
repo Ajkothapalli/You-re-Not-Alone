@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus, AUDIO_AVAILABLE } from '@/lib/audioModule';
 import {
   claimPlayback, getAudioUrl, releasePlayback, subscribePlayback,
 } from '@/lib/audioPlayback';
@@ -105,6 +105,11 @@ export default function VoicePlayButton({ confessionId, durationMs }: VoicePlayB
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [url]);
+
+  // Nothing to play on a binary that predates expo-audio (an OTA reaches
+  // those). A dead control is worse than none: the transcript above is the
+  // whole confession either way.
+  if (!AUDIO_AVAILABLE) return null;
 
   return (
     <Pressable

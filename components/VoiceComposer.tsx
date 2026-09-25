@@ -21,7 +21,7 @@ import {
   ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus, AUDIO_AVAILABLE } from '@/lib/audioModule';
 import { IllustrationGround, Speaking } from '@/components/illustrations';
 import Waveform from '@/components/Waveform';
 import { useAspectFit } from '@/hooks/useAspectFit';
