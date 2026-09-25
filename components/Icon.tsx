@@ -41,16 +41,30 @@ const ACCENT: Record<string, string> = {
   "cat:faith_meaning": "#B795E8"
 };
 
+// Dark theme: brighter / lighter accents that hold contrast on near-black.
+const ACCENT_DARK: Record<string, string> = {
+  "A": "#FF8A3D",
+  "B": "#B49CFF",
+  "H": "#FF5C8F",
+  "cat:mental_health": "#9C8BF6",
+  "cat:relationships": "#F5996E",
+  "cat:grief": "#7FA0FF",
+  "cat:secrets": "#FBBF24",
+  "cat:work_identity": "#4FC8D6",
+  "cat:body_health": "#9BC47E",
+  "cat:faith_meaning": "#B795E8"
+};
+
 const PALETTE = {
   light: {
-    selected: { out: '#291466', body: '#FFFFFF', acc: null, shine: true, op: 1.0 },
-    unselected: { out: '#8F88AA', body: '#FFFFFF', acc: '#E9E5F2', shine: false, op: 1.0 },
-    disabled: { out: '#CBC6D8', body: '#F7F5FA', acc: '#EFECF4', shine: false, op: 0.9 }
+    selected: { out: '#291466', body: '#FFFFFF', acc: null, mix: null, shine: true, op: 1.0, knock: '#FFFFFF' },
+    unselected: { out: '#291466', body: '#FFFFFF', acc: null, mix: ['#FFFFFF', 0.5] as const, shine: false, op: 1.0, knock: '#FFFFFF' },
+    disabled: { out: '#CBC6D8', body: '#F7F5FA', acc: '#EFECF4', mix: null, shine: false, op: 0.9, knock: '#F7F5FA' }
   },
   dark: {
-    selected: { out: '#F3F0FB', body: '#2A2440', acc: null, shine: true, op: 1.0 },
-    unselected: { out: '#9A94B4', body: '#1D1B26', acc: '#3A3550', shine: false, op: 1.0 },
-    disabled: { out: '#4A4657', body: '#16151C', acc: '#26242F', shine: false, op: 0.9 }
+    selected: { out: '#F4F1FB', body: '#2B2542', acc: null, mix: null, shine: true, op: 1.0, knock: '#FFFFFF' },
+    unselected: { out: '#C9C2DE', body: '#231E35', acc: null, mix: ['#DAD4EA', 0.45] as const, shine: false, op: 1.0, knock: '#1E1A2C' },
+    disabled: { out: '#4A4657', body: '#16151C', acc: '#2C2936', mix: null, shine: false, op: 0.9, knock: '#16151C' }
   }
 } as const;
 
@@ -108,7 +122,7 @@ const ICONS = {
     { r: 'shine', d: "M11.6 17.4C11.6 14.6 13.4 12.8 15.8 12.6" },
   ] },
   heart_empty: { a: 'H', s: [
-    { r: 'body', d: "M24 41.2C24 41.2 5.6 30.4 5.6 17.6C5.6 11.9 10 7.6 15.4 7.6C19.2 7.6 22.4 9.7 24 12.8C25.6 9.7 28.8 7.6 32.6 7.6C38 7.6 42.4 11.9 42.4 17.6C42.4 30.4 24 41.2 24 41.2Z" },
+    { r: 'line', d: "M24 41.2C24 41.2 5.6 30.4 5.6 17.6C5.6 11.9 10 7.6 15.4 7.6C19.2 7.6 22.4 9.7 24 12.8C25.6 9.7 28.8 7.6 32.6 7.6C38 7.6 42.4 11.9 42.4 17.6C42.4 30.4 24 41.2 24 41.2Z", w: 'bold' },
   ] },
   star: { a: 'A', s: [
     { r: 'accent', d: "M24 5.6L29.2 16.2L40.8 17.9C42.1 18.1 42.6 19.7 41.7 20.6L33.3 28.8L35.3 40.4C35.5 41.7 34.1 42.7 32.9 42.1L24 37.4L15.1 42.1C13.9 42.7 12.5 41.7 12.7 40.4L14.7 28.8L6.3 20.6C5.4 19.7 5.9 18.1 7.2 17.9L18.8 16.2Z" },
@@ -202,6 +216,15 @@ const ICONS = {
 } satisfies Record<string, { a: string; s: readonly Shape[] }>;
 
 export type IconName = keyof typeof ICONS;
+
+/** Blend colour a toward b by t — an unselected icon keeps its own colour, lightened. */
+function mixHex(a: string, b: string, t: number): string {
+  const ch = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  return '#' + [0, 1, 2]
+    .map((i) => Math.floor(ch(a, i) + (ch(b, i) - ch(a, i)) * t + 0.5).toString(16).padStart(2, '0'))
+    .join('')
+    .toUpperCase();
+}
 export const ICON_NAMES = Object.keys(ICONS) as IconName[];
 
 type Props = {
@@ -219,7 +242,8 @@ export function IconGlyph({ name, size = 24, state = 'selected', tone = 'auto', 
   const t = tone === 'auto' ? (isDark ? 'dark' : 'light') : tone;
   const p = PALETTE[t][state];
   const icon = ICONS[name];
-  const acc = p.acc ?? ACCENT[icon.a];
+  const own = (t === 'dark' ? ACCENT_DARK : ACCENT)[icon.a];
+  const acc = p.acc ?? (p.mix ? mixHex(own, p.mix[0], p.mix[1]) : own);
   const els: React.ReactNode[] = [];
   const round = { strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
   (icon.s as readonly Shape[]).forEach((sh, i) => {
@@ -239,7 +263,7 @@ export function IconGlyph({ name, size = 24, state = 'selected', tone = 'auto', 
         break;
       case 'knock':
         els.push(draw(`${i}a`, { fill: 'none', stroke: p.out, strokeWidth: SW * 2.2, ...round }));
-        els.push(draw(`${i}b`, { fill: 'none', stroke: state === 'selected' ? '#FFFFFF' : p.body, strokeWidth: SW * 0.95, ...round }));
+        els.push(draw(`${i}b`, { fill: 'none', stroke: p.knock, strokeWidth: SW * 0.95, ...round }));
         break;
       case 'shine':
         if (p.shine) els.push(draw(`${i}`, { fill: 'none', stroke: '#FFFFFF', strokeOpacity: 0.75, strokeWidth: SW * 0.75, ...round }));

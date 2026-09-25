@@ -147,6 +147,9 @@ describe('the migration is complete', () => {
     const src = code(read('components', 'WriteFAB.tsx'));
     expect(src).toMatch(/state=\{active \? 'selected' : 'unselected'\}/);
     expect(src).toMatch(/tone=\{active \? 'light' : 'auto'\}/);
+    // 'disabled' is greyed-out and means "you cannot press this". An inactive
+    // tab is pressable and must stay its own colour, lightened.
+    expect(src).not.toContain("'disabled'");
     // The four tabs keep their names.
     for (const n of ['book', 'pencil', 'person', 'bell']) {
       expect(src).toContain(`icon="${n}"`);
