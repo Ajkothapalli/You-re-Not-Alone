@@ -8,8 +8,8 @@
  */
 
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Icon } from './Icon';
 import { Writing, MoreWaiting } from '@/components/illustrations';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { deriveHeightFromWidth } from '@/hooks/useAspectFit';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -103,7 +103,7 @@ export function WriteInviteCard({ onPress }: { onPress: () => void }) {
             }}>
               Write yours
             </Text>
-            <ScrawlIcon name="arrow_right" size={14} color={color.paper} roughen={false} strokeWidth={2.5} />
+            <Icon name="arrow_right" size={14} />
           </View>
         </View>
       </Pressable>
@@ -151,7 +151,7 @@ export function PremiumCard({ onPress, matchCount = 0 }: { onPress: () => void; 
         </Text>
         <View style={styles.promoCta}>
           <Text style={styles.promoCtaText}>Unlock unlimited reads</Text>
-          <ScrawlIcon name="arrow_right" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
+          <Icon name="arrow_right" size={16} />
         </View>
       </Pressable>
     </View>

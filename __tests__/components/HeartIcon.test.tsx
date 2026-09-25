@@ -1,70 +1,97 @@
-// Override the global SVG mock to forward props so we can assert on them.
+/**
+ * HeartIcon — the felt toggle's heart.
+ *
+ * It is now a thin wrapper over the generated icon set, so there is nothing
+ * left here to assert about paths, fills or stroke widths: that shape data is
+ * generated from the design source and deliberately not hand-edited. What
+ * still matters, and what this file pins, is the mapping — filled picks the
+ * solid heart, empty picks the outline — plus the fact that the `color` prop
+ * is gone, since a caller-supplied tint would fight the icon's own accent.
+ *
+ * The previous version of this file asserted strokeWidth 0/2 and had been
+ * failing silently since 5fc25e7 folded HeartIcon into the ScrawlIcon system.
+ * Testing a generated component's internals is how that happens.
+ */
+
+// Forward props so the icon name is observable — the global mock drops them.
 jest.mock('react-native-svg', () => {
   const React = require('react');
   const { View } = require('react-native');
-  const Svg = (props: any) => {
-    const { children, ...rest } = props;
-    return React.createElement(View, { testID: 'Svg', ...rest }, children);
+  const mock = (name: string) => {
+    const C = ({ children, testID, ...rest }: any) =>
+      React.createElement(View, { testID: testID ?? name, ...rest }, children);
+    C.displayName = name;
+    return C;
   };
-  const Path = (props: any) => React.createElement(View, { testID: 'Path', ...props });
-  return { __esModule: true, default: Svg, Svg, Path };
+  return {
+    __esModule: true,
+    default: mock('Svg'), Svg: mock('Svg'), G: mock('G'), Path: mock('Path'),
+    Circle: mock('Circle'), Rect: mock('Rect'), Defs: mock('Defs'),
+    ClipPath: mock('ClipPath'), LinearGradient: mock('LinearGradient'), Stop: mock('Stop'),
+  };
 });
 
 import React from 'react';
 import { render } from '@testing-library/react-native';
 import { HeartIcon } from '../../components/HeartIcon';
+import { ICON_NAMES } from '../../components/Icon';
+
+/** Collect every `d` in the rendered tree — the two hearts differ by shape. */
+function paths(tree: unknown): string[] {
+  const out: string[] = [];
+  const walk = (n: any) => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (typeof n.props?.d === 'string') out.push(n.props.d);
+    walk(n.children);
+  };
+  walk(tree);
+  return out;
+}
 
 describe('HeartIcon', () => {
-  it('renders exactly one Path', async () => {
-    const { getAllByTestId } = await render(<HeartIcon filled={false} color="#F5996E" />);
-    expect(getAllByTestId('Path')).toHaveLength(1);
+  it('renders without crashing in both states', async () => {
+    for (const filled of [true, false]) {
+      const { getAllByTestId } = await render(<HeartIcon filled={filled} />);
+      // includeHiddenElements: the icon sets accessibilityElementsHidden, and
+      // RTL leaves hidden subtrees out of queries by default.
+      expect(getAllByTestId('Svg', { includeHiddenElements: true })).toHaveLength(1);
+    }
   });
 
-  /**
-   * Stroke width is a CONSTANT 2.5 in both states, not 0-when-filled.
-   *
-   * These two assertions expected 0 and 2 and had been failing since 5fc25e7,
-   * which folded HeartIcon into the ScrawlIcon system — whose documented house
-   * standard is "48×48 viewBox, 2.5px round stroke" for every icon. The test
-   * was written one commit earlier (4613386) and never updated.
-   *
-   * The component is the correct one here, for a reason the sibling test below
-   * already guards: a stroke that vanishes when the heart fills would change
-   * the heart's SIZE on every tap. Felt is a toggle people press repeatedly,
-   * and it should not wobble. `fill` alone carries the state change.
-   */
-  it('filled=true: fill=color, stroke stays at the house 2.5', async () => {
-    const { getByTestId } = await render(<HeartIcon filled color="#F5996E" size={18} />);
-    const path = getByTestId('Path');
-    expect(path.props.fill).toBe('#F5996E');
-    expect(path.props.strokeWidth).toBe(2.5);
+  it('draws a different heart filled than empty', async () => {
+    // The mapping is the whole job of this component. If both states resolved
+    // to the same icon the toggle would look broken and nothing else here
+    // would catch it.
+    const solid = paths((await render(<HeartIcon filled />)).toJSON());
+    const empty = paths((await render(<HeartIcon filled={false} />)).toJSON());
+    expect(solid.length).toBeGreaterThan(0);
+    expect(empty.length).toBeGreaterThan(0);
+    expect(solid.join('|')).not.toBe(empty.join('|'));
   });
 
-  it('filled=false: fill=none, stroke=color, stroke stays at the house 2.5', async () => {
-    const { getByTestId } = await render(<HeartIcon filled={false} color="#F5996E" size={18} />);
-    const path = getByTestId('Path');
-    expect(path.props.fill).toBe('none');
-    expect(path.props.stroke).toBe('#F5996E');
-    expect(path.props.strokeWidth).toBe(2.5);
+  it('uses names that exist in the icon set', () => {
+    // A typo would be caught by the compiler, but only while both names stay
+    // in ICON_NAMES — this fails loudly if either is ever dropped.
+    expect(ICON_NAMES).toContain('heart');
+    expect(ICON_NAMES).toContain('heart_empty');
   });
 
-  it('Svg is square: width === height === size', async () => {
-    const { getByTestId } = await render(<HeartIcon filled color="#fff" size={22} />);
-    const svg = getByTestId('Svg');
-    expect(svg.props.width).toBe(22);
-    expect(svg.props.height).toBe(22);
+  it('passes its size through to the box', async () => {
+    const { toJSON } = await render(<HeartIcon filled size={42} />);
+    const root = toJSON() as any;
+    const style = (Array.isArray(root.props.style) ? root.props.style : [root.props.style])
+      .find((x: any) => x && typeof x.width === 'number');
+    expect(style).toMatchObject({ width: 42, height: 42 });
   });
 
-  it('defaults to size=18 when size is omitted', async () => {
-    const { getByTestId } = await render(<HeartIcon filled={false} color="#000" />);
-    const svg = getByTestId('Svg');
-    expect(svg.props.width).toBe(18);
-    expect(svg.props.height).toBe(18);
-  });
-
-  it('outline and filled share the same path data (no geometry jump on toggle)', async () => {
-    const { getByTestId: getOutline } = await render(<HeartIcon filled={false} color="#F00" size={18} />);
-    const { getByTestId: getFilled  } = await render(<HeartIcon filled color="#F00" size={18} />);
-    expect(getOutline('Path').props.d).toBe(getFilled('Path').props.d);
+  it('no longer accepts a color prop', () => {
+    // Removed on purpose: the heart carries its own pink accent, and a
+    // caller-supplied tint would override it — the same mistake the old
+    // per-type colour map in notifications was making.
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '..', '..', 'components', 'HeartIcon.tsx'), 'utf8',
+    );
+    expect(src).not.toMatch(/\bcolor\s*[:,]/);
   });
 });

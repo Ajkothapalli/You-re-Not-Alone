@@ -7,6 +7,7 @@
  */
 
 import ConfessionInput from '@/components/ConfessionInput';
+import { Icon } from '@/components/Icon';
 import MicButton from '@/components/MicButton';
 import VoiceComposer, { VoiceProgress } from '@/components/VoiceComposer';
 import VoiceConsentSheet from '@/components/VoiceConsentSheet';
@@ -33,7 +34,6 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { showDialog } from '@/components/AppDialog';
 
@@ -235,7 +235,7 @@ export default function WriteTabScreen() {
           />
         )}
         <View style={styles.privacyRow}>
-          <ScrawlIcon name="lock" size={14} color={color.dim} roughen={false} />
+          <Icon name="lock" size={14} />
           <Text style={styles.privacyNote}>
             {voiceMode
               ? 'Your recording is shared as you said it. Your name is never attached.'

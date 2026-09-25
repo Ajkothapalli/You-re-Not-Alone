@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { Icon } from './Icon';
 import React from 'react';
 import {
   Dimensions,
@@ -9,7 +10,6 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fontFamily } from '@/theme/tokens';
-import { ScrawlIcon } from './ScrawlIcon';
 
 const MAX_HEIGHT = Dimensions.get('window').height * 0.85;
 
@@ -44,7 +44,7 @@ export default function BottomSheet({ children, title, onClose }: Props) {
             <Pressable onPress={close} hitSlop={12} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel="Close">
               {/* The sheet is #17131F in BOTH themes, so a #1A1A1A close icon was
                     dark-on-dark and effectively invisible — in light mode too. */}
-                <ScrawlIcon name="x_mark" size={18} color="#F3EEE8" roughen={false} strokeWidth={2.5} />
+                <Icon name="close" size={18} />
             </Pressable>
           </View>
         ) : null}

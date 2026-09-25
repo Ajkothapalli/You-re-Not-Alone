@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
@@ -124,7 +125,7 @@ export default function VoicePlayButton({ confessionId, durationMs }: VoicePlayB
       <View style={styles.icon}>
         {loading
           ? <ActivityIndicator size="small" color={color.dim} />
-          : <Text style={styles.glyph}>{mine ? '❙❙' : '▶'}</Text>}
+          : <Icon name={mine ? 'pause' : 'play'} size={15} />}
       </View>
       <Text style={styles.label}>
         {failed ? 'Audio unavailable' : formatDuration(durationMs)}

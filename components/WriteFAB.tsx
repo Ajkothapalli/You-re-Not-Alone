@@ -2,15 +2,14 @@ import { router, usePathname } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ScrawlIcon } from './ScrawlIcon';
+import { Icon, type IconName } from './Icon';
 import { useNotificationsContext } from '../lib/notificationsContext';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { SPRING } from '../theme/motion';
 import { useReducedMotion } from '../lib/a11y';
 import { fontFamily } from '../theme/tokens';
 
-const ICON        = 20;
-const ICON_STROKE = 4;
+const ICON        = 24;
 const CIRCLE      = 34;  // indicator diameter
 const SHAD        = 2;   // neo-brutal shadow offset
 const PILL_PAD_H  = 10;  // pill paddingHorizontal
@@ -28,7 +27,7 @@ const IND_TOP  = PILL_PAD_V;             // 6
 const SHOW_ON = new Set(['/explore', '/you', '/write', '/notifications']);
 
 interface TabItemProps {
-  icon:    string;
+  icon:    IconName;
   label:   string;
   active:  boolean;
   onPress: () => void;
@@ -46,12 +45,14 @@ function TabItem({ icon, label, active, onPress, badge = 0 }: TabItemProps) {
       accessibilityState={{ selected: active }}
     >
       <View style={styles.iconSlot}>
-        <ScrawlIcon
+        {/* tone="light" on the active tab: it sits on the yellow indicator
+            disc, and a dark-theme outline would vanish against it. The label
+            below still uses the theme's own colours. */}
+        <Icon
           name={icon}
           size={ICON}
-          color={active ? '#1A1A1A' : color.dim}
-          roughen={false}
-          strokeWidth={ICON_STROKE}
+          state={active ? 'selected' : 'unselected'}
+          tone={active ? 'light' : 'auto'}
         />
         {badge > 0 && (
           <View style={styles.badge}>

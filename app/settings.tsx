@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
+import { Icon } from '@/components/Icon';
 import { clearAudioUrlCache } from '@/lib/audioPlayback';
 import { GhostButton } from '@/components/Buttons';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
@@ -80,7 +80,7 @@ export default function SettingsScreen() {
             style={[styles.policyRow, i < arr.length - 1 && styles.policyRowBorder]}
           >
             <Text style={styles.policyLink}>{label}</Text>
-            <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
+            <Icon name="arrow_right" size={16} />
           </TouchableOpacity>
         ))}
       </View>

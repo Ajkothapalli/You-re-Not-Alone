@@ -14,7 +14,7 @@ import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { getNotifications, markNotificationsRead, type AppNotification } from '@/lib/notifications';
 import { useNotificationsContext } from '@/lib/notificationsContext';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
+import { Icon, type IconName } from '@/components/Icon';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { useFocusEffect } from 'expo-router';
@@ -46,19 +46,15 @@ const TYPE_LABEL: Record<AppNotification['type'], string> = {
   removed: 'your confession was reviewed',
 };
 
-const TYPE_ICON_NAME: Record<AppNotification['type'], string> = {
+const TYPE_ICON_NAME: Record<AppNotification['type'], IconName> = {
   felt:    'heart',
   matched: 'star',
-  live:    'checkmark',
-  removed: 'x_mark',
+  live:    'check_circle',
+  removed: 'close',
 };
 
-const TYPE_ICON_COLOR: Record<AppNotification['type'], string> = {
-  felt:    '#F472B6',
-  matched: '#FFE500',
-  live:    '#22C55E',
-  removed: '#888888',
-};
+// TYPE_ICON_COLOR is gone: each icon carries its own accent now, and a
+// per-type tint on top would fight it. Read vs unread is state, not colour.
 
 function NotificationItem({ item }: { item: AppNotification }) {
   const color  = useThemeColors();
@@ -68,12 +64,10 @@ function NotificationItem({ item }: { item: AppNotification }) {
   return (
     <View style={[styles.item, isRead && styles.itemRead]}>
       <View style={styles.iconWrap}>
-        <ScrawlIcon
+        <Icon
           name={TYPE_ICON_NAME[item.type]}
           size={18}
-          color={isRead ? color.dim : TYPE_ICON_COLOR[item.type]}
-          roughen={false}
-          strokeWidth={2.5}
+          state={isRead ? 'unselected' : 'selected'}
         />
       </View>
       <View style={styles.body}>

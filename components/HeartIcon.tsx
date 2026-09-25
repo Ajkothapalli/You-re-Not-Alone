@@ -1,28 +1,23 @@
 import React from 'react';
-import Svg, { Path } from 'react-native-svg';
+import { Icon } from './Icon';
 
-// Same path as ScrawlIcon's "heart" entry — 48×48 viewBox, round stroke
-const HEART = 'M24 41C24 41 4 28 4 16C4 9 9 4 16 4C20 4 23 7 24 9C25 7 28 4 32 4C39 4 44 9 44 16C44 28 24 41 24 41Z';
-
+/**
+ * The felt toggle's heart.
+ *
+ * A thin wrapper over the icon set rather than a call site swap: this is used
+ * in three places with different sizes, and keeping the name means the felt
+ * toggle stays one thing to reason about.
+ *
+ * The `color` prop is gone. The heart carries its own accent now (pink when
+ * filled), and a caller-supplied tint would fight it — which is exactly the
+ * mistake the old per-type colour map in notifications was making.
+ */
 export function HeartIcon({
   filled,
-  color,
   size = 18,
 }: {
   filled: boolean;
-  color: string;
   size?: number;
 }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 48 48">
-      <Path
-        d={HEART}
-        fill={filled ? color : 'none'}
-        stroke={color}
-        strokeWidth={2.5}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </Svg>
-  );
+  return <Icon name={filled ? 'heart' : 'heart_empty'} size={size} />;
 }

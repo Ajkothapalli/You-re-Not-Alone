@@ -1,4 +1,5 @@
 import ConfessionInput from '@/components/ConfessionInput';
+import { Icon } from '@/components/Icon';
 import MicButton from '@/components/MicButton';
 import VoiceComposer, { VoiceProgress } from '@/components/VoiceComposer';
 import VoiceConsentSheet from '@/components/VoiceConsentSheet';
@@ -27,7 +28,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 
 const MIN_CHARS = 1;
@@ -157,9 +157,7 @@ export default function WriteScreen() {
       {/* Top bar */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => router.replace('/explore')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Go back">
-          <View style={{ transform: [{ scaleX: -1 }] }}>
-            <ScrawlIcon name="arrow_right" size={18} color={color.dim} roughen={false} strokeWidth={2.5} />
-          </View>
+          <Icon name="arrow_left" size={18} />
         </TouchableOpacity>
         <ProfileButton />
       </View>
@@ -245,7 +243,7 @@ export default function WriteScreen() {
           />
         )}
         <View style={styles.privacyRow}>
-          <ScrawlIcon name="lock" size={14} color={color.dim} roughen={false} />
+          <Icon name="lock" size={14} />
           {/* Three different truths, and saying the wrong one here would be
               the worst place in the app to be wrong.
 

@@ -17,6 +17,7 @@
  * not the on-screen display card.
  */
 import { Celebration } from '@/components/Celebration';
+import { Icon } from '@/components/Icon';
 import ConfessionCard from '@/components/ConfessionCard';
 import { StoryCard } from '@/components/StoryCard';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
@@ -34,7 +35,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 
 export default function MatchScreen() {
@@ -140,7 +140,7 @@ export default function MatchScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.headingRow}>
-            <ScrawlIcon name="infinity" size={20} color={color.dim} roughen={false} />
+            <Icon name="infinity" size={20} />
             <Text style={styles.heading} accessibilityRole="header">You're not alone in this</Text>
           </View>
 

@@ -10,9 +10,9 @@
  */
 
 import { router } from 'expo-router';
+import { Icon, type IconName } from '@/components/Icon';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { ScrawlIcon, type ScrawlIconName } from '../components/ScrawlIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { showDialog } from '../components/AppDialog';
 import type { PurchasesPackage } from 'react-native-purchases';
@@ -45,7 +45,7 @@ const TIER_META: { id: TierId; label: string; period: string; best?: boolean }[]
   { id: 'year',     label: 'Yearly',   period: '/ year', best: true },
 ];
 
-const PERKS: { icon: ScrawlIconName; text: string }[] = [
+const PERKS: { icon: IconName; text: string }[] = [
   { icon: 'heart',     text: 'Unlimited reading across your categories' },
   { icon: 'infinity',  text: 'Every confession in the categories you chose' },
   { icon: 'lock',      text: 'Funds human review & keeps crisis resources current' },
@@ -158,7 +158,7 @@ export default function PlansScreen() {
         <View style={styles.perks}>
           {PERKS.map((p) => (
             <View key={p.text} style={styles.perkRow}>
-              <ScrawlIcon name={p.icon} size={18} color={color.dim} roughen={false} />
+              <Icon name={p.icon} size={18} />
               <Text style={styles.perkText}>{p.text}</Text>
             </View>
           ))}

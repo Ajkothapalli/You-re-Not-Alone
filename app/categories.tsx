@@ -7,10 +7,10 @@
  */
 
 import { CATEGORIES } from '@/lib/categories';
+import { Icon } from '@/components/Icon';
 import { getReaderPreferences, isAuthError, saveReaderPreferences } from '@/lib/api';
 import { announce } from '@/lib/a11y';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -92,7 +92,7 @@ function CategoryChip({ label, description, id, selected, width, onToggle }: Chi
           importantForAccessibility="no-hide-descendants"
         >
           <Animated.View style={{ transform: [{ scale: dotScale }] }}>
-            <ScrawlIcon name="checkmark" size={12} color={selected ? ON_BG : color.border} roughen={false} strokeWidth={3} />
+            <Icon name="check" size={12} />
           </Animated.View>
         </View>
 

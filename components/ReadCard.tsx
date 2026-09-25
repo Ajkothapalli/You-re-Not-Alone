@@ -226,7 +226,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
                 accessibilityHint={felt ? 'Removes that you felt this too' : 'Adds that you felt this too'}
               >
                 <Animated.View style={{ transform: [{ scale: feltScale }] }}>
-                  <HeartIcon filled={felt} color={heartColor} size={18} />
+                  <HeartIcon filled={felt} size={18} />
                 </Animated.View>
 
                 <View style={styles.countRow}>

@@ -15,13 +15,13 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '../theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius } from '../theme/tokens';
-import { ScrawlIcon } from './ScrawlIcon';
+import { Icon, type IconName } from './Icon';
 
 export type ToastType = 'success' | 'error' | 'alert';
 
-const STATE: Record<ToastType, { icon: string }> = {
-  success: { icon: 'checkmark' },
-  error:   { icon: 'x_mark'   },
+const STATE: Record<ToastType, { icon: IconName }> = {
+  success: { icon: 'check'     },
+  error:   { icon: 'close'     },
   alert:   { icon: 'lightning' },
 };
 
@@ -85,7 +85,7 @@ export function ToastHost() {
       <View style={styles.edge} />
       {/* Face card */}
       <View style={styles.face}>
-        <ScrawlIcon name={cfg.icon} size={18} color={color.paper} roughen={false} strokeWidth={2.5} />
+        <Icon name={cfg.icon} size={18} />
         <Text style={styles.message} numberOfLines={2}>{spec.message}</Text>
       </View>
     </Animated.View>

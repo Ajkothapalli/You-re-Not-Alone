@@ -24,8 +24,8 @@
  */
 
 import ConfessionInput from '@/components/ConfessionInput';
+import { Icon } from '@/components/Icon';
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
@@ -256,9 +256,7 @@ export default function ConfessionDetailScreen() {
             accessibilityLabel="Go back"
           >
             <View style={styles.backRow}>
-              <View style={{ transform: [{ scaleX: -1 }] }}>
-                <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
-              </View>
+              <Icon name="arrow_left" size={16} />
               <Text style={styles.backLabel}>back</Text>
             </View>
           </Pressable>
@@ -342,9 +340,7 @@ export default function ConfessionDetailScreen() {
               testID="cancel-btn"
             >
               <View style={styles.backRow}>
-                <View style={{ transform: [{ scaleX: -1 }] }}>
-                  <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
-                </View>
+                <Icon name="arrow_left" size={16} />
                 <Text style={styles.backLabel}>cancel</Text>
               </View>
             </Pressable>

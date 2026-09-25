@@ -35,7 +35,6 @@
 
 import ReadCard from '@/components/ReadCard';
 import { StoryCard } from '@/components/StoryCard';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { GhostButton } from '@/components/Buttons';
 import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
 import { announce } from '@/lib/a11y';

@@ -14,9 +14,9 @@
  */
 
 import { GhostButton, PrimaryButton } from '@/components/Buttons';
+import { Icon } from '@/components/Icon';
 import VoicePlayButton from '@/components/VoicePlayButton';
 import { formatDuration } from '@/lib/voiceRecorder';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
 import { showDialog } from '@/components/AppDialog';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { EmptyBench, IllustrationGround } from '@/components/illustrations';
@@ -230,9 +230,7 @@ export default function MyConfessionsScreen() {
           accessibilityLabel="Go back"
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ transform: [{ scaleX: -1 }] }}>
-              <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
-            </View>
+            <Icon name="arrow_left" size={16} />
             <Text style={styles.back}>back</Text>
           </View>
         </Pressable>

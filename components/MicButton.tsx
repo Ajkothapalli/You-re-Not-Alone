@@ -13,6 +13,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { Icon } from './Icon';
 import {
   Animated,
   Easing,
@@ -22,35 +23,9 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import Svg, { Path } from 'react-native-svg';
 import { useReducedMotion } from '@/lib/a11y';
 import { usePalette, useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '@/theme/tokens';
-
-/**
- * Drawn here rather than added to ScrawlIcon's set.
- *
- * That set is not just a lookup: iconAtOffset() indexes into it by a hash of
- * the confession id modulo the pool SIZE, so appending a 104th icon silently
- * re-rolls the decorative icons on every card in the app. Same house style
- * (48×48, 2.5 round stroke, no fill), no pool.
- */
-function MicGlyph({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 48 48" fill="none">
-      <Path
-        d="M18 12C18 8 21 5 24 5C27 5 30 8 30 12V22C30 26 27 29 24 29C21 29 18 26 18 22V12Z"
-        stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-      />
-      <Path
-        d="M12 22C12 29 17 35 24 35C31 35 36 29 36 22"
-        stroke={color} strokeWidth="2.5" strokeLinecap="round"
-      />
-      <Path d="M24 35V42" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-      <Path d="M17 42H31" stroke={color} strokeWidth="2.5" strokeLinecap="round" />
-    </Svg>
-  );
-}
 
 export interface MicButtonProps {
   available: boolean;
@@ -115,7 +90,14 @@ export default function MicButton({ available, listening, onStart, onStop }: Mic
             : 'Speak instead of typing. Your voice is turned into text on this device and never saved.'
         }
       >
-        <MicGlyph size={16} color={listening ? color.border : color.dim} />
+        {/* Listening turns the button yellow (palette.you), so the outline has to
+            be the light one there or it vanishes in dark mode. */}
+        <Icon
+          name="mic"
+          size={16}
+          state={listening ? 'selected' : 'unselected'}
+          tone={listening ? 'light' : 'auto'}
+        />
       </Pressable>
       {listening && (
         <Text style={styles.label} accessibilityLiveRegion="polite">

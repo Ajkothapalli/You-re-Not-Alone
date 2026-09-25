@@ -1,5 +1,5 @@
 import ReadCard from '@/components/ReadCard';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
+import { Icon } from '@/components/Icon';
 import { reportConfession } from '@/lib/api';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
@@ -73,9 +73,7 @@ export default function ReadDetailScreen() {
           accessibilityLabel="Go back"
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <View style={{ transform: [{ scaleX: -1 }] }}>
-              <ScrawlIcon name="arrow_right" size={16} color={color.dim} roughen={false} strokeWidth={2.5} />
-            </View>
+            <Icon name="arrow_left" size={16} />
             <Text style={styles.back}>back</Text>
           </View>
         </Pressable>

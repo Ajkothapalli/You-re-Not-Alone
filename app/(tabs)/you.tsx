@@ -39,7 +39,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
-import { ScrawlIcon } from '@/components/ScrawlIcon';
+import { Icon, type IconName } from '@/components/Icon';
 
 const SHADOW = 4;
 
@@ -257,14 +257,16 @@ export default function YouScreen() {
           <View style={styles.premiumCard}>
             <View style={styles.premiumTextWrap}>
               <View style={styles.premiumTopRow}>
-                <ScrawlIcon name="star" size={16} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
+                {/* The premium card is yellow in both themes, so the outline
+                    has to be the light one or it disappears in dark mode. */}
+                <Icon name="star" size={16} tone="light" />
                 <Text style={styles.premiumTitle}>{isPremium ? 'Premium active' : 'Go Premium'}</Text>
               </View>
               <Text style={styles.premiumSub}>
                 {isPremium ? 'Thank you for holding this place up' : 'Reading without the daily limit'}
               </Text>
             </View>
-            <ScrawlIcon name="arrow_right" size={20} color="#0A0A0A" roughen={false} strokeWidth={2.5} />
+            <Icon name="arrow_right" size={20} tone="light" />
           </View>
         </Pressable>
       </View>
@@ -343,7 +345,7 @@ export default function YouScreen() {
               </Text>
               <View style={styles.emptyCardCta}>
                 <Text style={styles.emptyCardCtaText}>Write it now</Text>
-                <ScrawlIcon name="arrow_right" size={14} color={color.paper} roughen={false} strokeWidth={2.5} />
+                <Icon name="arrow_right" size={14} />
               </View>
             </View>
           </Pressable>
@@ -369,7 +371,7 @@ export default function YouScreen() {
                 {totalFelt} {totalFelt === 1 ? 'person' : 'people'} felt them
               </Text>
             </View>
-            <ScrawlIcon name="arrow_right" size={18} color={color.paper} roughen={false} strokeWidth={2.5} />
+            <Icon name="arrow_right" size={18} />
           </Pressable>
         </View>
       )}
@@ -402,8 +404,8 @@ export default function YouScreen() {
       <Text style={styles.sectionLabel}>Appearance</Text>
       <View style={styles.themeRow}>
         {([
-          { mode: 'light' as const, icon: 'sun',  label: 'Light', active: !isDark },
-          { mode: 'dark'  as const, icon: 'moon', label: 'Dark',  active: isDark  },
+          { mode: 'light' as const, icon: 'sun'  as IconName, label: 'Light', active: !isDark },
+          { mode: 'dark'  as const, icon: 'moon' as IconName, label: 'Dark',  active: isDark  },
         ]).map(({ mode, icon, label, active }) => (
           <TouchableOpacity
             key={mode}
@@ -413,12 +415,11 @@ export default function YouScreen() {
             accessibilityState={{ selected: active }}
             accessibilityLabel={`${label} theme`}
           >
-            <ScrawlIcon
+            <Icon
               name={icon}
               size={22}
-              color={active ? '#1A1A1A' : color.dim}
-              roughen={false}
-              strokeWidth={2.5}
+              state={active ? 'selected' : 'unselected'}
+              tone={active ? 'light' : 'auto'}
             />
             <Text style={[styles.themeChipText, active && styles.themeChipTextActive]}>
               {label}

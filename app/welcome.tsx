@@ -24,6 +24,7 @@
  */
 
 import * as Haptics from 'expo-haptics';
+import { Icon } from '@/components/Icon';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
@@ -112,7 +113,7 @@ function MiniCard() {
         </View>
         <Text style={mc.confText}>"everyone thinks i'm fine. i'm barely holding on."</Text>
         <View style={mc.pill}>
-          <HeartIcon filled color="#3A0A14" size={10} />
+          <HeartIcon filled size={10} />
           <Text style={mc.pillText}> 218 felt this too</Text>
         </View>
       </View>
@@ -184,32 +185,6 @@ function createMiniStyles(color: ColorSet) {
 }
 
 // ─── Safety icons ─────────────────────────────────────────────────────────────
-
-function ShieldIcon({ size = 22, strokeWidth = 2.2, stroke }: { size?: number; strokeWidth?: number; stroke: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d="M12 2 4 6v6c0 5 3.5 8 8 10 4.5-2 8-5 8-10V6z" stroke={stroke} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
-
-function NoReplyIcon({ stroke }: { stroke: string }) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke={stroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <Path d="M8 11h8" stroke={stroke} strokeWidth="2.2" strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function CheckIcon({ stroke }: { stroke: string }) {
-  return (
-    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="9" stroke={stroke} strokeWidth="2.2" />
-      <Path d="M9 12l2 2 4-4" stroke={stroke} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </Svg>
-  );
-}
 
 // ─── SegmentBar ───────────────────────────────────────────────────────────────
 
@@ -573,21 +548,21 @@ export default function WelcomeScreen() {
             </View>
             <View style={s.ticks}>
               <View style={s.tick}>
-                <ShieldIcon stroke={dynColor.paper} />
+                <Icon name="shield" size={22} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.tickTitle}>Anonymous</Text>
                   <Text style={s.tickBody}>Always a random persona — no one can tie it to you.</Text>
                 </View>
               </View>
               <View style={s.tick}>
-                <NoReplyIcon stroke={dynColor.paper} />
+                <Icon name="no_reply" size={22} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.tickTitle}>No replies, ever</Text>
                   <Text style={s.tickBody}>No DMs, no profiles. No one can find you.</Text>
                 </View>
               </View>
               <View style={s.tick}>
-                <CheckIcon stroke={dynColor.paper} />
+                <Icon name="check_circle" size={22} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.tickTitle}>Checked first</Text>
                   <Text style={s.tickBody}>Reviewed before anyone sees it.</Text>

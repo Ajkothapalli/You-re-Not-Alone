@@ -183,7 +183,7 @@ function StatPill({ gained, state }: { gained: number; state: RtueState }) {
   return (
     <View style={staticSt.pill}>
       <Animated.View style={{ transform: [{ scale }] }}>
-        <HeartIcon filled color="#F5996E" size={11} />
+        <HeartIcon filled size={11} />
       </Animated.View>
       <Text style={staticSt.pillText}>{label}</Text>
     </View>

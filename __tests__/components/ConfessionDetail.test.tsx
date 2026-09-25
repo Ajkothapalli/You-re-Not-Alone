@@ -37,6 +37,11 @@ jest.mock('@/theme/ThemeProvider', () => ({
     feltText:      '#1A1A1A',
     youreNotAlone: 'rgba(26,26,26,0.65)',
   }),
+  // The icon set reads isDark to pick its palette. Without this the whole
+  // screen fails to render, which is how a missing mock member shows up:
+  // not as "useTheme is undefined" on one icon, but as 35 unrelated
+  // assertions failing at once.
+  useTheme: () => ({ isDark: false }),
 }));
 
 jest.mock('@/theme/motion', () => ({
