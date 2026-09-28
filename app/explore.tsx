@@ -34,9 +34,16 @@
  */
 
 import ReadCard from '@/components/ReadCard';
-import { StoryCard } from '@/components/StoryCard';
+import ShareFlow from '@/components/share/ShareFlow';
+import QuestionCard from '@/components/QuestionCard';
+import { getCurrentQuestion, type LiveQuestion } from '@/lib/question';
 import { GhostButton } from '@/components/Buttons';
 import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
+import TargetedWriteInvite, { InviteImpression } from '@/components/TargetedWriteInvite';
+import {
+  recordFelt, dismissWriteInvite, genericInviteAllowed, interstitialAt,
+  type TargetedInvite,
+} from '@/lib/writeInvite';
 import { announce } from '@/lib/a11y';
 import { analytics } from '@/lib/analytics';
 import { getRecommendations, isAuthError, logReadEvent, reportConfession, type Recommendation } from '@/lib/api';
@@ -48,7 +55,8 @@ import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
 import { useThemeColors } from '@/theme/ThemeProvider';
-import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
+import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
+import { Icon } from '@/components/Icon';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -87,7 +95,16 @@ export default function ExploreScreen() {
   const [showShareNudge,  setShowShareNudge]  = useState(false);
   const [sharing,         setSharing]         = useState(false);
   const [shareTarget,     setShareTarget]     = useState<Recommendation | null>(null);
-  const storyRef   = useRef<View>(null);
+  const [composerOpen,    setComposerOpen]    = useState(false);
+
+  // [W2] The weekly question. Null whenever there is no live one, the bank has
+  // run out, or the lookup failed — the feed is unchanged in every one of
+  // those cases, because this is an addition to the surface, not a dependency.
+  const [question,        setQuestion]        = useState<LiveQuestion | null>(null);
+  const [questionHidden,  setQuestionHidden]  = useState(false);
+  /** The filter. When set, the feed shows only this question's real answers. */
+  const [filterQuestion,  setFilterQuestion]  = useState<string | null>(null);
+  const [sharingQuestion, setSharingQuestion] = useState(false);
   const nudgeShown = useRef(false);  // show at most once per session
 
   // Rotate icons each time the user navigates back to this screen
@@ -152,6 +169,36 @@ export default function ExploreScreen() {
 
   useEffect(() => { fetchRecommendations(); }, []);
 
+  useEffect(() => { getCurrentQuestion().then(setQuestion).catch(() => {}); }, []);
+
+  /**
+   * Turning the filter on or off refetches. The question's answers are a
+   * different query, not a client-side filter of what is already loaded —
+   * filtering locally would show only the answers that happened to be in the
+   * current batch and call that "every answer so far".
+   */
+  useEffect(() => {
+    let alive = true;
+    if (filterQuestion === null) return;
+    setLoading(true);
+    getRecommendations(false, [], filterQuestion)
+      .then(({ confessions: answers }) => {
+        if (!alive) return;
+        setConfessions(answers);
+        setExhausted(true);   // the filtered list is complete by definition
+      })
+      .catch(() => { if (alive) setConfessions([]); })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [filterQuestion]);
+
+  function closeFilter() {
+    setFilterQuestion(null);
+    setExhausted(false);
+    shownIdsRef.current.clear();
+    fetchRecommendations();
+  }
+
   // D7 only, and only on an explicit tap — never triggered by scrolling.
   // The feed stays a bounded batch; this just lets a reader inside their
   // first week ask for the next one instead of hitting a dead end.
@@ -207,8 +254,21 @@ export default function ExploreScreen() {
 
   const SHARE_NUDGE_THRESHOLD = 50;
 
+  // The targeted invite is anchored to the confession it should appear AFTER,
+  // so it lands in the next gap rather than displacing the card being read.
+  const [invite, setInvite]             = useState<TargetedInvite | null>(null);
+  const [inviteAfterId, setInviteAfterId] = useState<string | null>(null);
+
   function handleFelt(c: Recommendation) {
     logReadEvent(c.id, 'felt');
+
+    // Three felts in one category earns ONE invite, this session. recordFelt
+    // settles itself, so this cannot fire twice however often it is called.
+    const earned = recordFelt(c.categories ?? []);
+    if (earned) {
+      setInvite(earned);
+      setInviteAfterId(c.id);
+    }
     // Light share nudge on a strong read (felt >= 50), once per session.
     if (c.feltCount >= SHARE_NUDGE_THRESHOLD && !nudgeShown.current) {
       nudgeShown.current = true;
@@ -217,19 +277,12 @@ export default function ExploreScreen() {
     }
   }
 
-  async function handleReadShare() {
+  // The nudge now OPENS the composer rather than firing the sheet directly —
+  // the reader picks how the quotation looks before it goes anywhere.
+  function handleReadShare() {
     if (!shareTarget) return;
-    setSharing(true);
-    try {
-      await shareConfessionCard(storyRef, 'read');
-      analytics.cardShared('read');
-      logReadEvent(shareTarget.id, 'share').catch(() => {});
-    } catch {
-      /* sharing cancelled or failed — just dismiss the nudge */
-    } finally {
-      setSharing(false);
-      setShowShareNudge(false);
-    }
+    setShowShareNudge(false);
+    setComposerOpen(true);
   }
 
   function handleReport(confessionId: string) {
@@ -330,14 +383,33 @@ export default function ExploreScreen() {
 
   return (
     <View style={styles.root}>
-      {/* Off-screen capture target for felt-share */}
+      {question && (
+        <ShareFlow
+          visible={sharingQuestion}
+          onClose={() => setSharingQuestion(false)}
+          source="question"
+          text={question.text}
+          category={null}
+          // The question itself has no felt count, and inventing one would be
+          // the padding this whole feature refuses. showPill hides it at 0.
+          feltCount={0}
+          tagline="Answer it anonymously on soulyap"
+          onShared={() => analytics.cardShared('question')}
+        />
+      )}
+
       {shareTarget && (
-        <StoryCard
-          ref={storyRef}
-          youText={shareTarget.text}
-          feltCount={shareTarget.feltCount}
-          palette={palettes[0]}
+        <ShareFlow
+          visible={composerOpen}
+          onClose={() => setComposerOpen(false)}
           source="read"
+          text={shareTarget.text}
+          category={shareTarget.categories?.[0] ?? null}
+          feltCount={shareTarget.feltCount}
+          onShared={() => {
+            analytics.cardShared('read');
+            logReadEvent(shareTarget.id, 'share').catch(() => {});
+          }}
         />
       )}
 
@@ -362,6 +434,42 @@ export default function ExploreScreen() {
       />
 
       <FlatList
+        ListHeaderComponent={
+          <>
+            {/* The question card. Hidden for the session by "Not now", and
+                never rendered beside the premium card — the 2026-09-27
+                decision applies to every write invite, this one included. */}
+            {question && !questionHidden && filterQuestion === null && (
+              <QuestionCard
+                question={question}
+                onAnswer={() => router.push({
+                  pathname: '/write',
+                  params:   { questionId: question.id },
+                })}
+                onReadAnswers={() => setFilterQuestion(question.id)}
+                onShare={() => setSharingQuestion(true)}
+                onDismiss={() => setQuestionHidden(true)}
+              />
+            )}
+
+            {/* The filter chip. Present only while filtering, because turning
+                it ON is what the card is for and two entry points to the same
+                state is one too many. */}
+            {question && filterQuestion !== null && (
+              <Pressable
+                onPress={closeFilter}
+                style={styles.filterChip}
+                accessibilityRole="button"
+                accessibilityState={{ selected: true }}
+                accessibilityLabel={`Showing answers to this week's question. Tap to show the whole feed.`}
+                testID="question-filter-chip"
+              >
+                <Text style={styles.filterChipLabel}>This week’s question</Text>
+                <Icon name="close" size={13} />
+              </Pressable>
+            )}
+          </>
+        }
         // Sliced to today's allowance. The confessions beyond it are not
         // fetched-and-hidden — they are simply not rendered, and tomorrow's
         // reset brings them back without another round trip.
@@ -371,6 +479,14 @@ export default function ExploreScreen() {
           // onPress makes ReadCard render as a truncated preview with a
           // "read more" affordance and become tappable — the full text lives
           // on read-detail, same as the onboarding read screen.
+          <View>
+            {/* Shown wherever an answer appears — inside the filter and in its
+                ordinary category — so a reader always knows what it answers. */}
+            {item.questionId && question && item.questionId === question.id && (
+              <Text style={styles.answeringLabel} numberOfLines={1}>
+                Answering: {question.text}
+              </Text>
+            )}
           <ReadCard
             text={item.text}
             feltCount={item.feltCount}
@@ -406,19 +522,75 @@ export default function ExploreScreen() {
             }}
             iconSessionOffset={iconSession}
           />
+          </View>
         )}
-        // The two asks repeat every INTERSTITIAL_EVERY cards rather than only
-        // at the very end (owner decision 2026-09-13). With the feed uncapped
-        // a reader can scroll a long way and never reach the footer, so the
+        // The asks repeat every INTERSTITIAL_EVERY cards rather than only at
+        // the very end (owner decision 2026-09-13). With the feed uncapped a
+        // reader can scroll a long way and never reach the footer, so the
         // end-of-feed placement meant most readers never saw either card.
         // Rendered as a separator so it sits BETWEEN cards and never replaces
         // a confession — the reader loses nothing to it.
+        //
+        // The two asks are no longer shown TOGETHER (owner decision
+        // 2026-09-27). Side by side, "write one of your own" and "become a
+        // supporter" read as one transaction, and the invitation to write —
+        // the thing this app actually needs from a reader — became the warm-up
+        // act for an upsell. They now alternate: write, then premium, then
+        // write. Only the footer still stacks both, where the reading has
+        // stopped and nothing is being interrupted.
         ItemSeparatorComponent={({ leadingItem }) => {
           const i = confessions.findIndex(c => c.id === leadingItem?.id);
-          if (i < 0 || (i + 1) % INTERSTITIAL_EVERY !== 0) return null;
+          if (i < 0) return null;
+
+          // The targeted invite outranks whatever would otherwise appear here:
+          // it is aimed at something the reader just felt three times, and it
+          // is the only ask that gets to interrupt at a moment of its own
+          // choosing rather than on a counter.
+          if (invite && leadingItem?.id === inviteAfterId) {
+            return (
+              <View style={styles.interstitial}>
+                <TargetedWriteInvite
+                  invite={invite}
+                  onAccept={(inv) => {
+                    setInvite(null);
+                    router.replace({
+                      pathname: '/write',
+                      params:   { starter: inv.starter },
+                    });
+                  }}
+                  onDismiss={() => {
+                    dismissWriteInvite();
+                    setInvite(null);
+                  }}
+                />
+              </View>
+            );
+          }
+
+          const slot = interstitialAt(i, INTERSTITIAL_EVERY);
+          if (!slot) return null;
+
+          // Once the targeted invite has been shown or dismissed, the generic
+          // write ask is done for the session — a reader who just answered
+          // that question should not be asked it again in blander words. The
+          // premium slot is unaffected; it was never the thing being repeated.
+          if (slot === 'write') {
+            if (!genericInviteAllowed()) return null;
+            return (
+              <View style={styles.interstitial}>
+                <InviteImpression kind="interstitial" />
+                <WriteInviteCard
+                  onPress={() => {
+                    analytics.writeInviteTapped('interstitial');
+                    router.replace('/write');
+                  }}
+                />
+              </View>
+            );
+          }
+
           return (
             <View style={styles.interstitial}>
-              <WriteInviteCard onPress={() => router.replace('/write')} />
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
           );
@@ -429,12 +601,25 @@ export default function ExploreScreen() {
         ListFooterComponent={
           <View style={styles.footer}>
             <Text style={styles.endHeading} accessibilityRole="header">
-              {dailyLimit !== null && confessions.length > dailyLimit
-                ? "That's your " + DAILY_ALLOWANCE + " for today"
-                : exhausted ? "That's everything for now" : "You're all caught up"}
+              {filterQuestion !== null
+                ? 'That’s every answer so far.'
+                : dailyLimit !== null && confessions.length > dailyLimit
+                  ? "That's your " + DAILY_ALLOWANCE + " for today"
+                  : exhausted ? "That's everything for now" : "You're all caught up"}
             </Text>
+            {filterQuestion !== null && (
+              <GhostButton
+                label="Add yours"
+                onPress={() => {
+                  analytics.questionAnswerTapped();
+                  router.push({ pathname: '/write', params: { questionId: filterQuestion } });
+                }}
+              />
+            )}
             <Text style={styles.endBody}>
-              {dailyLimit !== null && confessions.length > dailyLimit
+              {filterQuestion !== null
+                ? 'Answers appear here as people write them.'
+                : dailyLimit !== null && confessions.length > dailyLimit
                 ? 'Write one of your own to unlock ' + PER_WRITE + ' more right now, or come back tomorrow for another ' + DAILY_ALLOWANCE + '.'
                 : exhausted
                   ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
@@ -460,13 +645,30 @@ export default function ExploreScreen() {
               </Pressable>
             )}
 
-            {/* The write invite is a PROMPT, not a gate, and only after the
-                intro window (owner decision 2026-09-13). Asking someone to
-                write in their first 30 days is the thing we decided not to do
-                — they read for a month first, and nothing is withheld either
-                way. Premium stands on its own and shows throughout. */}
+            {/* The write invite is a PROMPT, never a gate — that part has not
+                changed. What did change (owner decision 2026-09-27): it appears
+                from DAY ONE, not after a 30-day intro window.
+
+                The comment that used to sit here described the 30-day window as
+                though the code implemented it. It never did — nothing has ever
+                called isWithinIntroWindow(), and this card has shown to every
+                reader since it was written. The decision now matches the
+                behaviour, deliberately: writing is the top priority, because
+                every reader who writes adds to the pool every other reader
+                reads, and a month of silence costs the pool more than an early
+                ask costs the reader. markInstall() still runs — the install
+                date is not recoverable once lost.
+
+                Both cards stack here, and only here: the reading has stopped,
+                so neither is interrupting the other. Mid-feed they alternate. */}
             <View style={styles.footerCards}>
-              <WriteInviteCard onPress={() => router.replace('/write')} />
+              <InviteImpression kind="footer" />
+              <WriteInviteCard
+                onPress={() => {
+                  analytics.writeInviteTapped('footer');
+                  router.replace('/write');
+                }}
+              />
               <PremiumCard onPress={() => router.push('/plans')} />
             </View>
 
@@ -549,8 +751,35 @@ function createStyles(color: ColorSet) {
       gap:        12,
       paddingTop: 8,
     },
+    filterChip: {
+      alignSelf:         'flex-start',
+      flexDirection:     'row',
+      alignItems:        'center',
+      gap:               6,
+      paddingVertical:   7,
+      paddingHorizontal: 13,
+      borderRadius:      radius.pill,
+      borderWidth:       2,
+      borderColor:       color.border,
+      backgroundColor:   color.accent,
+      marginBottom:      14,
+    },
+    filterChipLabel: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   13,
+      color:      '#1A1A1A',
+    },
+    answeringLabel: {
+      fontFamily:   fontFamily.sans,
+      fontSize:     12,
+      color:        color.dim,
+      marginBottom: 6,
+      marginLeft:   2,
+    },
     footerCards: {
-      gap:       20,
+      // Stacked, not paired: enough air that the write invite reads as its own
+      // ask rather than the first half of the premium one.
+      gap:       28,
       marginTop: 12,
     },
     // Breathing room on both sides. These cards sit between confessions, and

@@ -46,7 +46,8 @@ serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  const [daily, funnel, liquidity, virality, monetization, safety] = await Promise.all([
+  const [daily, funnel, liquidity, virality, monetization, safety, questions, bank] =
+    await Promise.all([
     supabase
       .from('v_metrics_daily')
       .select('*')
@@ -73,9 +74,22 @@ serve(async (req) => {
       .select('*')
       .limit(1)
       .single(),
+    // [W2] Per-question answers, answerers and writer conversion.
+    supabase
+      .from('v_question_stats')
+      .select('*')
+      .order('position', { ascending: false }),
+    // How much of the bank is left. Questions go in by migration, so running
+    // out is a silent failure: the card simply stops appearing and nobody is
+    // told. This is the number that prevents that.
+    supabase
+      .from('questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'approved')
+      .gt('starts_on', new Date().toISOString().slice(0, 10)),
   ]);
 
-  const errs = [daily, funnel, liquidity, virality, monetization]
+  const errs = [daily, funnel, liquidity, virality, monetization, questions]
     .filter(r => r.error)
     .map(r => r.error!.message);
   if (safety.error) errs.push(safety.error.message);
@@ -89,6 +103,8 @@ serve(async (req) => {
     virality:      virality.data     ?? [],
     monetization:  monetization.data ?? [],
     safety:        safety.data       ?? {},
+    question_stats: questions.data    ?? [],
+    questions_remaining: bank.count   ?? 0,
     fetched_at:    new Date().toISOString(),
     ...(errs.length ? { errors: errs } : {}),
   });

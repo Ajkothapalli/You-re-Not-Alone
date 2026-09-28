@@ -69,6 +69,8 @@ interface Candidate {
   // real confessions outrank AI ones so generated content recedes on its own
   // as real volume arrives. Optional because older rows may predate the column.
   source?:    string | null;
+  /** [W2] Set when this confession answers a weekly question. */
+  question_id?: string | null;
 }
 
 interface ScoredCandidate extends Candidate {
@@ -181,6 +183,27 @@ function applyExploration(
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
+
+/**
+ * Strip internal scoring fields before returning — never distance or score,
+ * never the audio storage key (CLAUDE.md invariant 3), never account_id.
+ * Shared by the ordinary feed and the question filter so the two cannot drift.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function toClient(c: Candidate) {
+  return {
+    id:         c.id,
+    text:       c.text,
+    feltCount:  c.felt_count,
+    categories: c.categories,
+    ...(c.audio_duration_ms ? { audioDurationMs: c.audio_duration_ms } : {}),
+    ...(c.audio_waveform?.length ? { audioWaveform: c.audio_waveform } : {}),
+    // Lets the feed label an answer "Answering: <question>" wherever it
+    // appears — inside the filter or in its ordinary category.
+    ...(c.question_id ? { questionId: c.question_id } : {}),
+  };
+}
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
@@ -299,6 +322,19 @@ serve(async (req: Request) => {
 
   const coldStart = (eventCount ?? 0) < 5;
 
+  /**
+   * [W2] Optional weekly-question filter.
+   *
+   * Validated for SHAPE only; the RPC decides what it matches. The filter is
+   * ANDed onto the same WHERE clause as every safety filter, so it can only
+   * narrow the safe set — there is no path where an answer skips a check a
+   * normal feed card would face.
+   */
+  const questionId =
+    typeof body.questionId === 'string' && UUID_RE.test(body.questionId)
+      ? body.questionId
+      : null;
+
   // 4. Candidate generation via RPC (safety filters applied here — before scoring)
   const { data: candidates, error: rpcError } = await supabase.rpc('recommend_confessions', {
     p_reader_id:       user.id,
@@ -307,6 +343,7 @@ serve(async (req: Request) => {
     p_categories:      categories.length > 0 ? categories : null,
     p_sexual_opt_in:   sexualOptIn,
     p_limit:           CANDIDATE_N,
+    p_question_id:     questionId,
   });
 
   if (rpcError) {
@@ -316,6 +353,20 @@ serve(async (req: Request) => {
 
   if (!candidates || candidates.length === 0) {
     return json({ confessions: [] });
+  }
+
+  /**
+   * Under the question filter the RPC's order IS the answer: newest first,
+   * real answers only. Re-ranking would reorder them by taste, and diversity
+   * selection would drop answers to spread categories — both wrong for a list
+   * that ends with "That's every answer so far". No generated fill either:
+   * the RPC already excludes it, and topping up here would put fabricated
+   * answers under a question real people answered.
+   */
+  if (questionId) {
+    return json({
+      confessions: (candidates as Candidate[]).map(toClient),
+    });
   }
 
   // 5. Re-rank
@@ -334,17 +385,5 @@ serve(async (req: Request) => {
   // 7. Diversity selection (category spread)
   const diverse = selectWithDiversity(explored, RETURN_N);
 
-  // Strip internal scoring fields before returning (never return distance or score)
-  const result = diverse.map(({ id, text, felt_count, categories: cats, audio_duration_ms, audio_waveform }) => ({
-    id,
-    text,
-    feltCount:  felt_count,
-    categories: cats,
-    // Duration only — enough to render a play control and its length. The
-    // storage key stays server-side (CLAUDE.md invariant 3).
-    ...(audio_duration_ms ? { audioDurationMs: audio_duration_ms } : {}),
-    ...(audio_waveform?.length ? { audioWaveform: audio_waveform } : {}),
-  }));
-
-  return json({ confessions: result });
+  return json({ confessions: diverse.map(toClient) });
 });

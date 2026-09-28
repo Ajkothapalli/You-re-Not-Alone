@@ -10,7 +10,7 @@
  * edge function rate limiting; source validation is the only content gate.
  *
  * Payload shape:
- *   { event: 'share_click' | 'install_attributed', source: 'match' | 'rtue' | 'read' }
+ *   { event: 'share_click' | 'install_attributed', source: 'match' | 'rtue' | 'read' | 'question' }
  *
  * Privacy invariants:
  *   - No account_id, no confession_id, no user IP stored.
@@ -26,7 +26,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase             = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const VALID_TYPES   = new Set(['share_click', 'install_attributed']);
-const VALID_SOURCES = new Set(['match', 'rtue', 'read', 'unknown']);
+const VALID_SOURCES = new Set(['match', 'rtue', 'read', 'question', 'unknown']);
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',

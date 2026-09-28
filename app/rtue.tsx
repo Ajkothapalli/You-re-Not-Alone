@@ -11,7 +11,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import { StoryCard } from '@/components/StoryCard';
+import ShareFlow from '@/components/share/ShareFlow';
 import { analytics } from '@/lib/analytics';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
@@ -22,7 +22,7 @@ import { router } from 'expo-router';
 
 import { PrimaryButton } from '@/components/Buttons';
 import { HeartIcon } from '@/components/HeartIcon';
-import { logReadEvent } from '@/lib/api';
+import { logReadEvent, getOwnRealFeltCount } from '@/lib/api';
 import { evaluateRtue, markRtueSeen, clearRtueCache, type RtueMoment, type RtueState } from '@/lib/rtue';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily } from '@/theme/tokens';
@@ -214,12 +214,22 @@ export default function RtueScreen() {
 
   const [moment,  setMoment]  = useState<RtueMoment | null | 'loading'>('loading');
   const [sharing, setSharing] = useState(false);
-  const storyRef = useRef<View>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  /**
+   * The HUMAN-only count for the sealed card. `moment.current` is felt_count,
+   * which is not a count of people (seeds carry a fabricated 30–300 and
+   * generated companions increment it like real users do), and this card says
+   * "felt by N strangers" — a claim about people, printed into an image that
+   * travels off-platform. null means we could not establish a real number, and
+   * the card then shows no count rather than a fabricated one.
+   */
+  const [realFelt, setRealFelt] = useState<number | null>(null);
 
   useEffect(() => {
     evaluateRtue().then(m => {
       if (!m) { router.replace('/explore'); return; }
       setMoment(m);
+      getOwnRealFeltCount(m.id).then(setRealFelt).catch(() => setRealFelt(null));
       announce(
         m.state === 'not_yet'
           ? 'Welcome back. Your confession is still travelling.'
@@ -228,17 +238,8 @@ export default function RtueScreen() {
     }).catch(() => router.replace('/explore'));
   }, []);
 
-  async function handleShare() {
-    setSharing(true);
-    try {
-      await shareConfessionCard(storyRef, 'rtue');
-      analytics.cardShared('rtue');
-      if (moment && moment !== 'loading') logReadEvent(moment.id, 'share').catch(() => {});
-    } catch (err: any) {
-      showDialog('Could not share', err.message ?? 'Try again.');
-    } finally {
-      setSharing(false);
-    }
+  function handleShare() {
+    setComposerOpen(true);
   }
 
   function dismiss(dest: '/write' | '/explore') {
@@ -258,14 +259,19 @@ export default function RtueScreen() {
 
   return (
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
-      {/* Off-screen capture target — single mode, milestone palette */}
       {state === 'milestone' && (
-        <StoryCard
-          ref={storyRef}
-          youText={text}
-          feltCount={current}
-          palette={palettes[0]}
+        <ShareFlow
+          visible={composerOpen}
+          onClose={() => setComposerOpen(false)}
           source="rtue"
+          text={text}
+          category={null}
+          feltCount={realFelt ?? 0}
+          own
+          onShared={() => {
+            analytics.cardShared('rtue');
+            logReadEvent(moment.id, 'share').catch(() => {});
+          }}
         />
       )}
 

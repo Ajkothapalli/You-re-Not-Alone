@@ -7,6 +7,13 @@
  */
 
 import ConfessionInput from '@/components/ConfessionInput';
+import { shouldNudge, markNudged, resetNudge, NUDGE_TITLE, NUDGE_BODY, NUDGE_POST, NUDGE_MORE } from '@/lib/shortDraftNudge';
+import { isDraftReady } from '@/lib/draftReady';
+import StarterChips from '@/components/StarterChips';
+import { useStarters } from '@/lib/useStarters';
+import { getCurrentQuestion, type LiveQuestion } from '@/lib/question';
+import type { ConfessionInputHandle } from '@/components/ConfessionInput';
+import { notGenuineCopy } from '@/lib/notGenuineCopy';
 import { Icon } from '@/components/Icon';
 import MicButton from '@/components/MicButton';
 import VoiceComposer, { VoiceProgress } from '@/components/VoiceComposer';
@@ -18,13 +25,13 @@ import { submitVoiceConfession, type VoicePhase } from '@/lib/voiceSubmit';
 import { grantForWrite } from '@/lib/readAllowance';
 import { PrimaryButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
-import { submitConfession } from '@/lib/api';
+import { submitConfession, isNotGenuine } from '@/lib/api';
 import { useDraft } from '@/lib/draftContext';
 import { getDeviceHash } from '@/lib/deviceHash';
 import { useThemeColors } from '@/theme/ThemeProvider';
-import { type ColorSet, fontFamily, spacing } from '@/theme/tokens';
+import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -37,6 +44,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { showDialog } from '@/components/AppDialog';
 
+// The server's floor is 10 characters / 3 words (8 letters for a script
+// written without spaces). isDraftReady mirrors it so the button is visibly
+// not-ready-yet rather than tapping through to a round trip that says so.
+// MIN_CHARS stays only for the length counter; the gate is isDraftReady.
 const MIN_CHARS = 1;
 
 export default function WriteTabScreen() {
@@ -45,12 +56,37 @@ export default function WriteTabScreen() {
   const styles                         = useMemo(() => createStyles(color), [color]);
   const { draft, setDraft, clearDraft } = useDraft();
   const [loading, setLoading]          = useState(false);
-  const { prefillText }                = useLocalSearchParams<{ prefillText?: string }>();
+  const inputRef                       = useRef<ConfessionInputHandle>(null);
+
+  /**
+   * [W2] Answering the weekly question.
+   *
+   * Held in state rather than read straight from the param so that detaching
+   * is possible: the writer can decide mid-sentence that this is not an answer
+   * after all, and their words stay exactly where they are.
+   */
+  const [question, setQuestion] = useState<LiveQuestion | null>(null);
+  const [attached, setAttached] = useState(false);
+  const { prefillText, starter, questionId } =
+    useLocalSearchParams<{ prefillText?: string; starter?: string; questionId?: string }>();
 
   // Same draft state the keyboard writes to — see lib/dictation.ts. Kept in
   // step with app/write.tsx, which is the same screen reached without the tab
   // bar; a mic that appeared on only one of the two would be worse than none.
   const dictation = useDictation({ value: draft, onChangeText: setDraft });
+
+  const { starters, visible: startersVisible } = useStarters(draft);
+
+  useEffect(() => {
+    if (!questionId) return;
+    getCurrentQuestion()
+      .then((q) => {
+        // Only attach if the id is still the live one. A week can turn over
+        // between opening the feed and opening this screen.
+        if (q && q.id === questionId) { setQuestion(q); setAttached(true); }
+      })
+      .catch(() => {});
+  }, [questionId]);
 
   // Voice mode. Kept identical to app/write.tsx on purpose — these two screens
   // are near-duplicates and the dictation feature drifted between them within a
@@ -74,15 +110,38 @@ export default function WriteTabScreen() {
 
   useEffect(() => {
     if (prefillText && !draft) setDraft(prefillText);
+    else if (starter && !draft) setDraft(starter);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * The nudge sits between the tap and the send, and never blocks.
+   *
+   * It runs BEFORE submit, so the crisis check has not happened and cannot be
+   * consulted here. That is safe only because every path ends in doSubmit:
+   * a crisis message typed in four words is delayed by one tap, never stopped.
+   */
   async function handleSubmit() {
     const trimmed = draft.trim();
-    if (trimmed.length < MIN_CHARS) {
-      showDialog('Too short', 'Write a little more — at least a sentence or two.');
+    if (!isDraftReady(trimmed)) {
+      // Not "Too short". The floor already refuses their words; naming it that
+      // way tells someone the hardest sentence they ever typed does not count.
+      showDialog('Say a little more?', 'Even a few words is enough.');
       return;
     }
+    if (shouldNudge(trimmed)) {
+      markNudged(trimmed);
+      showDialog(NUDGE_TITLE, NUDGE_BODY, [
+        // "Add more" simply returns: the draft and the cursor are untouched.
+        { text: NUDGE_MORE, style: 'cancel' },
+        { text: NUDGE_POST, onPress: () => { void doSubmit(trimmed); } },
+      ]);
+      return;
+    }
+    await doSubmit(trimmed);
+  }
+
+  async function doSubmit(trimmed: string) {
     setLoading(true);
     try {
       const deviceHash = await getDeviceHash();
@@ -99,7 +158,10 @@ export default function WriteTabScreen() {
             region,
             onPhase: (p, pct) => { setPhase(p); setPhasePct(pct ?? 0); },
           })
-        : await submitConfession(trimmed, deviceHash, region);
+        : await submitConfession(
+            trimmed, deviceHash, region, undefined, undefined,
+            attached ? question?.id ?? null : null,
+          );
 
       if (result.type === 'crisis') { router.push('/crisis'); return; }
       if (result.type === 'blocked') {
@@ -109,6 +171,7 @@ export default function WriteTabScreen() {
       }
 
       clearDraft();
+      resetNudge();
 
       // Posted. Clear the recorder so coming back to this screen starts at the
       // record button, not at a review card holding a confession that is
@@ -147,6 +210,16 @@ export default function WriteTabScreen() {
         },
       });
     } catch (err: any) {
+      // [3.6] SUBSTANCE. Nothing was stored, this is not a violation, and the
+      // draft is deliberately NOT cleared — clearDraft() only runs on the
+      // success path above, so returning here leaves the words in the field,
+      // which is what the dialog promises.
+      if (isNotGenuine(err)) {
+        analytics.blockedNotGenuine(err.reason);
+        const copy = notGenuineCopy(err.reason);
+        showDialog(copy.title, copy.body);
+        return;
+      }
       const msg: string = err?.message ?? '';
       if      (msg.includes('moderation_unavailable'))                                             showDialog('Not available', 'The service is not ready yet. Please try again later.');
       else if (err?.status === 429 || msg.includes('429') || msg.toLowerCase().includes('rate'))   showDialog('Slow down', "You've shared a lot today. Come back tomorrow.");
@@ -169,6 +242,26 @@ export default function WriteTabScreen() {
         </Text>
       </View>
 
+
+      {/* [W2] The question being answered. The ✕ detaches it without touching
+          a word of what they have already written. */}
+      {attached && question && (
+        <View style={styles.questionBanner} testID="write-question-banner">
+          <View style={{ flex: 1 }}>
+            <Text style={styles.questionEyebrow}>This week’s question</Text>
+            <Text style={styles.questionText}>{question.text}</Text>
+          </View>
+          <Pressable
+            onPress={() => { analytics.questionDetached(); setAttached(false); }}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Write about something else"
+            testID="write-question-detach"
+          >
+            <Icon name="close" size={16} />
+          </Pressable>
+        </View>
+      )}
       {voiceMode ? (
         <View style={styles.inputArea}>
           <VoiceComposer
@@ -181,6 +274,7 @@ export default function WriteTabScreen() {
         </View>
       ) : (
         <ConfessionInput
+          ref={inputRef}
           value={draft}
           onChangeText={setDraft}
           placeholder="Write it here, or say it out loud. It stays private."
@@ -194,6 +288,19 @@ export default function WriteTabScreen() {
               onStop={dictation.stop}
             />
           }
+        />
+      )}
+
+      {/* Never in voice mode: a recording has no cursor to insert into, and a
+          row of written prompts under a mic is the wrong instrument entirely. */}
+      {!voiceMode && (
+        <StarterChips
+          starters={starters}
+          // The question is the starter. Offering both is two prompts for one
+          // blank page, and the chips would quietly compete with the question
+          // the writer came here to answer.
+          visible={startersVisible && !(attached && !!question)}
+          onPick={(s) => inputRef.current?.insertText(s)}
         />
       )}
 
@@ -231,7 +338,7 @@ export default function WriteTabScreen() {
             label="Let it out"
             onPress={handleSubmit}
             loading={loading}
-            disabled={draft.trim().length < MIN_CHARS}
+            disabled={!isDraftReady(draft)}
           />
         )}
         <View style={styles.privacyRow}>
@@ -251,6 +358,31 @@ export default function WriteTabScreen() {
 
 function createStyles(color: ColorSet) {
   return StyleSheet.create({
+    questionBanner: {
+      flexDirection:   'row',
+      alignItems:      'flex-start',
+      gap:             12,
+      padding:         14,
+      marginBottom:    14,
+      borderRadius:    radius.input,
+      borderWidth:     StyleSheet.hairlineWidth,
+      borderColor:     color.line,
+      backgroundColor: color.ink,
+    },
+    questionEyebrow: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      font.labelSize,
+      letterSpacing: font.labelLetterSpacing,
+      textTransform: 'uppercase',
+      color:         color.dim,
+      marginBottom:  4,
+    },
+    questionText: {
+      fontFamily: fontFamily.serif,
+      fontSize:   16,
+      lineHeight: 22,
+      color:      color.paper,
+    },
     root: {
       flex:              1,
       backgroundColor:   color.bg,

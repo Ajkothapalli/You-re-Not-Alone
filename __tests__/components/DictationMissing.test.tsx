@@ -25,7 +25,11 @@ jest.mock('expo-speech-recognition', () => {
   throw new Error("Cannot find native module 'ExpoSpeechRecognition'");
 });
 
-jest.mock('@/lib/api', () => ({ submitConfession: jest.fn() }));
+jest.mock('@/lib/api', () => ({
+  submitConfession:      jest.fn(),
+  // The write screen loads the reader's categories for its sentence starters.
+  getReaderPreferences:  jest.fn().mockResolvedValue({ categories: [] }),
+}));
 jest.mock('@/lib/deviceHash', () => ({ getDeviceHash: jest.fn().mockResolvedValue('h') }));
 jest.mock('@/lib/readAllowance', () => ({ grantForWrite: jest.fn() }));
 jest.mock('@/components/ProfileButton', () => ({ __esModule: true, default: () => null }));

@@ -329,10 +329,15 @@ describe('D7 launch route + the write gate it must not break (CLAUDE.md §2)', (
     // unconditionally as a card in the feed, so the invariant holds MORE
     // strongly than the old assertion could express. What still has to be true
     // is that nothing withholds the feed behind writing.
-    const src = read('app', 'explore.tsx');
+    const raw = read('app', 'explore.tsx');
+    // Comments stripped before matching. These guards constrain CODE, and a
+    // file explaining WHY it does not do something would otherwise fail the
+    // guard against doing it — which has now happened four times in this repo.
+    const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
     expect(src).toContain('<WriteInviteCard');
-    // The 30-day window must not gate this surface (owner decision 2026-09-13:
-    // it only decides whether the prompt appears, never whether someone reads).
+    // The intro window must not gate this surface. Owner decision 2026-09-27
+    // made the invite unconditional from day one, which makes this guard
+    // stronger, not weaker: there is no branch here to gate on at all.
     expect(src).not.toContain('isWithinIntroWindow');
     // And the old read-before-you-write gate stays gone.
     expect(src).not.toContain('readShown');

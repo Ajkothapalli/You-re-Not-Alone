@@ -19,7 +19,7 @@
 import { Celebration } from '@/components/Celebration';
 import { Icon } from '@/components/Icon';
 import ConfessionCard from '@/components/ConfessionCard';
-import { StoryCard } from '@/components/StoryCard';
+import ShareFlow from '@/components/share/ShareFlow';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
 import { logReadEvent } from '@/lib/api';
@@ -55,7 +55,7 @@ export default function MatchScreen() {
   const confessionId = params.confessionId ?? '';
   const isNoMatch    = params.noMatch === '1';
 
-  const storyRef = useRef<View>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   const [celebrating,  setCelebrating]  = useState(true);
   const [sharing,      setSharing]      = useState(false);
@@ -67,17 +67,15 @@ export default function MatchScreen() {
     }
   }, []);
 
-  async function handleShare() {
-    setSharing(true);
-    try {
-      await shareConfessionCard(storyRef, 'match');
-      analytics.cardShared('match');
-      if (confessionId) logReadEvent(confessionId, 'share').catch(() => {});
-    } catch (err: any) {
-      showDialog('Could not share', err.message ?? 'Try again.');
-    } finally {
-      setSharing(false);
-    }
+  function handleShare() {
+    setComposerOpen(true);
+  }
+
+  // Fires only once a target app was demonstrably chosen; the composer owns
+  // every failure path, so there is nothing to catch or apologise for here.
+  function onShared() {
+    analytics.cardShared('match');
+    if (confessionId) logReadEvent(confessionId, 'share').catch(() => {});
   }
 
   function goToFeed() {
@@ -119,14 +117,17 @@ export default function MatchScreen() {
   // ── Match path ───────────────────────────────────────────────────────────────
   return (
     <View style={styles.root}>
-      {/* Off-screen capture target for share */}
-      <StoryCard
-        ref={storyRef}
-        youText={youText}
-        themText={themText}
-        feltCount={feltCount}
-        palette={palette}
+      {/* The card quotes the MATCHED confession — passing on the words that
+          just landed, which is what the Quoted card is for. Your own words are
+          not the thing being handed to a stranger here. */}
+      <ShareFlow
+        visible={composerOpen}
+        onClose={() => setComposerOpen(false)}
         source="match"
+        text={themText}
+        category={null}
+        feltCount={feltCount}
+        onShared={onShared}
       />
 
       {celebrating && (

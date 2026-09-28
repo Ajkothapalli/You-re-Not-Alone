@@ -71,7 +71,8 @@ jest.mock('expo-localization', () => ({
 // that submits inspects exactly what crossed it.
 const mockSubmit = jest.fn().mockResolvedValue({ type: 'submitted', match: { id: 'c1' } });
 jest.mock('@/lib/api', () => ({
-  submitConfession: (...a: unknown[]) => mockSubmit(...a),
+  submitConfession:     (...a: unknown[]) => mockSubmit(...a),
+  getReaderPreferences: jest.fn().mockResolvedValue({ categories: [] }),
 }));
 
 jest.mock('@/lib/deviceHash', () => ({ getDeviceHash: jest.fn().mockResolvedValue('hash') }));
@@ -328,14 +329,14 @@ describe('no audio is stored, uploaded, or kept', () => {
     const { getByTestId, getByText } = await renderWrite();
     await tapMic(getByTestId);
     await act(async () => {
-      emit('result', { isFinal: true, results: [{ transcript: 'i said this out loud' }] });
+      emit('result', { isFinal: true, results: [{ transcript: 'i never told anyone about that night and it still sits with me' }] });
     });
     await act(async () => { fireEvent.press(getByText('Let it out')); });
     await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
 
     const [text, ...rest] = mockSubmit.mock.calls[0];
     expect(typeof text).toBe('string');
-    expect(text).toBe('i said this out loud');
+    expect(text).toBe('i never told anyone about that night and it still sits with me');
     // Same arity a typed confession always had: text, device hash, region.
     expect(JSON.stringify([text, ...rest])).not.toMatch(/file:\/\/|\.wav|\.m4a|\.caf|audio/i);
   });
@@ -401,7 +402,7 @@ describe('the server pipeline is unchanged', () => {
     await tapMic(getByTestId);
     expect(mockStart.mock.calls[0][0].lang).toBe('hi-IN');
 
-    await act(async () => { emit('result', { isFinal: true, results: [{ transcript: 'maine kisi ko nahi bataya' }] }); });
+    await act(async () => { emit('result', { isFinal: true, results: [{ transcript: 'maine kisi ko nahi bataya ki main kitna dar gaya tha' }] }); });
     await act(async () => { fireEvent.press(getByText('Let it out')); });
     await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
 
@@ -420,12 +421,12 @@ describe('the server pipeline is unchanged', () => {
     // happens to pass.
     const { getByTestId, getByText } = await renderWrite();
     await tapMic(getByTestId);
-    await act(async () => { emit('result', { isFinal: true, results: [{ transcript: 'spoken' }] }); });
+    await act(async () => { emit('result', { isFinal: true, results: [{ transcript: 'i never told anyone about that night and it still sits with me' }] }); });
     await act(async () => { fireEvent.press(getByText('Let it out')); });
     await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
 
     const args = mockSubmit.mock.calls[0];
-    expect(args[0]).toBe('spoken');
+    expect(args[0]).toBe('i never told anyone about that night and it still sits with me');
     expect(JSON.stringify(args)).not.toMatch(/audio|recording|uri|transcript|locale/i);
   });
 
@@ -455,12 +456,12 @@ describe('analytics never carry a transcript', () => {
     const { getByTestId, getByText } = await renderWrite();
     await tapMic(getByTestId);
     await act(async () => {
-      emit('result', { isFinal: true, results: [{ transcript: 'the words i said out loud' }] });
+      emit('result', { isFinal: true, results: [{ transcript: 'the words i said out loud that i never told anyone' }] });
     });
     await act(async () => { fireEvent.press(getByText('Let it out')); });
     await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
 
-    expect(JSON.stringify(mockTrack.mock.calls)).not.toMatch(/the words i said out loud/);
+    expect(JSON.stringify(mockTrack.mock.calls)).not.toMatch(/the words i said out loud that i never told anyone/);
   });
 
   it('the analytics module declares no transcript-shaped event', () => {

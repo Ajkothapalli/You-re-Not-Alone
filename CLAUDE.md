@@ -32,9 +32,32 @@
      write" credit. Reading is never rationed and never earned.
    - The feed shows **however much matches the reader's chosen categories** —
      the fixed 10-per-batch cap is gone.
-   - The write invite is a **PROMPT shown after a 30-day intro window**
-     (`lib/introWindow.ts`), never a gate. Reading is not withheld before or
-     after it.
+   - The write invite is a **PROMPT, never a gate**. Reading is not withheld
+     before or after it.
+
+     *Owner decision 2026-09-27 — supersedes the "30-day intro window" this
+     line used to describe.* The invite appears **from day one**.
+
+     This paragraph previously said the prompt was shown only after a 30-day
+     window (`lib/introWindow.ts`). **The code never did that** — nothing has
+     ever called `isWithinIntroWindow()`, and the invite has shown to every
+     reader since it was written. So this was not a policy change being made
+     against working code; it was documentation that had never matched the
+     behaviour, and the fix could go either way. It went this way on purpose:
+     writing is the top priority, because every reader who writes adds to the
+     pool every other reader reads, and a month of not asking costs the pool
+     more than an early, dismissible ask costs the reader.
+
+     What holds the line instead of the window: the ask is **targeted** (after
+     three felts in one category, at most once per session, dismissible with
+     "Not now"), and it is **never paired with an upsell** — mid-feed the write
+     invite and the premium card alternate and never appear side by side, so
+     the invitation to write is never the warm-up act for a sale. Once the
+     targeted invite has been shown or dismissed, the generic one is suppressed
+     for the rest of the session.
+
+     `markInstall()` still runs: the install date is not recoverable once lost,
+     and `lib/introWindow.ts` is kept for that reason alone.
    - AI-generated stories fill the feed while real volume is thin, and recede
      automatically as real confessions arrive (real outranks generated in
      scoring — an ordering bonus, never a filter, so a thin category fills
@@ -60,6 +83,43 @@
      server withholding real confessions from free readers, which is exactly
      what produced a permanently empty feed behind copy promising more were
      arriving. A conversion nudge, not DRM.
+
+
+   **THE QUESTION — one shared question a week (owner decision 2026-09-28).**
+
+   One owner-approved question, the same for everyone, for a calendar week
+   (Monday 00:00 → Sunday 23:59 Asia/Kolkata). It exists for one reason: a
+   blank page asks a reader to find something to say, and a question hands
+   them the thing. Writer conversion is the metric.
+
+   What it is, precisely:
+   - Answers are ORDINARY CONFESSIONS. Same pipeline, same gates, same order;
+     they appear under the question filter AND in their normal categories. The
+     question does not set a category — the classifier still does, server-side.
+   - The answers are a FILTER inside the feed (`p_question_id`), never a new
+     screen. This does not add a read surface; invariant #2 is unchanged.
+   - In-app only. No push in this phase.
+   - **REAL ANSWERS ONLY.** Nothing with `source <> 'user'` may carry a
+     `question_id` or appear under the filter — enforced by a CHECK on the
+     column, by `source='user'` in the RPC, and by skipping the curated
+     FEED_FLOOR top-up entirely when the filter is on. The proposition is
+     "other real people answered this"; one padded answer makes that a lie a
+     reader has no way to detect. A short list is the honest outcome.
+   - The answer count is withheld below 3. "1 answer" reads as nobody came.
+   - New questions arrive BY MIGRATION. There is no admin UI, so an exhausted
+     bank is a silent failure — `current_question()` returns no row, the card
+     stops appearing, nobody is told. The dashboard's "questions left in bank"
+     warning below 4 is the only thing that surfaces it.
+   - A crisis submission routes to the crisis screen exactly as before, and no
+     question UI appears anywhere on that path (#6).
+
+   **Guardrails for any question added later.** Concrete and specific — a
+   draft, a voice note, 3am, the family group. NEVER invite a name, a place, a
+   workplace or any identifiable third party (the same rule the sentence
+   starters live by, and for the same reason: it would put a person here who
+   never consented, on a surface with no reply channel to object through).
+   Nothing that fishes for crisis or sexual content. Rotate categories week to
+   week. The one Hinglish line ("log kya kahenge") is intentional.
 
    **What the removed caps were protecting, and what still protects it:** the
    caps existed so this could not become an endless scroll of other people's
@@ -399,6 +459,10 @@ POST /functions/v1/submit-confession  { text }  + JWT
     │       CSAM signal → NCMEC hook (no account_id, no text stored locally), 400
     ├─[3] CRISIS CHECK (keyword list always + classifier when key set)
     │       FLAGGED → INSERT crisis_events, return {type:"crisis"}, STOP
+    ├─[3.6] SUBSTANCE (_shared/substance.ts — shared with edit-confession)
+    │       Layer 1 deterministic + Layer 2 gpt-4o-mini meaning check
+    │       REJECT → 422 {error:"not_genuine", reason}, nothing stored
+    │       FAILS OPEN: Layer 2 unreachable → substance_check='unchecked', post allowed
     ├─[4] EMBED  (best-effort — see below; never blocks; category is what matches)
     ├─[5] INSERT confessions
     │       account_id = auth user id (never exposed to clients)
@@ -414,6 +478,37 @@ POST /functions/v1/submit-confession  { text }  + JWT
     └─[8] Return { match: { id, text, felt_count } }
           — no author_token, no account data
 ```
+
+### [3.6] Substance — the genuine-confession gate
+
+Quality, not safety. Moderation ([2]) fails CLOSED in every environment; this
+one fails OPEN, because the cost of a false positive is telling a real person
+that what they just wrote does not count.
+
+**It runs strictly AFTER the crisis check, and that ordering is the fix for a
+live bug.** The minimum-length rejection used to sit at the top of the handler,
+ahead of [2] and [3]: `if (rawText.length < 10) return 'too short'`. So "end
+it" and "kill me" were bounced as too short and never reached crisis
+resources — the one person this pipeline exists to catch was the one it turned
+away. Only EMPTY text may be rejected before the crisis check. Same fix applied
+to edit-confession, which had the same ordering.
+
+Crisis text is never bounced for length and never bounced for substance.
+
+`confessions.substance_check` is `'passed' | 'unchecked'`. Server-only:
+column-level REVOKE from anon/authenticated, absent from `confessions_public`,
+same discipline as `author_token` and `account_id`.
+
+**`'unchecked'` means the check could not run — NOT that the text failed it.**
+There is no stored failure state, because a submission that fails is never
+stored. Anything that grants a reward (referrals, credits) must therefore treat
+`'unchecked'` as NOT YET ELIGIBLE. Reading it as a pass would make an API
+outage the cheapest way to farm rewards.
+
+A rejection is not a violation: it does not escalate, is not a strike, and
+never bans. It still counts toward the normal rate limit. The text of a
+rejected submission is never logged, stored, or sent to analytics — only the
+reason code.
 
 *Owner decision 2026-09-13:* matching runs on the confession's CATEGORY, not on
 embedding similarity, until `EMBEDDING_API_KEY` is funded. `match_confession`
@@ -438,12 +533,30 @@ still fully optional.
 
 - `confession_submitted` `{ confession_id }`
 - `blocked_by_moderation` `{ reason_code }` — no text
+- `blocked_not_genuine` `{ reason_code }` — reason CODE only, never the text
+  (`too_short` | `no_letters` | `repetition` | `contact_or_link` | `not_genuine`)
 - `crisis_flagged` `{ }` — no id, no text
 - `match_shown` `{ confession_id, felt_count }`
 - `card_shared` `{ source }` — source is bucket only (`match` | `rtue` | `read`); no ids or tokens
 - `share_click` `{ bucket }` — fired client-side on the share landing page before redirect
 - `install_attributed` `{ source }` — fired on first app open when install referrer is available
+- `starter_shown` `{ category }` — category ID only, never the starter's text
+- `starter_used` `{ category }` — fired when a starter chip is tapped
+- `write_invite_shown` `{ kind }` — `targeted` | `interstitial` | `footer`;
+  once per placement per session (a list separator re-renders constantly)
+- `write_invite_tapped` `{ kind }` — same labels
+
+**Primary metric for the writing phase (W1): writer conversion — the share of
+weekly readers who submit at least one confession that passes the gate.**
+Note what "passes the gate" excludes: a 422 from [3.6] is not a conversion, and
+`substance_check = 'unchecked'` is not a pass (see that section — reading it as
+one would make an API outage look like a growth win).
 - `report_submitted` `{ confession_id }`
+- `question_card_shown` `{ }` / `question_answer_tapped` `{ }` /
+  `question_filter_opened` `{ }` / `question_detached` `{ }` /
+  `question_shared` `{ }` — no payload at all
+- `question_answer_submitted` `{ question_id }` — the question id only, never
+  the answer and never who wrote it
 
 ---
 

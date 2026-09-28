@@ -30,6 +30,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
+import { checkSubstance } from '../_shared/substance.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ─── Secrets (Edge Function env only — never in client bundle) ────────────────
@@ -44,6 +45,9 @@ const ENVIRONMENT          = Deno.env.get('ENVIRONMENT') ?? 'development';
 const IS_PRODUCTION = ENVIRONMENT === 'production';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+/** Shape guard for the optional question_id the client may send. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',
@@ -1140,7 +1144,12 @@ serve(async (req: Request) => {
     }
 
     const rawText = body.text?.trim() ?? '';
-    if (rawText.length < 10)   return json({ error: 'Confession is too short.' }, 400);
+    // Empty is rejected here; TOO SHORT is not. The minimum-length check used
+    // to live on this line, ahead of [2] moderation and [3] crisis — so "end
+    // it" and "kill me" were bounced as too short and never reached crisis
+    // resources. The one person this pipeline exists to catch was the one it
+    // turned away. It now runs after the crisis hard-return, below.
+    if (rawText.length === 0)  return json({ error: 'Confession is empty.' }, 400);
     if (rawText.length > 2000) return json({ error: 'Confession is too long (max 2000 characters).' }, 400);
     const region = body.region ?? 'IN';
 
@@ -1241,6 +1250,23 @@ serve(async (req: Request) => {
       // ← STORE step is code-unreachable from this path
     }
 
+    // ── [3.6] SUBSTANCE ───────────────────────────────────────────────────────
+    // Only reached once crisis has been ruled out, which is the whole point of
+    // its position: crisis text is never bounced for length or for looking
+    // like junk. Fails OPEN — this is quality, not safety, and moderation
+    // above is what guards the pool.
+    //
+    // For a voice confession this checks the DISPLAYED text, which is what a
+    // reader sees; the raw transcript already had to clear moderation.
+    const substance = await checkSubstance(rawText, { apiKey: OPENAI_API_KEY });
+    if (!substance.ok) {
+      // Reason code only. The text of a rejected submission is never logged,
+      // never stored and never sent to analytics.
+      console.log(`[SUBSTANCE] rejected: ${substance.reason}`);
+      return json({ error: 'not_genuine', reason: substance.reason }, 422);
+    }
+    const substanceCheck = substance.check;
+
     // ── [3.5] LANGUAGE DETECTION ──────────────────────────────────────────────
     // Runs after crisis check (no point detecting lang for crisis text).
     // Fail open: returns 'en' on any API error — matching degrades to English-only
@@ -1273,6 +1299,30 @@ serve(async (req: Request) => {
     // The author is notified on their next app open via get_confession_statuses().
     const confessionStatus = modResult.borderline ? 'under_review' : 'live';
 
+    /**
+     * [W2] The weekly question.
+     *
+     * The client says which question it thinks it is answering; the server
+     * believes it only if it is the one that is actually live right now. A
+     * stale id (the week turned over while they were typing), a retired one,
+     * or a fabricated one all resolve to NULL.
+     *
+     * A bad question_id NEVER costs someone their confession. The question is
+     * metadata about where they were standing when they wrote — losing it is a
+     * missing filter row; rejecting the post over it would be losing the thing
+     * they actually came to say.
+     */
+    let questionId: string | null = null;
+    if (typeof body.question_id === 'string' && UUID_RE.test(body.question_id)) {
+      try {
+        const { data: live } = await supabase.rpc('current_question');
+        const liveId = Array.isArray(live) ? live[0]?.id : (live as { id?: string } | null)?.id;
+        if (liveId && liveId === body.question_id) questionId = body.question_id;
+      } catch {
+        questionId = null;  // never block the post on this
+      }
+    }
+
     const { data: newConfession, error: insertErr } = await supabase
       .from('confessions')
       .insert({
@@ -1287,6 +1337,17 @@ serve(async (req: Request) => {
         auto_flagged:           modResult.borderline ?? false,
         lang,
         source:                 'user',
+        // Server-only (column-level REVOKE, absent from confessions_public).
+        // 'unchecked' means the meaning check could not run, NOT that the text
+        // failed it — anything granting rewards must treat it as not yet
+        // eligible rather than as a pass.
+        substance_check:        substanceCheck,
+        // Computed here, never taken from the client: it is a signal about a
+        // person's writing and a client-supplied number could say anything.
+        char_count:             rawText.length,
+        // NULL unless it matched the live question. The stored text is only
+        // what they wrote — the question is never prepended to it.
+        question_id:            questionId,
       })
       .select('id')
       .single();

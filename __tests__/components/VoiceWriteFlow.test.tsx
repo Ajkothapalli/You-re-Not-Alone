@@ -54,7 +54,8 @@ jest.mock('@/lib/voiceSubmit', () => ({
 
 const mockSubmitText = jest.fn();
 jest.mock('@/lib/api', () => ({
-  submitConfession: (...a: unknown[]) => mockSubmitText(...a),
+  submitConfession:     (...a: unknown[]) => mockSubmitText(...a),
+  getReaderPreferences: jest.fn().mockResolvedValue({ categories: [] }),
 }));
 
 jest.mock('@/lib/deviceHash', () => ({ getDeviceHash: jest.fn().mockResolvedValue('h') }));
@@ -191,7 +192,7 @@ describe('the review step', () => {
 
     await waitFor(() => expect(getByTestId('voice-review')).toBeTruthy());
     expect(getByTestId('voice-play')).toBeTruthy();
-    expect((getByTestId('voice-transcript') as any).props.value).toBe('i said this out loud');
+    expect((getByTestId('voice-transcript') as any).props.value).toBe('i never told anyone about that night and it still sits with me');
   });
 
   it('submits the EDITED text and the ORIGINAL transcript', async () => {
@@ -203,21 +204,21 @@ describe('the review step', () => {
     await waitFor(() => getByTestId('voice-review'));
 
     await act(async () => {
-      fireEvent.changeText(getByTestId('voice-transcript'), 'i said this out loud, corrected');
+      fireEvent.changeText(getByTestId('voice-transcript'), 'i never told anyone about that night and it still sits with me');
     });
     await act(async () => { fireEvent.press(getByText('Let it out')); });
 
     await waitFor(() => expect(mockSubmitVoice).toHaveBeenCalled());
     const a = mockSubmitVoice.mock.calls[0][0];
-    expect(a.text).toBe('i said this out loud, corrected');
+    expect(a.text).toBe('i never told anyone about that night and it still sits with me');
     // The raw transcript goes too — an edit must not launder past the gate.
-    expect(a.rawTranscript).toBe('i said this out loud');
+    expect(a.rawTranscript).toBe('i never told anyone about that night and it still sits with me');
     expect(a.audioUri).toBe(URI);
   });
 
   it('a typed confession never goes through the voice path', async () => {
     const { getByLabelText, getByText } = await renderWrite();
-    await act(async () => { fireEvent.changeText(getByLabelText('Your confession'), 'just typed'); });
+    await act(async () => { fireEvent.changeText(getByLabelText('Your confession'), 'i never told anyone about that night and it still sits with me'); });
     await act(async () => { fireEvent.press(getByText('Let it out')); });
 
     await waitFor(() => expect(mockSubmitText).toHaveBeenCalled());
@@ -372,7 +373,7 @@ describe('after recording, posting is the action', () => {
 async function capture(getByTestId: (id: string) => any) {
   fireEvent.press(getByTestId('voice-record'));
   await Promise.resolve();
-  emit('result', { isFinal: true, results: [{ transcript: 'i said this out loud' }] });
+  emit('result', { isFinal: true, results: [{ transcript: 'i never told anyone about that night and it still sits with me' }] });
   emit('audioend', { uri: URI });
   emit('end');
 }

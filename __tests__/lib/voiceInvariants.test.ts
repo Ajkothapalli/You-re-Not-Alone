@@ -38,10 +38,28 @@ describe('the audio object key never reaches a client', () => {
   });
 
   it('the feed payload carries duration only', () => {
+    // W2 moved this into toClient(), which BOTH the ordinary feed and the
+    // question filter map through — so the guard now covers two paths where
+    // it used to cover one.
     const src = read('supabase', 'functions', 'recommend-confessions', 'index.ts');
-    const mapBlock = src.slice(src.indexOf('const result = diverse.map'));
+    const start = src.indexOf('function toClient(');
+    expect(start).toBeGreaterThan(-1);
+    const mapBlock = src.slice(start, src.indexOf('\n}', start));
     expect(mapBlock).toMatch(/audioDurationMs/);
     expect(mapBlock).not.toMatch(/audio_key|audioKey/);
+  });
+
+  it('every feed response goes through that one mapper', () => {
+    // A second, hand-rolled response object is how the key would get out.
+    const src = read('supabase', 'functions', 'recommend-confessions', 'index.ts');
+    // Take each `confessions:` response field up to the end of its line or
+    // block — a character class stopping at ')' breaks on the casts inside.
+    const fields = src.match(/confessions:[\s\S]{0,120}/g) ?? [];
+    const responses = fields.filter((f) => !f.startsWith('confessions:    Recommendation'));
+    expect(responses.length).toBeGreaterThan(0);
+    for (const r of responses) {
+      expect(r).toMatch(/toClient|\[\]/);
+    }
   });
 
   it('the Recommendation type has no key field', () => {
@@ -75,12 +93,18 @@ describe('share cards never carry audio', () => {
   it('lib/shareCard.ts references no audio at all', () => {
     // A recognisable voice must not leave the app through a share — the one
     // route out of the product that the recipient controls entirely.
-    const src = read('lib', 'shareCard.ts');
+    const raw = read('lib', 'shareCard.ts');
+    // Comments stripped before matching. These guards constrain CODE, and a
+    // file explaining WHY it does not do something would otherwise fail the
+    // guard against doing it — which has now happened four times in this repo.
+    const src = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
     expect(src).not.toMatch(/audio|mp3|recording|signedUrl/i);
   });
 
-  it('StoryCard takes no audio props', () => {
-    const src = read('components', 'StoryCard.tsx');
+  it('QuotedCard takes no audio props', () => {
+    // Ported from StoryCard, which this replaced in Q1. The invariant is about
+    // whatever card gets rasterised and sent, not about a particular filename.
+    const src = read('components', 'share', 'QuotedCard.tsx');
     expect(src).not.toMatch(/audioKey|audioUrl|audioDurationMs|\.mp3/i);
   });
 });

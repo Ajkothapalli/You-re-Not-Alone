@@ -11,6 +11,11 @@ import { saveReceipt, clearReceipts } from './confessionReceipt';
 import { resetFtue, resetIntroReads } from './onboarding';
 import { clearRtueCache, markRtueSeen } from './rtue';
 import { withTimeout } from './withTimeout';
+import { isValidToken } from './shareLink';
+import type { ShareSource } from '@/lib/shareLink';
+
+/** A share must not wait longer than this for attribution it can live without. */
+export const SHARE_TOKEN_TIMEOUT_MS = 2_000;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 /**
@@ -47,6 +52,44 @@ export function isAuthError(e: unknown): boolean {
 // "blocked"   = moderation gate rejected the text
 // "crisis"    = crisis keywords detected — resources shown, nothing stored
 export type PipelineType = 'submitted' | 'matched' | 'blocked' | 'crisis';
+
+/**
+ * [3.6] SUBSTANCE rejected the text (HTTP 422). Nothing was stored.
+ *
+ * A typed error rather than Error('not_genuine'): the generic handler below
+ * throws `new Error(body.error)`, which would drop the reason code, and the
+ * code is what decides whether the writer is told "say a little more" or
+ * "keep it anonymous" — two very different messages.
+ *
+ * Never a ban or a violation. The draft is always kept.
+ */
+export type NotGenuineReason =
+  | 'too_short' | 'no_letters' | 'repetition' | 'contact_or_link' | 'not_genuine';
+
+export class NotGenuineError extends Error {
+  readonly reason: NotGenuineReason;
+  constructor(reason: NotGenuineReason) {
+    super('not_genuine');
+    this.name = 'NotGenuineError';
+    this.reason = reason;
+  }
+}
+
+export function isNotGenuine(e: unknown): e is NotGenuineError {
+  return e instanceof NotGenuineError;
+}
+
+/** Shared by submit and edit — the same 422 shape comes back from both. */
+function throwIfNotGenuine(body: unknown): void {
+  const b = body as { error?: string; reason?: string } | null;
+  if (b?.error !== 'not_genuine') return;
+  const valid: NotGenuineReason[] =
+    ['too_short', 'no_letters', 'repetition', 'contact_or_link', 'not_genuine'];
+  const reason = valid.includes(b.reason as NotGenuineReason)
+    ? (b.reason as NotGenuineReason)
+    : 'not_genuine';
+  throw new NotGenuineError(reason);
+}
 
 export interface CrisisResource {
   name:    string;
@@ -96,19 +139,29 @@ export async function submitConfession(
   region?:     string,
   authorship?: AuthorshipPayload,
   voice?:      VoicePayload,
+  /**
+   * [W2] The weekly question this answers, if any. The server keeps it only
+   * when it matches the question that is actually live, and NEVER rejects a
+   * confession over it — see submit-confession.
+   */
+  questionId?: string | null,
 ): Promise<SubmitResult> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error('Not authenticated');
 
   const { data, error } = await supabase.functions.invoke<SubmitResult>(
     'submit-confession',
-    { body: { text, deviceHash, region, authorship, ...(voice ?? {}) } },
+    { body: {
+      text, deviceHash, region, authorship, ...(voice ?? {}),
+      ...(questionId ? { question_id: questionId } : {}),
+    } },
   );
 
   if (error) {
     // FunctionsHttpError wraps the raw Response in .context — extract the real message
     try {
       const body = await (error as any).context?.json?.();
+      throwIfNotGenuine(body);
       if (body?.error) throw new Error(body.error);
     } catch (inner: any) {
       if (inner?.message && !inner.message.startsWith('Edge Function')) throw inner;
@@ -234,6 +287,7 @@ export async function editConfession(
   if (error) {
     try {
       const body = await (error as any).context?.json?.();
+      throwIfNotGenuine(body);
       if (body?.error) throw new Error(body.error);
     } catch (inner: any) {
       if (inner?.message && !inner.message.startsWith('Edge Function')) throw inner;
@@ -317,6 +371,8 @@ export interface Recommendation {
   text:       string;
   feltCount:  number;
   categories: string[];
+  /** [W2] Set when this confession answers a weekly question. */
+  questionId?: string;
   /**
    * Present when this confession has a recording. The object KEY is never sent
    * — it is revoked at column level and absent from confessions_public
@@ -356,6 +412,16 @@ const FEED_FLOOR = 8;
 export async function getRecommendations(
   richOnly = false,
   excludeIds: string[] = [],
+  /**
+   * [W2] When set, the feed shows ONLY real answers to this question.
+   *
+   * Two things change, and both matter. The RPC filters to source='user', and
+   * the curated top-up below is skipped entirely — topping a question's
+   * answers up from the generated pool would put fabricated answers under a
+   * question real people answered, which is the one thing this feature cannot
+   * do. A short list is the honest outcome; FEED_FLOOR does not apply here.
+   */
+  questionId: string | null = null,
 ): Promise<RecommendationsResult> {
   // Every await here is bounded. This screen is the post-login landing
   // destination inside D7, and unlike app/index.tsx it has no watchdog behind
@@ -374,7 +440,7 @@ export async function getRecommendations(
     const { data, error } = await withTimeout(
       supabase.functions.invoke<{ confessions: Recommendation[]; premiumRequired?: boolean }>(
         'recommend-confessions',
-        { body: { action: 'recommend' } },
+        { body: { action: 'recommend', ...(questionId ? { questionId } : {}) } },
       ),
       8_000,
       'recommend',
@@ -395,6 +461,14 @@ export async function getRecommendations(
   // curated share shrinks by itself as real volume grows — no cutover to run,
   // and no category that suddenly goes empty.
   if (real.length >= FEED_FLOOR) {
+    return { confessions: real, premiumRequired: false };
+  }
+
+  // Under the question filter the list ends where the real answers end. See
+  // the parameter's note: the feed-is-never-empty rule (CLAUDE.md #2) is about
+  // the FEED, and it is still satisfied — the reader turns the filter off and
+  // the full feed is there.
+  if (questionId) {
     return { confessions: real, premiumRequired: false };
   }
 
@@ -447,4 +521,68 @@ export async function createOrUpdateAccount(dob: Date, authProvider = 'email'): 
     { onConflict: 'id' },
   );
   if (error) throw error;
+}
+
+/**
+ * Mints one invite token for one share. Returns null rather than throwing.
+ *
+ * Attribution is the LEAST important thing happening when someone taps Share,
+ * so every failure here is silent and the share goes out with a bucket-only
+ * link: no session, no network, a 429 from the daily cap, a slow server, a
+ * malformed body. The 2s ceiling is what keeps a share sheet from feeling
+ * broken on a bad connection — past that we stop waiting and send the card.
+ *
+ * Never logged and never sent to analytics: a token in an event payload beside
+ * a `card_shared` bucket is exactly the account↔share link the token design
+ * exists to avoid.
+ */
+export async function createShareToken(bucket: ShareSource): Promise<string | null> {
+  try {
+    const { data: { session } } = await withTimeout(
+      supabase.auth.getSession(), SHARE_TOKEN_TIMEOUT_MS, 'session');
+    if (!session) return null;
+
+    const { data, error } = await withTimeout(
+      supabase.functions.invoke<{ token?: string }>('create-share-token', {
+        body:    { bucket },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      }),
+      SHARE_TOKEN_TIMEOUT_MS,
+      'share-token',
+    );
+    if (error || !data) return null;
+    return isValidToken(data.token) ? data.token : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The HUMAN-only felt count for a confession the caller wrote.
+ *
+ * `felt_count` is not a count of people: seeds are inserted with a fabricated
+ * 30–300 and generated companions call increment_felt_count exactly as real
+ * users do (see supabase/migrations/20260901000001_real_felt_count.sql). The
+ * sealed milestone card says "felt by N strangers", which is a claim about
+ * PEOPLE, so it must read real_felt_count instead.
+ *
+ * That column is REVOKEd from clients, so this goes through the
+ * own_real_felt_count SECURITY DEFINER RPC, which returns a count only for a
+ * confession the caller owns and NULL for anything else.
+ *
+ * Returns null rather than throwing, and callers must treat null as "don't
+ * claim a number" rather than falling back to felt_count — the whole point is
+ * not to print a fabricated figure onto a shareable image.
+ */
+export async function getOwnRealFeltCount(confessionId: string): Promise<number | null> {
+  try {
+    const { data, error } = await supabase.rpc('own_real_felt_count', {
+      p_confession_id: confessionId,
+    });
+    if (error || data === null || data === undefined) return null;
+    const n = Number(data);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  } catch {
+    return null;
+  }
 }

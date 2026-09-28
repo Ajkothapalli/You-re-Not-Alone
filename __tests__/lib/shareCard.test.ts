@@ -1,5 +1,6 @@
 /**
- * shareCard + StoryCard privacy invariants.
+ * shareCard privacy invariants. The card's own are in
+ * __tests__/components/QuotedCard.test.tsx (StoryCard was deleted in Q1).
  *
  * Reads source files as text — no native module instantiation needed.
  * These assert the share payload never carries identifying data.
@@ -16,10 +17,6 @@ function stripComments(src: string): string {
 
 const shareCardSrc = fs.readFileSync(
   path.join(__dirname, '..', '..', 'lib', 'shareCard.ts'),
-  'utf8',
-);
-const storyCardSrc = fs.readFileSync(
-  path.join(__dirname, '..', '..', 'components', 'StoryCard.tsx'),
   'utf8',
 );
 
@@ -43,24 +40,6 @@ describe('VALID_SHARE_SOURCES — non-identifying buckets only', () => {
       expect(b).not.toMatch(/confession/i);
       expect(b).toMatch(/^[a-z]+$/);
     }
-  });
-});
-
-// ─── StoryCard footer URL ─────────────────────────────────────────────────────
-
-describe('StoryCard — share URL shape', () => {
-  it('footer URL contains only the bucket parameter', () => {
-    expect(storyCardSrc).toContain("soulyap.me/s?c={source}");
-  });
-
-  it('StoryCard code (outside comments) does not embed account_id or author_token', () => {
-    const code = stripComments(storyCardSrc);
-    expect(code).not.toContain('account_id');
-    expect(code).not.toContain('author_token');
-  });
-
-  it('ShareSource union type is match | rtue | read exactly', () => {
-    expect(storyCardSrc).toContain("'match' | 'rtue' | 'read'");
   });
 });
 
