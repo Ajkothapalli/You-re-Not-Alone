@@ -121,6 +121,57 @@
    Nothing that fishes for crisis or sexual content. Rotate categories week to
    week. The one Hinglish line ("log kya kahenge") is intentional.
 
+
+   **REFERRAL — "Give someone 7 days" (owner decision 2026-09-28).**
+
+   Every share already carries a per-share token, so every share is an invite.
+   One explicit entry point lives in settings; a sticky 50/50 A/B test decides
+   whether it is framed as a gift or as a mutual earn. Android only.
+
+   - **The invitee** gets 7 days of unlimited reading the moment they claim,
+     via a RevenueCat promotional entitlement mirrored into `entitlements`.
+   - **The inviter** gets a thank-you week only once the person they invited
+     has actually arrived: the invitee's FIRST confession passed substance
+     (`'unchecked'` WAITS — this is the one place rewards fail CLOSED),
+     is >= 80 characters, carries no authorship flag, has been live >= 48h
+     unreported, and was felt by a STRANGER — an account that is neither
+     party, on a device hash belonging to neither. Fallback after 72h with no
+     felt: the invitee opened the app on a second calendar day.
+   - **Cap: 4 rewarded referrals per inviter per 30 days.** Beyond it the
+     referral is marked `capped` and nothing is granted. Not queued — a
+     backlog of pending rewards is a promise we never made.
+
+   **THE INVITER NEVER LEARNS ANYTHING ABOUT THE INVITEE.** Not what they
+   wrote, not that they wrote, not when, not what they read. This is not a
+   nicety: the reward criteria depend on a confession the invitee wrote, so
+   any surface showing WHY or WHEN a reward landed would leak, by timing
+   alone, that a specific person wrote something — the author↔account link #3
+   forbids, arriving through the back door. Enforced by shape, not by
+   discipline: `referral_reward_due()` is SECURITY DEFINER, returns ONE
+   BOOLEAN, and is revoked from every client role; `referrals` is RLS-on with
+   no policies; the notification says only that a thank-you week arrived.
+
+   **Rewards fail closed.** A referral that cannot be evaluated — or that
+   RevenueCat will not grant — stays pending rather than being paid. A false
+   negative costs someone a free week; a false positive is a programme that
+   can be farmed. A missing `REVENUECAT_SECRET_KEY` grants NOTHING, not even
+   a local entitlements row: a local row RevenueCat does not know about is
+   exactly the silent pass the stub rule exists to prevent.
+
+   **Known limit, stated plainly.** The "same device" and "already claimed"
+   checks use an account-INDEPENDENT fingerprint, `HMAC('referral:ua:ip')`.
+   The project's usual device hash salts with `account_id`, so two accounts on
+   one phone produce two different hashes and both checks would be permanent
+   no-ops. The replacement is coarse: a household or café behind one NAT with
+   similar handsets can collide, and a colliding second person silently loses
+   a gift week they were entitled to. That is the direction the error was
+   chosen to fall — a missed gift is recoverable by a human; a farmed reward
+   programme is not.
+
+   No dark patterns: no countdowns, no scarcity, at most one invite prompt a
+   week, always dismissible. Rewards never gate reading or writing for anyone,
+   and nothing referral-related appears on the crisis path (#6).
+
    **What the removed caps were protecting, and what still protects it:** the
    caps existed so this could not become an endless scroll of other people's
    pain. That intent still stands and is now carried by different mechanics —
@@ -557,6 +608,11 @@ one would make an API outage look like a growth win).
   `question_shared` `{ }` — no payload at all
 - `question_answer_submitted` `{ question_id }` — the question id only, never
   the answer and never who wrote it
+- `invite_entry_opened` `{ variant }` / `invite_shared` `{ variant, source }`
+- `invite_claimed` `{ }` / `referral_capped` `{ }` — no payload at all
+- `invite_claim_rejected` `{ reason }` — a reason CODE only
+- `gift_week_granted` `{ role }` — `invitee` | `inviter`, never an account id
+  and never the share token
 
 ---
 

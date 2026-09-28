@@ -26,7 +26,7 @@ const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const supabase             = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 const VALID_TYPES   = new Set(['share_click', 'install_attributed']);
-const VALID_SOURCES = new Set(['match', 'rtue', 'read', 'question', 'unknown']);
+const VALID_SOURCES = new Set(['match', 'rtue', 'read', 'question', 'invite', 'unknown']);
 
 const CORS = {
   'Access-Control-Allow-Origin':  '*',

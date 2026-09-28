@@ -36,7 +36,7 @@ const SEC = {
   'Referrer-Policy':        'same-origin',
 };
 
-const BUCKETS = ['match', 'rtue', 'read', 'question'] as const;
+const BUCKETS = ['match', 'rtue', 'read', 'question', 'invite'] as const;
 type Bucket = typeof BUCKETS[number];
 
 /** Tokens per account per day. Generous for a person, useless for a farm. */

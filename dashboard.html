@@ -403,6 +403,26 @@ canvas.area{display:block;width:100%;height:76px}
     </div>
 
     <div class="card">
+<div class="card">
+      <div class="sh">Referral <small>v_referral_stats · gift vs earn</small></div>
+      <table class="pt">
+        <thead><tr>
+          <th>Variant</th>
+          <th style="text-align:right">Claims</th>
+          <th style="text-align:right">Wrote</th>
+          <th style="text-align:right">Rewarded</th>
+          <th style="text-align:right">Capped</th>
+          <th style="text-align:right">Conv%</th>
+        </tr></thead>
+        <tbody id="ref-body">
+          <tr><td colspan="6" style="color:var(--ink-4);padding:8px 0">Loading…</td></tr>
+        </tbody>
+      </table>
+      <div class="sh" style="margin:14px 0 6px">Rejections <small>by reason</small></div>
+      <tbody id="ref-rej" style="display:block;font-size:12px;color:var(--ink-4)"></tbody>
+    </div>
+
+    <div class="card">
       <div class="sh">The Question <small>v_question_stats · weekly</small></div>
       <div class="liq-mini">
         <div class="liq-mini-item">
@@ -729,6 +749,33 @@ function render(data){
 
   /* Acquisition */
   setText('sh-acq-period', cfg.label);
+
+
+  // ── [B] Referral ───────────────────────────────────────────────────────────
+  var refStats = data.referral_stats ?? [];
+  var refBody  = document.getElementById('ref-body');
+  if (refBody) {
+    refBody.innerHTML = refStats.length === 0
+      ? '<tr><td colspan="6" style="color:var(--ink-4);padding:8px 0">No claims yet</td></tr>'
+      : refStats.map(function (r) {
+          var claims = r.claims ?? 0;
+          var wrote  = r.invitees_who_wrote ?? 0;
+          var conv   = claims > 0 ? Math.round((wrote / claims) * 100) : 0;
+          return '<tr><td>' + r.variant + '</td>' +
+            '<td style="text-align:right">' + claims + '</td>' +
+            '<td style="text-align:right">' + wrote + '</td>' +
+            '<td style="text-align:right">' + (r.rewards_granted ?? 0) + '</td>' +
+            '<td style="text-align:right">' + (r.capped ?? 0) + '</td>' +
+            '<td style="text-align:right">' + conv + '%</td></tr>';
+        }).join('');
+  }
+  var rej = document.getElementById('ref-rej');
+  if (rej) {
+    var rows = data.referral_rejections ?? [];
+    rej.innerHTML = rows.length === 0
+      ? 'None'
+      : rows.map(function (r) { return r.reason + ': ' + r.n; }).join(' · ');
+  }
 
   // ── [W2] The Question ──────────────────────────────────────────────────────
   // Questions are added by migration, so an exhausted bank is a SILENT

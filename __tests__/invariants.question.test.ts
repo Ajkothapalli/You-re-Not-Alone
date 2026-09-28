@@ -282,18 +282,24 @@ describe("the 'question' share source is added everywhere", () => {
     expect(sql).toMatch(/growth_events[\s\S]*?CHECK \(source IN \('match', 'rtue', 'read', 'question', 'unknown'\)\)/);
   });
 
+  // Membership, not position. These originally pinned 'question' as the LAST
+  // entry in each list, so adding the next source broke four guards that had
+  // nothing to do with the change. What matters is that every list CONTAINS
+  // it — the lists are allowed to grow.
   it('to the token minter and the beacon', () => {
-    expect(read('supabase', 'functions', 'create-share-token', 'index.ts'))
-      .toMatch(/BUCKETS = \['match', 'rtue', 'read', 'question'\]/);
-    expect(read('supabase', 'functions', 'track', 'index.ts'))
-      .toMatch(/VALID_SOURCES = new Set\(\['match', 'rtue', 'read', 'question', 'unknown'\]\)/);
+    const minter = read('supabase', 'functions', 'create-share-token', 'index.ts');
+    expect(minter).toMatch(/BUCKETS = \[[^\]]*'question'[^\]]*\]/);
+    const beacon = read('supabase', 'functions', 'track', 'index.ts');
+    expect(beacon).toMatch(/VALID_SOURCES = new Set\(\[[^\]]*'question'[^\]]*\]\)/);
+    // 'unknown' is the beacon's catch-all and must survive any addition.
+    expect(beacon).toMatch(/VALID_SOURCES = new Set\(\[[^\]]*'unknown'[^\]]*\]\)/);
   });
 
   it('to the client type and allowlist', () => {
     expect(read('lib', 'shareLink.ts'))
-      .toMatch(/ShareSource = 'match' \| 'rtue' \| 'read' \| 'question'/);
+      .toMatch(/ShareSource =(?:[^;]*\|)?[^;]*'question'/);
     expect(read('lib', 'shareCard.ts'))
-      .toMatch(/VALID_SHARE_SOURCES: ShareSource\[\] = \['match', 'rtue', 'read', 'question'\]/);
+      .toMatch(/VALID_SHARE_SOURCES: ShareSource\[\] = \[[^\]]*'question'[^\]]*\]/);
   });
 
   it('and the link still carries only c= and t=', () => {

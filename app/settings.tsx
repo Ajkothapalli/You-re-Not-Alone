@@ -1,11 +1,16 @@
 import { supabase } from '@/lib/supabase';
 import { Icon } from '@/components/Icon';
+import ShareFlow from '@/components/share/ShareFlow';
+import { analytics } from '@/lib/analytics';
+import {
+  getVariant, markInvitePrompted, VARIANT_COPY, HONEST_LINE, type ReferralVariant,
+} from '@/lib/referral';
 import { clearAudioUrlCache } from '@/lib/audioPlayback';
 import { GhostButton } from '@/components/Buttons';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -30,6 +35,17 @@ const PRIVACY_POINTS = [
 ] as const;
 
 export default function SettingsScreen() {
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [variant, setVariant]       = useState<ReferralVariant>('gift');
+
+  useEffect(() => { getVariant().then(setVariant).catch(() => {}); }, []);
+
+  function openInvite() {
+    analytics.inviteEntryOpened(variant);
+    markInvitePrompted().catch(() => {});
+    setInviteOpen(true);
+  }
+
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
   const insets = useSafeAreaInsets();
@@ -66,6 +82,40 @@ export default function SettingsScreen() {
           ))}
         </View>
       </View>
+
+      {/* [B] The one explicit invite entry point.
+          Placed above Policies and below privacy on purpose: a person reading
+          about how their anonymity works is the right person to be told they
+          can hand someone a week of it. No badge, no counter, no urgency. */}
+      <Text style={styles.sectionLabel}>Share soulyap</Text>
+      <View style={styles.policyCard}>
+        <TouchableOpacity
+          onPress={openInvite}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Give someone 7 days of reading"
+          style={styles.policyRow}
+          testID="invite-entry"
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.policyLink}>Give someone 7 days</Text>
+            <Text style={styles.inviteSub}>{VARIANT_COPY[variant].headline}</Text>
+            <Text style={styles.inviteSub}>{HONEST_LINE}</Text>
+          </View>
+          <Icon name="arrow_right" size={16} />
+        </TouchableOpacity>
+      </View>
+
+      <ShareFlow
+        visible={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        source="invite"
+        text="say what you can’t say out loud"
+        category={null}
+        feltCount={0}
+        tagline="Answer it anonymously on soulyap"
+        onShared={() => analytics.inviteShared(variant, 'invite')}
+      />
 
       {/* Policies */}
       <Text style={styles.sectionLabel}>Policies</Text>
@@ -186,6 +236,13 @@ function createStyles(color: ColorSet) {
       borderWidth:     2,
       borderColor:     color.border,
       overflow:        'hidden',
+    },
+    inviteSub: {
+      fontFamily: fontFamily.sans,
+      fontSize:   12,
+      lineHeight: 17,
+      color:      color.dim,
+      marginTop:  3,
     },
     policyRow: {
       flexDirection:     'row',

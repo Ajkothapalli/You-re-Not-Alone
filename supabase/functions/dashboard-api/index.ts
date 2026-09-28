@@ -46,7 +46,8 @@ serve(async (req) => {
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-  const [daily, funnel, liquidity, virality, monetization, safety, questions, bank] =
+  const [daily, funnel, liquidity, virality, monetization, safety,
+         referrals, rejections, questions, bank] =
     await Promise.all([
     supabase
       .from('v_metrics_daily')
@@ -82,6 +83,9 @@ serve(async (req) => {
     // How much of the bank is left. Questions go in by migration, so running
     // out is a silent failure: the card simply stops appearing and nobody is
     // told. This is the number that prevents that.
+    // [B] Referral funnel per variant, and rejections by reason.
+    supabase.from('v_referral_stats').select('*'),
+    supabase.from('v_referral_rejections').select('*'),
     supabase
       .from('questions')
       .select('id', { count: 'exact', head: true })
@@ -89,7 +93,7 @@ serve(async (req) => {
       .gt('starts_on', new Date().toISOString().slice(0, 10)),
   ]);
 
-  const errs = [daily, funnel, liquidity, virality, monetization, questions]
+  const errs = [daily, funnel, liquidity, virality, monetization, questions, referrals]
     .filter(r => r.error)
     .map(r => r.error!.message);
   if (safety.error) errs.push(safety.error.message);
@@ -105,6 +109,8 @@ serve(async (req) => {
     safety:        safety.data       ?? {},
     question_stats: questions.data    ?? [],
     questions_remaining: bank.count   ?? 0,
+    referral_stats:      referrals.data  ?? [],
+    referral_rejections: rejections.data ?? [],
     fetched_at:    new Date().toISOString(),
     ...(errs.length ? { errors: errs } : {}),
   });

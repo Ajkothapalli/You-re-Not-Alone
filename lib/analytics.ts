@@ -52,7 +52,15 @@ type AnalyticsEvent =
   | { name: 'question_filter_opened';   props: Record<string, never> }
   | { name: 'question_answer_submitted'; props: { question_id: string } }
   | { name: 'question_detached';        props: Record<string, never> }
-  | { name: 'question_shared';          props: Record<string, never> };
+  | { name: 'question_shared';          props: Record<string, never> }
+  // [B] Referral. A variant label, a bucket and a rejection REASON CODE — never
+  // a token, an account id, or anything about the invitee.
+  | { name: 'invite_entry_opened';      props: { variant: string } }
+  | { name: 'invite_shared';            props: { variant: string; source: string } }
+  | { name: 'invite_claimed';           props: Record<string, never> }
+  | { name: 'invite_claim_rejected';    props: { reason: string } }
+  | { name: 'gift_week_granted';        props: { role: 'invitee' | 'inviter' } }
+  | { name: 'referral_capped';          props: Record<string, never> };
 
 /** Where a write invite was shown. Labels, not content. */
 export type WriteInviteKind = 'targeted' | 'interstitial' | 'footer';
@@ -154,6 +162,24 @@ export const analytics = {
   },
   questionShared() {
     track({ name: 'question_shared', props: {} });
+  },
+  inviteEntryOpened(variant: string) {
+    track({ name: 'invite_entry_opened', props: { variant } });
+  },
+  inviteShared(variant: string, source: string) {
+    track({ name: 'invite_shared', props: { variant, source } });
+  },
+  inviteClaimed() {
+    track({ name: 'invite_claimed', props: {} });
+  },
+  inviteClaimRejected(reason: string) {
+    track({ name: 'invite_claim_rejected', props: { reason } });
+  },
+  giftWeekGranted(role: 'invitee' | 'inviter') {
+    track({ name: 'gift_week_granted', props: { role } });
+  },
+  referralCapped() {
+    track({ name: 'referral_capped', props: {} });
   },
   shareClick(bucket: string) {
     track({ name: 'share_click', props: { bucket } });

@@ -38,7 +38,7 @@ import { buildShareLink, shareMessage } from '@/lib/shareLink';
 
 export type { ShareSource };
 
-export const VALID_SHARE_SOURCES: ShareSource[] = ['match', 'rtue', 'read', 'question'];
+export const VALID_SHARE_SOURCES: ShareSource[] = ['match', 'rtue', 'read', 'question', 'invite'];
 
 /**
  * Guarded require, not an import: this module is missing from binaries built

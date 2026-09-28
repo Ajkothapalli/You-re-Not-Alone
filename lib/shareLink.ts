@@ -25,7 +25,7 @@
  * ever appear as `?c=` — and the card that happened to declare it first is
  * gone.
  */
-export type ShareSource = 'match' | 'rtue' | 'read' | 'question';
+export type ShareSource = 'match' | 'rtue' | 'read' | 'question' | 'invite';
 
 export const SHARE_ORIGIN = 'https://soulyap.me';
 

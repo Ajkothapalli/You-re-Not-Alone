@@ -1,0 +1,70 @@
+name: Process referrals
+
+# Decides whether inviters have earned their thank-you week.
+#
+# Why here and not pg_cron: the same reason daily-stories.yml gives. pg_cron
+# and pg_net are NOT installed on either project, so an in-database schedule
+# would silently schedule nothing at all — the failure mode is no runs and no
+# error. Here the schedule is in version control and every run is visible.
+#
+# The minute is deliberately not :00. GitHub's scheduler queues heavily on the
+# hour, and this job has no deadline — it only needs to run about once a day.
+on:
+  schedule:
+    - cron: '17 4 * * *'      # 04:17 UTC ≈ 09:47 IST
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Which project to run against
+        type: choice
+        options: [development, production]
+        default: development
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run process-referrals
+        env:
+          # Scheduled runs go to DEV only. Production is opt-in via
+          # workflow_dispatch, so a scheduled run can never grant a real
+          # entitlement to a real person by accident.
+          REF:  ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+                    && secrets.SUPABASE_PROD_REF || secrets.SUPABASE_DEV_REF }}
+          ANON: ${{ (github.event_name == 'workflow_dispatch' && inputs.target == 'production')
+                    && secrets.SUPABASE_PROD_ANON_KEY || secrets.SUPABASE_DEV_ANON_KEY }}
+          KEY:  ${{ secrets.SEED_CRON_SECRET }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${REF:-}" ] || [ -z "${ANON:-}" ] || [ -z "${KEY:-}" ]; then
+            echo "::error::Missing REF, ANON or SEED_CRON_SECRET."
+            echo "A missing secret interpolates to an empty string, so without"
+            echo "this check the job would 401 forever and look like it ran."
+            exit 1
+          fi
+
+          # Authorization carries the anon key to satisfy Supabase's gateway
+          # JWT check; the real credential is x-cron-secret. Same shape as
+          # daily-stories.yml.
+          code=$(curl -s -o /tmp/out.json -w '%{http_code}' --max-time 300 -X POST \
+            "https://$REF.supabase.co/functions/v1/process-referrals" \
+            -H "Authorization: Bearer $ANON" \
+            -H "x-cron-secret: $KEY" \
+            -H "Content-Type: application/json" \
+            -d '{}')
+
+          # Counts only — the function returns no ids and no text.
+          echo "HTTP $code $(cat /tmp/out.json)"
+
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "::error::process-referrals failed with HTTP $code"
+            exit 1
+          fi
+
+          # A run that could not grant anything is a failure worth seeing: it
+          # means REVENUECAT_SECRET_KEY is missing and rewards are failing
+          # closed, which is correct behaviour but must not pass silently.
+          if [ "$(jq -r '.failed // 0' /tmp/out.json)" -gt 0 ]; then
+            echo "::warning::Some referrals could not be granted (check REVENUECAT_SECRET_KEY)."
+          fi
