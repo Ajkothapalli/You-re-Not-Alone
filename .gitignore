@@ -44,3 +44,4 @@ yarn-error.*
 
 # Claude Code worktrees
 .claude/worktrees/
+.claude/settings.local.json

@@ -23,6 +23,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
+import { checkSubstance } from '../_shared/substance.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
@@ -351,7 +352,12 @@ serve(async (req: Request) => {
     const rawText      = (body.text ?? '').trim();
 
     if (!confessionId)        return json({ error: 'id is required.' }, 400);
-    if (rawText.length < 10)  return json({ error: 'Confession is too short.' }, 400);
+    // Empty is rejected here; TOO SHORT is not. The minimum-length check used
+    // to sit on this line, ahead of moderation and the crisis check, so an
+    // edit to "end it" was bounced as too short and never reached crisis
+    // handling. Same bug as submit-confession had, same fix: it runs after the
+    // crisis hard-return below.
+    if (rawText.length === 0)  return json({ error: 'Confession is empty.' }, 400);
     if (rawText.length > 2000) return json({ error: 'Confession is too long (max 2000 characters).' }, 400);
 
     // ── [1] Verify ownership ─────────────────────────────────────────────────
@@ -392,6 +398,16 @@ serve(async (req: Request) => {
       return json({ blocked: true, reason: 'crisis' });
     }
 
+    // ── [4.6] Substance ──────────────────────────────────────────────────────
+    // Same gate as submit-confession, so an edit cannot launder text past a
+    // check the original had to clear. After crisis, for the same reason: a
+    // crisis edit is never bounced for length or for looking like junk.
+    const substance = await checkSubstance(rawText, { apiKey: OPENAI_API_KEY });
+    if (!substance.ok) {
+      console.log(`[SUBSTANCE] edit rejected: ${substance.reason}`);
+      return json({ error: 'not_genuine', reason: substance.reason }, 422);
+    }
+
     // ── [5] Embed ────────────────────────────────────────────────────────────
     const embedding = await embedText(rawText);
 
@@ -410,6 +426,9 @@ serve(async (req: Request) => {
         embedding:  embedding ? JSON.stringify(embedding) : null,
         categories,
         updated_at: new Date().toISOString(),
+        // Kept in step with the text it describes; a stale length would be
+        // worse than none.
+        char_count: rawText.length,
       })
       .eq('id', confessionId)
       .or(ownerFilter)
