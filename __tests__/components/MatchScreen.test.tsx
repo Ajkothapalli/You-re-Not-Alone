@@ -25,10 +25,10 @@ jest.mock('@/components/ConfessionCard', () => {
   };
 });
 
-jest.mock('@/components/StoryCard', () => {
+jest.mock('@/components/share/ShareFlow', () => {
   const React = require('react');
   const { View } = require('react-native');
-  return { StoryCard: React.forwardRef((_p: any, ref: any) => React.createElement(View, { ref, testID: 'StoryCard' })) };
+  return { __esModule: true, default: () => React.createElement(View, { testID: 'ShareFlow' }) };
 });
 
 jest.mock('@/components/AppDialog', () => ({
@@ -155,11 +155,15 @@ describe('MatchScreen — match path', () => {
     expect(queryByTestId('CounterPill')).toBeNull();
   });
 
-  it('"Share this moment" invokes shareConfessionCard', async () => {
+  it('"Share this moment" opens the composer rather than the sheet', async () => {
+    // Q1 put a composer in front of the share sheet: the reader chooses how the
+    // quotation looks first. Firing the system sheet straight from this button
+    // would skip that entirely.
     const { shareConfessionCard } = require('@/lib/shareCard');
-    const { getByText } = await render(<MatchScreen />);
+    const { getByText, getByTestId } = await render(<MatchScreen />);
     await act(async () => { fireEvent.press(getByText('Share this moment')); });
-    expect(shareConfessionCard).toHaveBeenCalled();
+    expect(getByTestId('ShareFlow')).toBeTruthy();
+    expect(shareConfessionCard).not.toHaveBeenCalled();
   });
 });
 

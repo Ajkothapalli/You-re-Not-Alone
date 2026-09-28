@@ -26,6 +26,11 @@ interface ButtonProps extends PressableProps {
   label:    string;
   loading?: boolean;
   style?:   ViewStyle;
+  /**
+   * Optional glyph before the label. Decorative only — the button's
+   * accessible name stays `label`, so a screen reader never reads an icon.
+   */
+  icon?:    React.ReactNode;
 }
 
 // One native-driver value drives face translateY + press tint opacity.
@@ -57,7 +62,7 @@ function usePressDepth(disabled?: boolean | null, reduceMotion?: boolean) {
 // ── PrimaryButton ────────────────────────────────────────────────────────────
 
 export function PrimaryButton({
-  label, loading, style, disabled,
+  label, loading, style, disabled, icon,
   onPressIn: extPressIn, onPressOut: extPressOut,
   ...rest
 }: ButtonProps) {
@@ -102,9 +107,16 @@ export function PrimaryButton({
               />
               {loading
                 ? <ActivityIndicator color={FACE_TEXT} />
-                : <Text style={[primaryStyles.label, isDisabled && primaryStyles.labelDisabled]}>
-                    {label}
-                  </Text>}
+                : icon
+                  ? <View style={primaryStyles.labelRow}>
+                      <View pointerEvents="none">{icon}</View>
+                      <Text style={[primaryStyles.label, isDisabled && primaryStyles.labelDisabled]}>
+                        {label}
+                      </Text>
+                    </View>
+                  : <Text style={[primaryStyles.label, isDisabled && primaryStyles.labelDisabled]}>
+                      {label}
+                    </Text>}
             </View>
           </Animated.View>
         </Pressable>
@@ -172,6 +184,7 @@ export function GhostButton({
 // ── Static styles (PrimaryButton — intentional hardcoded colors) ─────────────
 
 const primaryStyles = StyleSheet.create({
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   wrapper: {
     position:      'relative',
     paddingBottom: DEPTH,

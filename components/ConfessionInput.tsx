@@ -10,7 +10,7 @@
  */
 
 import * as Haptics from 'expo-haptics';
-import React, { useMemo, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useMemo, useState } from 'react';
 import EmojiPicker, { type EmojiType } from 'rn-emoji-keyboard';
 import {
   Pressable,
@@ -41,9 +41,20 @@ interface Props extends Omit<TextInputProps, 'multiline' | 'style'> {
   accessory?:   React.ReactNode;
 }
 
-export default function ConfessionInput({
+/**
+ * Lets a parent put text in at the caret — the sentence starters use it, and
+ * they need the caret to land AFTER the inserted words so the writer can just
+ * keep typing. Exposed as a handle rather than a prop because it is an event
+ * ("insert this now"), not state, and modelling it as state means re-inserting
+ * on every unrelated re-render.
+ */
+export interface ConfessionInputHandle {
+  insertText: (text: string) => void;
+}
+
+function ConfessionInputInner({
   value, onChangeText, maxChars = MAX_CHARS, style, accessory, ...rest
-}: Props) {
+}: Props, ref: React.Ref<ConfessionInputHandle>) {
   const palette      = usePalette();
   const color        = useThemeColors();
   const styles       = useMemo(() => createStyles(color), [color]);
@@ -60,17 +71,19 @@ export default function ConfessionInput({
     if (forceSel) setForceSel(undefined);
   }
 
-  function insertEmoji(emoji: string) {
-    if (remaining < emoji.length) return; // would exceed budget
+  function insertText(insert: string) {
+    if (remaining < insert.length) return; // would exceed budget
     const start = sel.start ?? value.length;
     const end   = sel.end   ?? value.length;
-    const next  = (value.slice(0, start) + emoji + value.slice(end)).slice(0, maxChars);
+    const next  = (value.slice(0, start) + insert + value.slice(end)).slice(0, maxChars);
     onChangeText(next);
-    const caret = Math.min(start + emoji.length, maxChars);
+    const caret = Math.min(start + insert.length, maxChars);
     setForceSel({ start: caret, end: caret });
     setSel({ start: caret, end: caret });
     Haptics.selectionAsync().catch(() => {});
   }
+
+  useImperativeHandle(ref, () => ({ insertText }));
 
   const emojiTheme = {
     backdrop:           color.bg + 'CC',
@@ -137,7 +150,7 @@ export default function ConfessionInput({
       <EmojiPicker
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        onEmojiSelected={(e: EmojiType) => insertEmoji(e.emoji)}
+        onEmojiSelected={(e: EmojiType) => insertText(e.emoji)}
         enableSearchBar
         enableRecentlyUsed
         categoryPosition="top"
@@ -207,3 +220,6 @@ function createStyles(color: ColorSet) {
     },
   });
 }
+
+const ConfessionInput = forwardRef(ConfessionInputInner);
+export default ConfessionInput;

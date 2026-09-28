@@ -79,7 +79,19 @@ function useSvgIds(): string {
   return 'sy' + useId().replace(/[^a-zA-Z0-9]/g, '');
 }
 
-function Glyphs({ ids, which }: { ids: string; which: readonly number[] }) {
+function Glyphs({ ids, which, solid }: { ids: string; which: readonly number[]; solid?: string }) {
+  // The Split look needs the quotes as flat cut-out shapes, not the gradient
+  // artwork: each glyph's own clip path IS its silhouette, so filling that path
+  // gives a die-cut of the real letterform rather than an approximation.
+  if (solid) {
+    return (
+      <>
+        {which.map((i) => (
+          <Path key={i} d={GLYPHS[i].clip} fill={solid} />
+        ))}
+      </>
+    );
+  }
   return (
     <>
       <Defs>
@@ -113,13 +125,21 @@ function Glyphs({ ids, which }: { ids: string; which: readonly number[] }) {
   );
 }
 
+export interface LogoProps extends ViewProps {
+  /**
+   * Draw the glyphs as flat silhouettes in this colour instead of the gradient
+   * artwork. Used by the Split look, where the quotes are paper cut-outs.
+   */
+  solid?: string;
+}
+
 function makeLogo(viewBox: string, preserveAspectRatio: string, which: readonly number[]) {
-  return function Logo({ style, ...rest }: ViewProps) {
+  return function Logo({ style, solid, ...rest }: LogoProps) {
     const ids = useSvgIds();
     return (
       <View style={style} {...rest}>
         <Svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>
-          <Glyphs ids={ids} which={which} />
+          <Glyphs ids={ids} which={which} solid={solid} />
         </Svg>
       </View>
     );
@@ -132,3 +152,26 @@ export const LogoMark = makeLogo('84 369 856 286', 'xMidYMid meet', [0, 1, 2, 3]
 export const QuoteLeft = makeLogo('0 0 421 1024', 'none', [0, 1]);
 /** Purple half. Drop-in for splash-quote-right.png (same frame, stretch fit). */
 export const QuoteRight = makeLogo('421 0 603 1024', 'none', [2, 3]);
+/**
+ * Tight-cropped halves for the share card, where each quote is placed and
+ * rotated on its own rather than as part of the lockup.
+ *
+ * QuoteLeft/QuoteRight above keep the full 1024-tall master frame because they
+ * are drop-in replacements for the retired splash PNGs; these two crop to the
+ * glyphs themselves, so a box sized QUOTE_ASPECT contains the artwork with no
+ * dead margin — which is what lets the composer position them by their edges.
+ */
+export const QuoteOpen  = makeLogo('84 369 346 286', 'xMidYMid meet', [0, 1]);
+export const QuoteClose = makeLogo('594 369 346 286', 'xMidYMid meet', [2, 3]);
+
+/** Width / height of one tight-cropped quote: height = width × 0.8266. */
+export const QUOTE_ASPECT = 346 / 286;
+/** height = width × this. */
+export const QUOTE_H_RATIO = 286 / 346;
+
+/**
+ * In the lockup, the closing quote's left edge sits this many quote-widths to
+ * the right of the opening quote's left edge (510/346 in master units). The
+ * meeting animation and the Stacked look both rebuild the lockup from it.
+ */
+export const LOCKUP_GAP_RATIO = 510 / 346;

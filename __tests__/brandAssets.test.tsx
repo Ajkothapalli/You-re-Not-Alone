@@ -167,7 +167,6 @@ describe('every box holding the full mark matches its aspect', () => {
 
   it.each([
     ['rtue welcome-back', path.join('app', 'rtue.tsx'),             'logo'],
-    ['share-card lockup', path.join('components', 'StoryCard.tsx'), 'brandIcon'],
   ])('%s', (_label, file, style) => {
     expect(code(read(file))).toMatch(/<LogoMark\b/);
     const { width, height } = styleBox(read(file), style);
@@ -235,5 +234,38 @@ describe('platform-required PNGs are still shipped', () => {
       'icon.png', 'android-icon-foreground.png',
       'android-icon-monochrome.png', 'favicon.png',
     ]) expect(cfg).toContain(`./assets/${f}`);
+  });
+});
+
+// ─── The tight-cropped halves (Q1) ───────────────────────────────────────────
+
+describe('the share quotes keep their own aspect', () => {
+  const { QUOTE_ASPECT, QUOTE_H_RATIO, LOCKUP_GAP_RATIO } =
+    require('@/components/brand/SoulyapLogo');
+
+  it('QUOTE_ASPECT is the tight crop, not the full mark', () => {
+    expect(QUOTE_ASPECT).toBeCloseTo(346 / 286, 6);
+    expect(QUOTE_H_RATIO).toBeCloseTo(286 / 346, 6);
+    // height = width × 0.8266, as the design specifies.
+    expect(QUOTE_H_RATIO).toBeCloseTo(0.8266, 3);
+  });
+
+  it('the lockup gap is 510/346 quote-widths', () => {
+    expect(LOCKUP_GAP_RATIO).toBeCloseTo(510 / 346, 6);
+  });
+
+  it('every share surface sizes a quote by QUOTE_H_RATIO, never by a guess', () => {
+    // A hard-coded height here is how the halves start drifting out of shape.
+    for (const f of ['components/share/QuotedCard.tsx',
+                     'components/share/ShareRelease.tsx',
+                     'components/share/ShareAfter.tsx']) {
+      expect(read(f)).toContain('QUOTE_H_RATIO');
+    }
+  });
+
+  it("Stacked's two quotes reproduce the lockup spacing", () => {
+    const { LOOKS } = require('@/lib/shareLooks');
+    const { open, close } = LOOKS.stacked;
+    expect(close.x - open.x).toBeCloseTo(open.w * LOCKUP_GAP_RATIO, 0);
   });
 });
