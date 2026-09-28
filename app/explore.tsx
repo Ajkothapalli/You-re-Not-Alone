@@ -37,6 +37,8 @@ import ReadCard from '@/components/ReadCard';
 import ShareFlow from '@/components/share/ShareFlow';
 import QuestionCard from '@/components/QuestionCard';
 import { getCurrentQuestion, type LiveQuestion } from '@/lib/question';
+import * as feedCache from '@/lib/feedCache';
+import FeedSkeleton from '@/components/FeedSkeleton';
 import { GhostButton } from '@/components/Buttons';
 import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
 import TargetedWriteInvite, { InviteImpression } from '@/components/TargetedWriteInvite';
@@ -59,7 +61,7 @@ import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { Icon } from '@/components/Icon';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
+import { Platform,
   ActivityIndicator,
   AppState,
   FlatList,
@@ -82,6 +84,19 @@ export default function ExploreScreen() {
   const styles = useMemo(() => createStyles(color), [color]);
 
   const [confessions,     setConfessions]     = useState<Recommendation[]>([]);
+
+  /**
+   * id → position, rebuilt only when the feed changes.
+   *
+   * The separator used to call confessions.findIndex() for EVERY gap on every
+   * render — O(n) inside an O(n) pass, so the work grew with the square of the
+   * feed while scrolling. At 200 items that is 40,000 comparisons per pass.
+   */
+  const indexById = useMemo(() => {
+    const m = new Map<string, number>();
+    confessions.forEach((c, i) => m.set(c.id, i));
+    return m;
+  }, [confessions]);
   const [loading,         setLoading]         = useState(true);
   const [loadingMore,     setLoadingMore]     = useState(false);
   // null = unlimited (inside the intro window, or premium). A number is
@@ -132,42 +147,151 @@ export default function ExploreScreen() {
   const impressedRef = useRef<Set<string>>(new Set());
   const readToEndRef = useRef<Set<string>>(new Set());
 
-  async function fetchRecommendations() {
-    setLoading(true);
-    setExhausted(false);
-    setLoadError(null);
-    shownIdsRef.current  = new Set();
-    impressedRef.current = new Set();
-    readToEndRef.current = new Set();
-    // Fails OPEN to unlimited: a storage or billing hiccup should never be
-    // the reason someone is told they have run out.
-    const premium = await checkPremium().catch(() => true);
-    setDailyLimit(await getDailyLimit({ isPremium: premium }).catch(() => null));
+  /**
+   * Load the feed.
+   *
+   * Two changes from the original, both about perceived speed rather than
+   * throughput:
+   *
+   *  1. The cached feed is shown FIRST, with no spinner, and refreshed
+   *     quietly behind it. Returning to Read used to re-fetch from scratch
+   *     behind a full-screen spinner even when the reader had left four
+   *     seconds ago.
+   *  2. Premium, the daily limit, the question and the recommendations now
+   *     run in PARALLEL. They were four sequential round trips, each waiting
+   *     on the one before for no reason — none of them is an input to another.
+   *
+   * What has not changed: nothing loads on scroll, there is no refresh
+   * gesture, and "Keep reading" is still the only way to extend the feed
+   * (CLAUDE.md #2).
+   */
+
+  /**
+   * ONE callback per action for the whole list, not three per card per render.
+   *
+   * ReadCard is React.memo'd, and a memo is defeated by a prop that changes
+   * identity every render — which an inline arrow does. These take the id
+   * instead of closing over the item, so they never need to be rebuilt.
+   *
+   * The lookup by id is against indexById, so it stays O(1) as the feed grows.
+   */
+  const onCardFelt = useCallback((id: string) => {
+    const i = indexById.get(id);
+    if (i === undefined) return;
+    handleFelt(confessions[i]);
+  }, [indexById, confessions]);
+
+  const onCardPress = useCallback((id: string) => {
+    const i = indexById.get(id);
+    if (i === undefined) return;
+    const item = confessions[i];
+
+    // Opening one is what counts against the day, not scrolling past.
+    void recordRead();
+    // Params lose newlines in transit — hand the confession over in memory
+    // and let params serve only as a deep-link fallback.
+    setConfessionHandoff({
+      id:              item.id,
+      text:            item.text,
+      feltCount:       item.feltCount,
+      paletteIndex:    i % palettes.length,
+      audioDurationMs: item.audioDurationMs,
+      audioWaveform:   item.audioWaveform,
+    });
+    router.push({
+      pathname: '/read-detail',
+      params: {
+        id:           item.id,
+        text:         item.text,
+        feltCount:    String(item.feltCount),
+        paletteIndex: String(i % palettes.length),
+      },
+    });
+  }, [indexById, confessions]);
+
+  const keyExtractor = useCallback((item: Recommendation) => item.id, []);
+
+  async function fetchRecommendations(opts: { background?: boolean } = {}) {
+    const background = opts.background === true;
+
+    if (!background) {
+      setExhausted(false);
+      setLoadError(null);
+      shownIdsRef.current  = new Set();
+      impressedRef.current = new Set();
+      readToEndRef.current = new Set();
+    }
+
     try {
-      // richOnly = false. It used to be the intro-window flag, filtering the
-      // feed to story-shaped confessions on the theory that a one-liner is a
-      // poor first impression. With the window gone that would apply to every
-      // reader forever, and it would quietly shrink the REAL pool — most
-      // genuine confessions are short — leaning the feed harder on generated
-      // ones, which is the opposite of letting AI content recede.
-      // The FTUE starts this exact request as its last act, so a reader
-      // arriving straight from onboarding lands on confessions rather than on
-      // a spinner (lib/feedPrefetch.ts). Null on every other entry to the
-      // feed, and null if that prefetch went stale or failed — in which case
-      // this fetches as it always has.
-      const primed = await takePrimedFeed();
-      const data   = primed ?? (await getRecommendations(false)).confessions;
+      const [premium, primed, fresh, liveQuestion] = await Promise.all([
+        // Fails OPEN to unlimited: a storage or billing hiccup should never be
+        // the reason someone is told they have run out.
+        checkPremium().catch(() => true),
+        takePrimedFeed().catch(() => null),
+        // richOnly = false. It used to be the intro-window flag, filtering the
+        // feed to story-shaped confessions on the theory that a one-liner is a
+        // poor first impression. With the window gone that would apply to every
+        // reader forever, and it would quietly shrink the REAL pool — most
+        // genuine confessions are short — leaning the feed harder on generated
+        // ones, which is the opposite of letting AI content recede.
+        getRecommendations(false).then(r => r.confessions).catch(e => e as Error),
+        getCurrentQuestion().catch(() => null),
+      ]);
+
+      setDailyLimit(await getDailyLimit({ isPremium: premium }).catch(() => null));
+      setQuestion(liveQuestion);
+
+      // The FTUE primes this exact request as its last act, so a reader
+      // arriving from onboarding lands on confessions rather than a spinner
+      // (lib/feedPrefetch.ts).
+      const data = primed ?? fresh;
+
+      if (data instanceof Error) {
+        // A failed REFRESH must not blank a feed the reader is already
+        // reading. Only a cold failure with nothing on screen is an error.
+        if (!background && confessions.length === 0) {
+          setLoadError(isAuthError(data) ? 'auth' : 'load');
+          setConfessions([]);
+        }
+        return;
+      }
+
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
+      feedCache.save(data);
     } catch (e) {
-      setLoadError(isAuthError(e) ? 'auth' : 'load');
-      setConfessions([]);
+      if (!background && confessions.length === 0) {
+        setLoadError(isAuthError(e) ? 'auth' : 'load');
+        setConfessions([]);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { fetchRecommendations(); }, []);
+  useEffect(() => {
+    // Instant: whatever we already had, on screen before any await resolves.
+    const cached = feedCache.readMemory();
+    if (cached) {
+      setConfessions(cached);
+      cached.forEach(c => shownIdsRef.current.add(c.id));
+      setLoading(false);
+      fetchRecommendations({ background: true });
+      return;
+    }
+
+    // Cold start: the disk cache paints something while the network runs.
+    let alive = true;
+    feedCache.readDisk().then((disk) => {
+      if (!alive || !disk) return;
+      setConfessions(disk);
+      disk.forEach(c => shownIdsRef.current.add(c.id));
+      setLoading(false);
+    }).catch(() => {});
+
+    fetchRecommendations();
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => { getCurrentQuestion().then(setQuestion).catch(() => {}); }, []);
 
@@ -285,7 +409,10 @@ export default function ExploreScreen() {
     setComposerOpen(true);
   }
 
-  function handleReport(confessionId: string) {
+  // useCallback with an empty dep list: a plain function declaration is
+  // rebuilt on every render, which would change ReadCard's props and defeat
+  // its memo. setConfessions's updater form means no dependency is needed.
+  const handleReport = useCallback((confessionId: string) => {
     showDialog(
       'Report this confession',
       'Are you sure you want to report this?',
@@ -307,7 +434,7 @@ export default function ExploreScreen() {
         },
       ],
     );
-  }
+  }, []);
 
   function FeedHeader({ trailing }: { trailing?: React.ReactNode }) {
     // No back button: this is a tab destination (the Read tab lands here
@@ -321,10 +448,13 @@ export default function ExploreScreen() {
   }
 
   // -- Loading ------------------------------------------------------------------
+  // Only a genuine cold start reaches this: with a cached feed, loading was
+  // already set false before the first paint (see the mount effect).
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={color.dim} accessibilityLabel="Loading recommendations" />
+      <View style={styles.root}>
+        <FeedHeader />
+        <FeedSkeleton />
       </View>
     );
   }
@@ -350,7 +480,7 @@ export default function ExploreScreen() {
           </Text>
           {isAuth
             ? <GhostButton label="Sign in" onPress={() => router.replace('/')} />
-            : <GhostButton label="Try again" onPress={fetchRecommendations} />}
+            : <GhostButton label="Try again" onPress={() => { setLoading(true); fetchRecommendations(); }} />}
         </View>
       </View>
     );
@@ -474,7 +604,7 @@ export default function ExploreScreen() {
         // fetched-and-hidden — they are simply not rendered, and tomorrow's
         // reset brings them back without another round trip.
         data={dailyLimit === null ? confessions : confessions.slice(0, dailyLimit)}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         renderItem={({ item, index }) => (
           // onPress makes ReadCard render as a truncated preview with a
           // "read more" affordance and become tappable — the full text lives
@@ -495,31 +625,9 @@ export default function ExploreScreen() {
             audioWaveform={item.audioWaveform}
             palette={palettes[index % palettes.length]}
             personaSeed={item.id}
-            onReport={() => handleReport(item.id)}
-            onFelt={() => handleFelt(item)}
-            onPress={() => {
-              // Opening one is what counts against the day, not scrolling past.
-              void recordRead();
-              // Params lose newlines in transit — hand the confession over in
-              // memory and let params serve only as a deep-link fallback.
-              setConfessionHandoff({
-                id:              item.id,
-                text:            item.text,
-                feltCount:       item.feltCount,
-                paletteIndex:    index % palettes.length,
-                audioDurationMs: item.audioDurationMs,
-                audioWaveform:   item.audioWaveform,
-              });
-              router.push({
-                pathname: '/read-detail',
-                params: {
-                  id:           item.id,
-                  text:         item.text,
-                  feltCount:    String(item.feltCount),
-                  paletteIndex: String(index % palettes.length),
-                },
-              });
-            }}
+            onReport={handleReport}
+            onFelt={onCardFelt}
+            onPress={onCardPress}
             iconSessionOffset={iconSession}
           />
           </View>
@@ -539,7 +647,7 @@ export default function ExploreScreen() {
         // write. Only the footer still stacks both, where the reading has
         // stopped and nothing is being interrupted.
         ItemSeparatorComponent={({ leadingItem }) => {
-          const i = confessions.findIndex(c => c.id === leadingItem?.id);
+          const i = leadingItem ? indexById.get(leadingItem.id) ?? -1 : -1;
           if (i < 0) return null;
 
           // The targeted invite outranks whatever would otherwise appear here:
@@ -597,6 +705,16 @@ export default function ExploreScreen() {
         }}
         contentContainerStyle={styles.scroll}
         showsVerticalScrollIndicator={false}
+        /* Windowing. The feed can carry 200 items while roughly four are on
+           screen; the defaults render far more than that up front and keep
+           them all mounted, which is what made the first paint and the scroll
+           expensive. removeClippedSubviews is Android-only on purpose — it is
+           known to clip incorrectly on iOS. */
+        initialNumToRender={4}
+        maxToRenderPerBatch={4}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
+        keyboardShouldPersistTaps="handled"
         viewabilityConfigCallbackPairs={viewabilityPairs}
         ListFooterComponent={
           <View style={styles.footer}>

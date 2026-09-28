@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 const KEY = '@yana/write_draft';
 
@@ -19,17 +19,26 @@ export function DraftProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(KEY).then(v => { if (v) setDraftState(v); }).catch(() => {});
   }, []);
 
-  function setDraft(t: string) {
+  const setDraft = useCallback((t: string) => {
     setDraftState(t);
     AsyncStorage.setItem(KEY, t).catch(() => {});
-  }
+  }, []);
 
-  function clearDraft() {
+  const clearDraft = useCallback(() => {
     setDraftState('');
     AsyncStorage.removeItem(KEY).catch(() => {});
-  }
+  }, []);
 
-  return <Ctx.Provider value={{ draft, setDraft, clearDraft }}>{children}</Ctx.Provider>;
+  /**
+   * Memoized for the same reason as the theme value: an inline object gets a
+   * new identity every render, and a changed context value re-renders every
+   * consumer unconditionally — React.memo cannot stop it, because context is
+   * not a prop.
+   */
+  const value = useMemo(
+    () => ({ draft, setDraft, clearDraft }), [draft, setDraft, clearDraft]);
+
+  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export const useDraft = () => useContext(Ctx);

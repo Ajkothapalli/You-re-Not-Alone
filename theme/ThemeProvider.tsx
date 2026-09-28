@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { type Palette, palettes } from './palettes';
 import { type ColorSet, lightColors, darkColors } from './tokens';
 
@@ -79,15 +79,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const isDark = theme === 'dark';
   const colors = isDark ? darkColors : lightColors;
 
+  /**
+   * MEMOIZED, and this matters far beyond tidiness.
+   *
+   * This used to be an object literal built inline, so it had a new identity
+   * on every render of this provider — which sits near the root of the app.
+   * A changed context value re-renders EVERY consumer unconditionally, and
+   * React.memo cannot stop it: memo compares props, and context is not a
+   * prop. Every themed component in the tree therefore re-rendered whenever
+   * anything above it did, and memoizing individual components (ReadCard,
+   * PersonaBadge) bought nothing at all while this stayed as it was.
+   *
+   * setTheme is already stable (useCallback), and palettes[paletteIndex] is a
+   * module constant, so the value only changes when the theme or palette
+   * genuinely changes — which is exactly when consumers SHOULD re-render.
+   */
+  const value = useMemo(() => ({
+    palette: palettes[paletteIndex],
+    paletteIndex,
+    theme,
+    setTheme,
+    colors,
+    isDark,
+  }), [paletteIndex, theme, setTheme, colors, isDark]);
+
   return (
-    <ThemeContext.Provider value={{
-      palette: palettes[paletteIndex],
-      paletteIndex,
-      theme,
-      setTheme,
-      colors,
-      isDark,
-    }}>
+    <ThemeContext.Provider value={value}>
       {children}
     </ThemeContext.Provider>
   );

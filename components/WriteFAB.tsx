@@ -1,5 +1,10 @@
 import { router, usePathname } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import * as Haptics from 'expo-haptics';
+import {
+  TAB_ROUTES, activeIndex as computeActive, settled, shouldNavigate, press, IDLE,
+  type NavState,
+} from '@/lib/tabNav';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from './Icon';
@@ -38,7 +43,9 @@ function TabItem({ icon, label, active, onPress, badge = 0 }: TabItemProps) {
   const color = useThemeColors();
   return (
     <Pressable
-      style={styles.tab}
+      // Immediate, local feedback. Everything else about a tab tap depends on
+      // navigation landing; this does not.
+      style={({ pressed }) => [styles.tab, pressed && { opacity: 0.65 }]}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -76,14 +83,37 @@ export default function WriteFAB() {
 
   // The feed is the only read surface (owner decision 2026-09-13) — the
   // 2-card screen this tab used to conditionally point at no longer exists.
-  const isRead   = pathname === '/explore';
-  const isYou    = pathname === '/you';
-  const isWrite  = pathname === '/write';
-  const isAlerts = pathname === '/notifications';
+  /**
+   * The indicator moves on PRESS, not on arrival.
+   *
+   * usePathname() only changes once the navigation has completed, so deriving
+   * the active tab from it alone meant the bar sat still through the whole
+   * transition — the tap had no visible response until the next screen
+   * appeared. The optimistic index is reconciled the moment the pathname
+   * agrees; see lib/tabNav.ts for the state machine and its timeout.
+   */
+  const [nav, setNav] = useState<NavState>(IDLE);
 
-  // Tab order: Read, Write, You, Alerts — indices must match the JSX order
-  // below so the sliding indicator lands under the active tab.
-  const activeIndex = isRead ? 0 : isWrite ? 1 : isYou ? 2 : isAlerts ? 3 : -1;
+  useEffect(() => {
+    if (nav.optimistic !== null && settled(nav, pathname, Date.now())) setNav(IDLE);
+  }, [pathname, nav]);
+
+  const activeIndex = computeActive(nav, pathname, Date.now());
+
+  const isRead   = activeIndex === 0;
+  const isWrite  = activeIndex === 1;
+  const isYou    = activeIndex === 2;
+  const isAlerts = activeIndex === 3;
+
+  const go = useCallback((target: number) => {
+    const now = Date.now();
+    // Drops a tap on the active tab (which would remount the screen and throw
+    // away the feed) and repeat taps mid-transition. See shouldNavigate.
+    if (!shouldNavigate(nav, pathname, target, now)) return;
+    setNav(press(target, now));
+    Haptics.selectionAsync().catch(() => {});
+    router.navigate(TAB_ROUTES[target]);
+  }, [nav, pathname]);
 
   // Single animated value — the whole indicator slides, nothing per-tab.
   const slideX = useRef(
@@ -122,10 +152,10 @@ export default function WriteFAB() {
             style={[styles.indicatorCircle, { backgroundColor: color.accent, borderColor: color.border, transform: indicatorTransform }]}
           />
 
-          <TabItem icon="book"   label="Read"   active={isRead}   onPress={() => router.navigate('/explore')} />
-          <TabItem icon="pencil" label="Write"  active={isWrite}  onPress={() => router.navigate('/(tabs)/write')} />
-          <TabItem icon="person" label="You"    active={isYou}    onPress={() => router.navigate('/(tabs)/you')} />
-          <TabItem icon="bell"   label="Alerts" active={isAlerts} onPress={() => router.navigate('/(tabs)/notifications')} badge={unreadCount} />
+          <TabItem icon="book"   label="Read"   active={isRead}   onPress={() => go(0)} />
+          <TabItem icon="pencil" label="Write"  active={isWrite}  onPress={() => go(1)} />
+          <TabItem icon="person" label="You"    active={isYou}    onPress={() => go(2)} />
+          <TabItem icon="bell"   label="Alerts" active={isAlerts} onPress={() => go(3)} badge={unreadCount} />
 
         </View>
       </View>

@@ -8,7 +8,7 @@
  */
 
 import Purchases from 'react-native-purchases';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useMemo, createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from './supabase';
 import { billingAvailable, checkPremium, initPurchases } from './purchases';
 
@@ -28,9 +28,12 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   const [isPremium, setIsPremium] = useState(false);
   const [ready,     setReady]     = useState(false);
 
-  async function refresh() {
+  // useCallback: it is part of the memoized context value below, so a fresh
+  // identity each render would change that value each render and undo the
+  // memo entirely.
+  const refresh = useCallback(async () => {
     setIsPremium(await checkPremium());
-  }
+  }, []);
 
   useEffect(() => {
     // Module-level listener; removed by reference on unmount.
@@ -56,8 +59,18 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  /**
+   * Memoized for the same reason as the theme value: an inline object gets a
+   * new identity every render, and a changed context value re-renders every
+   * consumer unconditionally — React.memo cannot stop it, because context is
+   * not a prop.
+   */
+  const premiumValue = useMemo(
+    () => ({ isPremium, ready, refresh }), [isPremium, ready, refresh]);
+
+
   return (
-    <PremiumContext.Provider value={{ isPremium, ready, refresh }}>
+    <PremiumContext.Provider value={premiumValue}>
       {children}
     </PremiumContext.Provider>
   );

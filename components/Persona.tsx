@@ -319,7 +319,7 @@ interface BadgeProps {
   showName?: boolean;
 }
 
-export function PersonaBadge({ persona, size = 27, showName = true }: BadgeProps) {
+function PersonaBadgeInner({ persona, size = 27, showName = true }: BadgeProps) {
   const [tint] = persona.colors;
   // The ring follows the theme (a hardcoded #1A1A1A ring vanished on dark
   // cards). The disc does not: it is paper, so the ink drawing reads in both.
@@ -372,3 +372,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+
+/**
+ * Memoized: the badge draws a full avatar SVG and is mounted once per feed
+ * card. getPersona() returns a stable object for a given seed, so the shallow
+ * compare holds.
+ */
+export const PersonaBadge = React.memo(PersonaBadgeInner);

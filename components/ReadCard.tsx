@@ -22,9 +22,17 @@ interface Props {
   audioDurationMs?:   number;
   audioWaveform?:     number[];
   palette:            Palette;
-  onReport:           () => void;
-  onPress?:           () => void;
-  onFelt?:            () => void;
+  /**
+   * Take the confession id rather than closing over it.
+   *
+   * This is what makes React.memo on this component actually work: a parent
+   * can hold ONE useCallback per action for the whole list, instead of
+   * minting three new closures per card per render — which would change the
+   * props every time and defeat the memo silently.
+   */
+  onReport:           (id: string) => void;
+  onPress?:           (id: string) => void;
+  onFelt?:            (id: string) => void;
   delay?:             number;
   personaSeed:        string;
   iconSessionOffset?: number;
@@ -70,7 +78,16 @@ function TickChar({ char, isChanged, felt, reduceMotion, style }: {
 
 const MAX_LINES = 6;
 
-export default function ReadCard({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0, confessionId, audioDurationMs, audioWaveform }: Props) {
+/**
+ * Memoized: switching tabs re-renders the feed's parent, and without this
+ * every mounted card re-rendered with identical props — each one a persona
+ * lookup, two roughened SVG icons and a waveform.
+ *
+ * The comparison is the default shallow one, which is only correct because
+ * the callbacks below are stable per confession id in app/explore.tsx. If a
+ * caller ever passes a freshly-created closure, this silently stops working.
+ */
+function ReadCardInner({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0, confessionId, audioDurationMs, audioWaveform }: Props) {
   const { colors: color, isDark } = useTheme();
   const styles = useMemo(() => createStyles(color), [color]);
 
@@ -112,7 +129,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
   function handleFelt() {
     const next = !felt;
     setFelt(next);
-    if (next) onFelt?.();
+    if (next) onFelt?.(confessionId ?? '');
     announce(next
       ? `Added. ${(feltCount + 1).toLocaleString()} people felt this too.`
       : 'Removed.');
@@ -160,7 +177,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
 
         {/* Card — whole card is tappable when onPress is provided */}
         <Pressable
-          onPress={onPress}
+          onPress={onPress ? () => onPress(confessionId ?? '') : undefined}
           disabled={!onPress}
           accessibilityRole={onPress ? 'button' : 'none'}
           accessibilityLabel={onPress ? `${persona.name} wrote: ${text}` : undefined}
@@ -184,8 +201,15 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
                 style={styles.body}
                 numberOfLines={onPress ? MAX_LINES : undefined}
                 ellipsizeMode={onPress ? 'tail' : undefined}
+                /* Guarded: onTextLayout fires on every layout pass, and an
+                   unconditional setState with the SAME value still schedules a
+                   render. On a list this turned one scroll into a render per
+                   visible card, repeatedly. */
                 onTextLayout={onPress
-                  ? (e) => setIsTruncated(e.nativeEvent.lines.length >= MAX_LINES)
+                  ? (e) => {
+                      const next = e.nativeEvent.lines.length >= MAX_LINES;
+                      setIsTruncated((prev) => (prev === next ? prev : next));
+                    }
                   : undefined}
               >
                 {text}
@@ -246,7 +270,7 @@ export default function ReadCard({ text, feltCount, palette, onReport, onPress, 
               </Pressable>
 
               <Pressable
-                onPress={onReport}
+                onPress={() => onReport(confessionId ?? '')}
                 hitSlop={12}
                 accessibilityRole="button"
                 accessibilityLabel="Report this confession"
@@ -349,3 +373,6 @@ function createStyles(color: ColorSet) {
     },
   });
 }
+
+const ReadCard = React.memo(ReadCardInner);
+export default ReadCard;

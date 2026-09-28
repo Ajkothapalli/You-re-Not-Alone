@@ -9,7 +9,7 @@
  * three distinct icons per card from the same seed string.
  */
 
-import React from 'react';
+import React, { useId } from 'react';
 import Svg, {
   Defs,
   FeDisplacementMap,
@@ -196,7 +196,16 @@ export function iconFromSeed(seed: string): ScrawlIconName {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-const FILTER_ID = 'scrawl_roughen';
+/**
+ * The roughen filter's id must be UNIQUE PER INSTANCE.
+ *
+ * It used to be one module-level constant, so every roughened icon emitted
+ * <Filter id="scrawl_roughen"> into the same document — two per card, dozens
+ * per feed. Duplicate SVG ids are not an error: url(#id) simply resolves to
+ * the FIRST match, so every icon silently shared one filter. It looked right
+ * only because every instance declared identical parameters, and would have
+ * started rendering wrongly the moment one of them differed.
+ */
 
 interface Props {
   name:        ScrawlIconName;
@@ -215,12 +224,14 @@ interface Props {
 // trees from scratch, even though none of their actual props changed.
 export const ScrawlIcon = React.memo(function ScrawlIcon({ name, size = 48, color = '#F5F5F5', roughen = true, strokeWidth = 2.5 }: Props) {
   const paths = ICON_PATHS[name] ?? ICON_PATHS['heart'];
+  const filterId = 'scrawl' + useId().replace(/[^a-zA-Z0-9]/g, '');
+
 
   return (
     <Svg viewBox="0 0 48 48" width={size} height={size}>
       {roughen && (
         <Defs>
-          <Filter id={FILTER_ID} x="-10%" y="-10%" width="120%" height="120%">
+          <Filter id={filterId} x="-10%" y="-10%" width="120%" height="120%">
             <FeTurbulence
               type="fractalNoise"
               baseFrequency="0.038"
@@ -244,7 +255,7 @@ export const ScrawlIcon = React.memo(function ScrawlIcon({ name, size = 48, colo
         strokeLinejoin="round"
         strokeLinecap="round"
         fill="none"
-        filter={roughen ? `url(#${FILTER_ID})` : undefined}
+        filter={roughen ? `url(#${filterId})` : undefined}
       >
         {paths.map((d, i) => (
           <Path key={i} d={d} />
