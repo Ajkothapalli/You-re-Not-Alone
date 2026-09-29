@@ -38,6 +38,7 @@ import ShareFlow from '@/components/share/ShareFlow';
 import QuestionCard from '@/components/QuestionCard';
 import { getCurrentQuestion, type LiveQuestion } from '@/lib/question';
 import * as feedCache from '@/lib/feedCache';
+import * as signalQueue from '@/lib/signalQueue';
 import FeedSkeleton from '@/components/FeedSkeleton';
 import { GhostButton } from '@/components/Buttons';
 import { WriteInviteCard, PremiumCard } from '@/components/EndOfReadingCards';
@@ -52,7 +53,7 @@ import { getRecommendations, isAuthError, logReadEvent, reportConfession, type R
 import { takePrimedFeed } from '@/lib/feedPrefetch';
 import { stopAllPlayback } from '@/lib/audioPlayback';
 import { getDailyLimit, recordRead, DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
-import { checkPremium } from '@/lib/purchases';
+import { usePremium } from '@/lib/premiumContext';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
 import { palettes } from '@/theme/palettes';
@@ -111,6 +112,7 @@ export default function ExploreScreen() {
   const [sharing,         setSharing]         = useState(false);
   const [shareTarget,     setShareTarget]     = useState<Recommendation | null>(null);
   const [composerOpen,    setComposerOpen]    = useState(false);
+  const { isPremium, ready: premiumReady } = usePremium();
 
   // [W2] The weekly question. Null whenever there is no live one, the bank has
   // run out, or the lookup failed — the feed is unchanged in every one of
@@ -135,10 +137,19 @@ export default function ExploreScreen() {
   // is not on screen.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') stopAllPlayback();
+      if (next !== 'active') {
+        stopAllPlayback();
+        // Backgrounding is the last chance to send queued read signals —
+        // the process may not come back.
+        signalQueue.flushNow();
+      }
     });
     return () => sub.remove();
   }, []);
+
+  // Leaving the tab flushes too, so signals do not sit in a buffer for ten
+  // seconds while the reader is somewhere else entirely.
+  useFocusEffect(useCallback(() => () => { signalQueue.flushNow(); }, []));
 
   // Session-scoped id sets. shownIds keeps "keep reading" batches from
   // repeating; the other two make sure each read signal fires at most once
@@ -223,10 +234,7 @@ export default function ExploreScreen() {
     }
 
     try {
-      const [premium, primed, fresh, liveQuestion] = await Promise.all([
-        // Fails OPEN to unlimited: a storage or billing hiccup should never be
-        // the reason someone is told they have run out.
-        checkPremium().catch(() => true),
+      const [primed, fresh, liveQuestion] = await Promise.all([
         takePrimedFeed().catch(() => null),
         // richOnly = false. It used to be the intro-window flag, filtering the
         // feed to story-shaped confessions on the theory that a one-liner is a
@@ -238,7 +246,17 @@ export default function ExploreScreen() {
         getCurrentQuestion().catch(() => null),
       ]);
 
-      setDailyLimit(await getDailyLimit({ isPremium: premium }).catch(() => null));
+      /**
+       * Premium comes from the context, not from a fresh checkPremium() call.
+       *
+       * The provider has already resolved it at startup, so asking again on
+       * every feed load was an extra await in front of the content for an
+       * answer we were holding. Fails OPEN to unlimited while the provider is
+       * still settling: a billing hiccup must never be the reason someone is
+       * told they have run out.
+       */
+      setDailyLimit(
+        await getDailyLimit({ isPremium: premiumReady ? isPremium : true }).catch(() => null));
       setQuestion(liveQuestion);
 
       // The FTUE primes this exact request as its last act, so a reader

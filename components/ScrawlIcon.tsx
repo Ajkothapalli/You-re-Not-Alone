@@ -168,7 +168,11 @@ const ICON_DEFS: [string, string[]][] = [
 
 // ─── Build lookup maps ─────────────────────────────────────────────────────────
 
-const ICON_PATHS: Record<string, string[]> = Object.fromEntries(ICON_DEFS);
+/**
+ * Exported so a caller can draw many icons inside ONE <Svg> rather than
+ * mounting one native view per icon — see components/BackgroundPattern.tsx.
+ */
+export const ICON_PATHS: Record<string, string[]> = Object.fromEntries(ICON_DEFS);
 export const ALL_ICON_NAMES: string[] = ICON_DEFS.map(([name]) => name);
 
 export type ScrawlIconName = string;

@@ -11,6 +11,7 @@ import { saveReceipt, clearReceipts } from './confessionReceipt';
 import { resetFtue, resetIntroReads } from './onboarding';
 import { clearRtueCache, markRtueSeen } from './rtue';
 import { withTimeout } from './withTimeout';
+import * as signalQueue from './signalQueue';
 import { isValidToken } from './shareLink';
 import type { ShareSource } from '@/lib/shareLink';
 
@@ -339,7 +340,21 @@ export interface ReaderPreferences {
 }
 
 export async function getReaderPreferences(): Promise<ReaderPreferences | null> {
-  const { data: { user } } = await supabase.auth.getUser();
+  /**
+   * getSession(), not getUser().
+   *
+   * getUser() makes a NETWORK call to /auth/v1/user to re-validate the token
+   * on every invocation; getSession() reads the token already in secure
+   * storage. This runs on the feed's load path and on the write screen's
+   * starters, so it was an extra round trip in front of two of the three
+   * screens people actually use — to learn a user id the client already has.
+   *
+   * The id is not a trust boundary here: it is used to SELECT the caller's
+   * own preferences row, and RLS decides what that returns. A stale or
+   * tampered local token buys nothing the server would honour.
+   */
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) return null;
   const { data } = await supabase
     .from('reader_preferences')
@@ -499,14 +514,37 @@ export async function getMatchingCount(): Promise<number> {
 
 export type ReadSignal = 'impression' | 'read_to_end' | 'felt' | 'share' | 'skip' | 'report';
 
+/**
+ * Record a read signal.
+ *
+ * Queued rather than sent: this is called from inside a scrolling list, and
+ * one round trip per card was the app's largest source of network work. The
+ * queue leaves on a timer, on blur and on background — see lib/signalQueue.ts
+ * for why felt and report still go straight out.
+ *
+ * Still returns a promise so the ~7 existing call sites need no change, but
+ * it resolves immediately and never throws.
+ */
 export async function logReadEvent(confessionId: string, signal: ReadSignal): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return; // fire-and-forget; don't throw
-
-  supabase.functions.invoke('recommend-confessions', {
-    body: { action: 'signal', confessionId, signal },
-  }).catch(() => {}); // analytics: never block the UI on failures
+  signalQueue.enqueue(confessionId, signal);
 }
+
+/**
+ * The one place a batch actually leaves. Wired into the queue at import time.
+ *
+ * Sends an ARRAY. The server still accepts the old single-signal shape so an
+ * older app version keeps working against a newer function (and the reverse:
+ * a new app against an old function degrades to a rejected batch, which is
+ * dropped silently rather than retried).
+ */
+signalQueue.configure(async (batch) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return;
+
+  await supabase.functions.invoke('recommend-confessions', {
+    body: { action: 'signal', signals: batch },
+  });
+});
 
 export async function createOrUpdateAccount(dob: Date, authProvider = 'email'): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser();

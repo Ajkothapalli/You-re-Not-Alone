@@ -1,6 +1,7 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { ScrawlIcon } from './ScrawlIcon';
+import { useWindowDimensions, StyleSheet, View } from 'react-native';
+import Svg, { G, Path } from 'react-native-svg';
+import { ICON_PATHS } from './ScrawlIcon';
 import { useThemeColors } from '../theme/ThemeProvider';
 
 // 6-column staggered grid, 12 rows — full-coverage wallpaper tile.
@@ -92,25 +93,53 @@ const PATTERN: Array<{ name: string; top: string; left: string; size: number; ro
   { name: 'fingerprint', top: '87%', left: '93%', size: 22, rotate: 10  },
 ];
 
-// Memoized: this renders 72 individual <Svg> icons (one native view tree
-// each) purely for decoration (pointerEvents="none", 10% opacity) — it takes
-// no props and its output depends only on the theme's `paper` colour, so
-// without memoization it re-renders (re-executing all 72 ScrawlIcon calls)
-// every time its parent screen re-renders for any unrelated reason, e.g. an
-// async focus-triggered fetch resolving. It's mounted on every tab screen
-// (write/you/notifications) plus read-detail.tsx and confession/[id].tsx.
+// ONE <Svg>, not 72.
+//
+// This used to mount 72 separate <Svg> elements — 72 native view trees, plus
+// 72 wrapping <View>s — purely for decoration at 10% opacity. It is on every
+// tab screen plus read-detail and confession/[id], so it was the single
+// largest contributor to view count on most of the app.
+//
+// Drawing all 72 inside one <Svg> is one native view. The look is unchanged:
+// the same paths at the same positions, sizes and rotations, with stroke
+// width divided by the scale factor so the drawn line stays 2.5px as it did
+// when each icon had its own viewBox.
+//
+// Still memoized: it takes no props and depends only on the theme's `paper`
+// colour, so without it the whole pattern re-rendered whenever its parent did
+// for any unrelated reason.
 export const BackgroundPattern = React.memo(function BackgroundPattern() {
   const color = useThemeColors();
+  const { width, height } = useWindowDimensions();
+
   return (
     <View style={[StyleSheet.absoluteFill, styles.wrapper]} pointerEvents="none">
-      {PATTERN.map((item, i) => (
-        <View
-          key={i}
-          style={[styles.icon, { top: item.top as any, left: item.left as any, transform: [{ rotate: `${item.rotate}deg` }] }]}
-        >
-          <ScrawlIcon name={item.name} size={item.size} color={color.paper} roughen={false} />
-        </View>
-      ))}
+      <Svg width={width} height={height}>
+        {PATTERN.map((item, i) => {
+          // Percentages resolved here because one <Svg> has no per-child
+          // layout: each doodle is positioned by a transform instead.
+          const x = (parseFloat(item.left as string) / 100) * width;
+          const y = (parseFloat(item.top  as string) / 100) * height;
+          const k = item.size / 48;                 // icons are a 48x48 space
+          const paths = ICON_PATHS[item.name] ?? ICON_PATHS['heart'];
+
+          return (
+            <G
+              key={i}
+              transform={
+                `translate(${x}, ${y}) rotate(${item.rotate}, ${item.size / 2}, ${item.size / 2}) scale(${k})`
+              }
+              stroke={color.paper}
+              strokeWidth={2.5 / k}                 // keeps the drawn width constant
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              fill="none"
+            >
+              {paths.map((d, j) => <Path key={j} d={d} />)}
+            </G>
+          );
+        })}
+      </Svg>
     </View>
   );
 });
