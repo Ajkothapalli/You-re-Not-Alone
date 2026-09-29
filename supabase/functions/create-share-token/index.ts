@@ -18,7 +18,8 @@
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
+import { verifyJwt } from '../_shared/auth.ts';
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -79,10 +80,10 @@ serve(async (req: Request) => {
   const jwt = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!jwt) return json({ error: 'Unauthorized' }, 401);
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-  if (authError || !user) return json({ error: 'Unauthorized' }, 401);
+  const user = await verifyJwt(supabase, jwt);
+  if (!user) return json({ error: 'Unauthorized' }, 401);
 
-  let body: { bucket?: string };
+  let body: { bucket?: string; confessionId?: string; questionId?: string; wordsIncluded?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -91,6 +92,60 @@ serve(async (req: Request) => {
 
   const bucket = body.bucket as Bucket;
   if (!BUCKETS.includes(bucket)) return json({ error: 'Invalid bucket.' }, 400);
+
+  /**
+   * [F] What is being shared, checked SERVER-side.
+   *
+   * The client says which confession it is sharing; the server decides
+   * whether it may. A caller could otherwise mint a token pointing at any
+   * confession id and turn it into a public page — which would be a
+   * confession-id-to-page path, the exact thing the token design exists to
+   * prevent.
+   *
+   *   'rtue'  — must be the CALLER'S OWN confession (ownership check).
+   *   'read'  — must be a confession the caller could actually see: live or
+   *             approved, a real user's, not hidden. That is the same set the
+   *             feed would have shown them.
+   *   others  — no confession.
+   *
+   * A failed check does not fail the share: the token is still minted, just
+   * without a confession, so the link degrades to the generic landing page.
+   * Losing a doorway is a smaller harm than losing someone's share.
+   */
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  let confessionId: string | null = null;
+  let questionId:   string | null = null;
+  const wordsIncluded = body.wordsIncluded === true;
+
+  if (bucket === 'question' && typeof body.questionId === 'string' && UUID.test(body.questionId)) {
+    const { data: q } = await supabase
+      .from('questions').select('id').eq('id', body.questionId)
+      .eq('status', 'approved').maybeSingle();
+    questionId = q?.id ?? null;
+  }
+
+  if ((bucket === 'read' || bucket === 'rtue') &&
+      typeof body.confessionId === 'string' && UUID.test(body.confessionId)) {
+    const { data: c } = await supabase
+      .from('confessions')
+      .select('id, account_id, status, source, auto_flagged')
+      .eq('id', body.confessionId)
+      .maybeSingle();
+
+    const visible = c
+      && (c.status === 'live' || c.status === 'approved')
+      && c.source === 'user'
+      && !c.auto_flagged;
+
+    if (visible) {
+      // rtue is the writer's own milestone — it must BE theirs.
+      if (bucket === 'rtue') {
+        if (c!.account_id === user.id) confessionId = c!.id;
+      } else {
+        confessionId = c!.id;
+      }
+    }
+  }
 
   // ── Daily cap ──────────────────────────────────────────────────────────────
   // Fails CLOSED, unlike most of the soft limits here: the cap is the only
@@ -118,7 +173,15 @@ serve(async (req: Request) => {
     const token = randomToken();
     const { error } = await supabase
       .from('share_tokens')
-      .insert({ token, account_id: user.id, bucket });
+      .insert({
+        token, account_id: user.id, bucket,
+        confession_id:  confessionId,
+        question_id:    questionId,
+        // Captured at share time and never revisited: a sealed share stays
+        // sealed, or the page would retroactively publish words the sharer
+        // deliberately withheld.
+        words_included: wordsIncluded,
+      });
 
     if (!error) return json({ token });
     if (error.code !== '23505') {
