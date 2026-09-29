@@ -22,7 +22,8 @@
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
+import { verifyJwt } from '../_shared/auth.ts';
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -112,8 +113,8 @@ serve(async (req: Request) => {
   const jwt = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!jwt) return json({ error: 'Unauthorized' }, 401);
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-  if (authError || !user) return json({ error: 'Unauthorized' }, 401);
+  const user = await verifyJwt(supabase, jwt);
+  if (!user) return json({ error: 'Unauthorized' }, 401);
 
   // ── Explicit confirmation required ────────────────────────────────────────────
   let body: { confirm?: string; mode?: string };

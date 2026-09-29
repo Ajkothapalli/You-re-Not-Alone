@@ -14,10 +14,12 @@ import { announce } from '@/lib/a11y';
 import { claimAuthCredential } from '@/lib/authCallback';
 import { markInstall } from '@/lib/introWindow';
 import { getDobOrder, maskDob, dobToISO, isAdultISO } from '@/lib/dobFormat';
-import { createOrUpdateAccount, getReaderPreferences } from '@/lib/api';
+import { createOrUpdateAccount, getReaderPreferences, getRecommendations } from '@/lib/api';
 import { resetFtue } from '@/lib/onboarding';
 import { hydrateProfile } from '@/lib/profile';
 import { evaluateRtue } from '@/lib/rtue';
+import { readOnboarded, writeOnboarded, canSkipToFeed } from '@/lib/onboardedCache';
+import { primeFeed } from '@/lib/feedPrefetch';
 import { signInWithGoogle } from '@/lib/oauth';
 import { supabase } from '@/lib/supabase';
 import { withTimeout } from '@/lib/withTimeout';
@@ -109,11 +111,98 @@ export default function IndexScreen() {
   async function routeAfterAuth(userId: string) {
     if (routingRef.current) return;
     routingRef.current = true;
+
+  /**
+   * The onboarding checks, moved off the critical path.
+   *
+   * Only ever redirects when something is ACTUALLY wrong: the account is
+   * gone, or the categories are. A network failure changes nothing — an
+   * onboarded person on a bad connection stays on the feed rather than being
+   * bounced back through onboarding, which is the bug the comments in this
+   * file already warn about twice.
+   */
+  async function verifyOnboardingInBackground(userId: string) {
+    try {
+      const [acctRes, prefs] = await Promise.all([
+        withTimeout(
+          supabase.from('accounts').select('id').eq('id', userId).maybeSingle(),
+          5_000, 'acct-bg').catch(() => null),
+        withTimeout(getReaderPreferences(), 5_000, 'prefs-bg').catch(() => undefined),
+      ]);
+
+      if (acctRes && !acctRes.data) {
+        await writeOnboarded({ hasAccount: false, hasCategories: false });
+        await resetFtue().catch(() => {});
+        setStep('dob');
+        return;
+      }
+
+      // undefined means the lookup failed; null/[] means it genuinely has none.
+      if (prefs !== undefined && (prefs?.categories.length ?? 0) === 0) {
+        await writeOnboarded({ hasAccount: true, hasCategories: false });
+        await resetFtue().catch(() => {});
+        router.replace('/welcome');
+      }
+    } catch {
+      // Never bounce someone out of the app because a background check threw.
+    }
+  }
+
+  /**
+   * The milestone, off the critical path too.
+   *
+   * evaluateRtue() already returns immediately when there are no local
+   * receipts — the network call only happens for someone who has actually
+   * written. What changed is that the FEED no longer waits for the answer;
+   * the milestone screen replaces it when (and only when) one resolves.
+   */
+  async function showMilestoneWhenReady() {
+    const rtue = await withTimeout(evaluateRtue(), 2_500, 'rtue-bg').catch(() => null);
+    if (rtue) router.replace('/rtue');
+  }
+
     const t0 = Date.now();
 
     try {
       void hydrateProfile().catch(() => {});
       void markInstall().catch(() => {});
+
+      /**
+       * The fast path: an already-onboarded person goes straight to Read.
+       *
+       * Boot used to prove onboarding over the network on EVERY launch —
+       * account row, then preferences, then the milestone — three sequential
+       * round trips in front of the first card, re-establishing something
+       * that had been true since the day they signed up.
+       *
+       * The local flag decides which screen opens; the server still decides
+       * everything else. The same checks run below, in the background, and
+       * redirect if something is genuinely wrong. Nothing is skipped — it is
+       * just no longer in front of the content.
+       */
+      const cached = await readOnboarded().catch(() => null);
+      const fastPath = canSkipToFeed(cached);
+
+      // Warm the feed on EVERY boot, not only after onboarding, and start it
+      // before any routing decision so the network time overlaps the render.
+      //
+      // Wrapped in try/catch, not just .catch(): a SYNCHRONOUS throw here
+      // (a missing export, a module that failed to load) would abort
+      // routeAfterAuth entirely and strand the user on the splash — the exact
+      // "stuck on loading" failure this file already carries three fixes for.
+      // A prefetch is an optimisation; it must never decide whether the app
+      // boots.
+      try {
+        void primeFeed(getRecommendations(false).then(r => ({ confessions: r.confessions })));
+      } catch {}
+
+      if (fastPath) {
+        router.replace('/explore');
+        // Everything below still happens — it just no longer gates the feed.
+        void verifyOnboardingInBackground(userId);
+        void showMilestoneWhenReady();
+        return;
+      }
 
       // Fire both queries in parallel so acct lookup doesn't gate prefs.
       const acctP = withTimeout(
@@ -135,6 +224,7 @@ export default function IndexScreen() {
         // Wrapped for defense-in-depth/consistency: an onboarding-flag reset is
         // never worth blocking sign-in on, whatever the reason it stalled.
         await withTimeout(resetFtue(), 3_000, 'resetFtue').catch(() => {});
+        await writeOnboarded({ hasAccount: false, hasCategories: false });
         setStep('dob');
         return;
       }
@@ -152,9 +242,13 @@ export default function IndexScreen() {
 
       if ((prefs.p?.categories.length ?? 0) === 0) {
         await withTimeout(resetFtue(), 3_000, 'resetFtue').catch(() => {});
+        await writeOnboarded({ hasAccount: true, hasCategories: false });
         router.replace('/welcome');
         return;
       }
+
+      // Onboarding is complete — remember it, so the next boot skips all this.
+      await writeOnboarded({ hasAccount: true, hasCategories: true });
 
       const rtue = await withTimeout(evaluateRtue(), 2_500, 'rtue').catch(() => null);
       const rtueMs = Date.now() - t0;

@@ -15,6 +15,9 @@ jest.mock('@/lib/dobFormat', () => {
 jest.mock('@/lib/api', () => ({
   createOrUpdateAccount: jest.fn().mockResolvedValue(undefined),
   getReaderPreferences:  jest.fn().mockResolvedValue(null),
+  // Boot now warms the feed on every launch (P2). Unmocked it threw, which
+  // is how the missing guard around primeFeed was found.
+  getRecommendations:    jest.fn().mockResolvedValue({ confessions: [] }),
 }));
 
 jest.mock('@/lib/onboarding', () => ({

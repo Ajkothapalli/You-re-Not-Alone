@@ -27,7 +27,8 @@
  */
 
 import { serve }        from 'https://deno.land/std@0.208.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
+import { verifyJwt } from '../_shared/auth.ts';
 
 const SUPABASE_URL         = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -218,8 +219,8 @@ serve(async (req: Request) => {
   const jwt = req.headers.get('Authorization')?.replace('Bearer ', '');
   if (!jwt) return json({ error: 'Unauthorized' }, 401);
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(jwt);
-  if (authError || !user) return json({ error: 'Unauthorized' }, 401);
+  const user = await verifyJwt(supabase, jwt);
+  if (!user) return json({ error: 'Unauthorized' }, 401);
 
   // Verify account exists + not banned
   const { data: account } = await supabase
@@ -244,37 +245,71 @@ serve(async (req: Request) => {
   const action = body.action as string;
 
   // ── Signal logging ────────────────────────────────────────────────────────────
+  //
+  // Accepts a BATCH. The client queues signals and flushes them together
+  // rather than opening a round trip per card while the feed scrolls.
+  //
+  // The single-signal shape is still accepted, and must stay that way: an app
+  // version older than this function is a normal state of the world (OTA and
+  // store rollouts are never simultaneous), and dropping its signals would
+  // silently degrade recommendations for everyone who had not updated.
   if (action === 'signal') {
-    const confessionId = body.confessionId as string;
-    const signal       = body.signal       as SignalType;
-
     const VALID_SIGNALS: SignalType[] = [
       'impression', 'read_to_end', 'felt', 'share', 'skip', 'report',
     ];
-    if (!confessionId || !VALID_SIGNALS.includes(signal)) {
-      return json({ error: 'Invalid signal payload.' }, 400);
+    const UUID_RE_SIG = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const MAX_BATCH = 100;
+
+    // Old shape first, so an old client is never mis-parsed as an empty batch.
+    const incoming: unknown[] = Array.isArray(body.signals)
+      ? body.signals
+      : [{ confessionId: body.confessionId, signal: body.signal }];
+
+    if (incoming.length === 0) return json({ ok: true, stored: 0 });
+    // Rejected, not truncated: silently dropping the tail would make the
+    // client think signals landed when they did not.
+    if (incoming.length > MAX_BATCH) {
+      return json({ error: 'Too many signals.' }, 400);
     }
 
-    // Log the read event
-    await supabase.from('read_events').insert({
-      reader_account_id: user.id,
-      confession_id:     confessionId,
-      signal,
-    });
+    const rows: { reader_account_id: string; confession_id: string; signal: SignalType }[] = [];
+    const seen = new Set<string>();
 
-    // Update taste on engagement signals (fire-and-forget; errors don't block response)
+    for (const raw of incoming) {
+      const e = raw as { confessionId?: unknown; signal?: unknown };
+      const id  = typeof e?.confessionId === 'string' ? e.confessionId : '';
+      const sig = e?.signal as SignalType;
+      // Every entry is validated on its own. One bad entry must not take a
+      // whole batch of good signals down with it.
+      if (!UUID_RE_SIG.test(id) || !VALID_SIGNALS.includes(sig)) continue;
+
+      const key = `${id}:${sig}`;
+      if (seen.has(key)) continue;          // a card scrolled past twice
+      seen.add(key);
+      rows.push({ reader_account_id: user.id, confession_id: id, signal: sig });
+    }
+
+    if (rows.length === 0) return json({ error: 'Invalid signal payload.' }, 400);
+
+    // ONE insert for the whole batch.
+    await supabase.from('read_events').insert(rows);
+
+    // Taste is still updated per engagement signal — the RPC is per
+    // confession and encodes what the reader responded to, so batching the
+    // insert must not collapse it into a single call.
     const TASTE_SIGNALS: SignalType[] = ['felt', 'read_to_end', 'share', 'report', 'skip'];
-    if (TASTE_SIGNALS.includes(signal)) {
+    for (const r of rows) {
+      if (!TASTE_SIGNALS.includes(r.signal)) continue;
       supabase.rpc('update_reader_taste', {
         p_reader_id:     user.id,
-        p_confession_id: confessionId,
-        p_signal:        signal,
+        p_confession_id: r.confession_id,
+        p_signal:        r.signal,
       }).then(({ error }) => {
         if (error) console.error('[signal] update_reader_taste error:', error.message);
       });
     }
 
-    return json({ ok: true });
+    return json({ ok: true, stored: rows.length });
   }
 
   // ── Recommend ─────────────────────────────────────────────────────────────────
@@ -299,28 +334,40 @@ serve(async (req: Request) => {
   // simply not a reading entitlement. Whatever supporting buys, it is not
   // access to other people's words.
 
-  // 1. Read preferences (authoritative from DB — never from client)
-  const { data: prefs } = await supabase
-    .from('reader_preferences')
-    .select('categories, sexual_opt_in, taste_embedding')
-    .eq('account_id', user.id)
-    .maybeSingle();
+  /**
+   * Preferences, the author token and the cold-start check, together.
+   *
+   * These were three sequential round trips and none of them is an input to
+   * another — the feed simply waited out all three before it could ask for a
+   * single confession.
+   *
+   * The cold-start check also stops COUNTING. It only ever asked "are there
+   * at least 5?", but `count: 'exact'` makes Postgres tally every engagement
+   * row the reader has ever produced — work that grows without limit for
+   * exactly the readers who use the app most, to answer a question that is
+   * settled after the fifth row. LIMIT 5 answers it in constant time.
+   */
+  const [prefsRes, authorToken, engagementRes] = await Promise.all([
+    supabase
+      .from('reader_preferences')
+      .select('categories, sexual_opt_in, taste_embedding')
+      .eq('account_id', user.id)
+      .maybeSingle(),
+    hmacSha256(user.id, AUTHOR_TOKEN_SECRET),
+    supabase
+      .from('read_events')
+      .select('id')
+      .eq('reader_account_id', user.id)
+      .in('signal', ['felt', 'read_to_end', 'share'])
+      .limit(5),
+  ]);
 
+  const prefs         = prefsRes.data;
   const categories    = (prefs?.categories   as string[]) ?? [];
   const sexualOptIn   = (prefs?.sexual_opt_in as boolean) ?? false;
   const tasteRaw      = prefs?.taste_embedding as string | null;
 
-  // 2. Author token (never stored in DB; used only to exclude own confessions in RPC)
-  const authorToken = await hmacSha256(user.id, AUTHOR_TOKEN_SECRET);
-
-  // 3. Count engagement events to detect cold start
-  const { count: eventCount } = await supabase
-    .from('read_events')
-    .select('id', { count: 'exact', head: true })
-    .eq('reader_account_id', user.id)
-    .in('signal', ['felt', 'read_to_end', 'share']);
-
-  const coldStart = (eventCount ?? 0) < 5;
+  const coldStart = (engagementRes.data?.length ?? 0) < 5;
 
   /**
    * [W2] Optional weekly-question filter.

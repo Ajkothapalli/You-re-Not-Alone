@@ -13,7 +13,8 @@
  */
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
+import { verifyJwt } from '../_shared/auth.ts';
 
 /** Overridable without a redeploy: set SUPPORT_EMAIL in the function secrets. */
 const SUPPORT_EMAIL = Deno.env.get('SUPPORT_EMAIL') ?? 'nani.ajay@gmail.com';
@@ -36,8 +37,8 @@ serve(async (req) => {
     if (!jwt) return json({ error: 'unauthorized' }, 401);
 
     const anonClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
-    const { data: { user }, error: authErr } = await anonClient.auth.getUser(jwt);
-    if (authErr || !user) return json({ error: 'unauthorized' }, 401);
+    const user = await verifyJwt(anonClient, jwt);
+    if (!user) return json({ error: 'unauthorized' }, 401);
 
     // ── Payload ───────────────────────────────────────────────────────────────
     const { email, message } = await req.json();
