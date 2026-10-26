@@ -33,7 +33,9 @@ describe('reduced motion is honoured everywhere that moves', () => {
     // Reduced motion must open the sheet directly — a 2.6s animation played
     // "gently" is still 2.6s of motion someone asked not to see.
     const c = code(composer);
-    expect(c).toMatch(/if \(reduced\) \{ await finishShare\(\); return; \}/);
+    // finishShare is no longer async: it hands the prepared capture up to
+    // ShareFlow, which closes the Modal before presenting the sheet.
+    expect(c).toMatch(/if \(reduced\) \{ finishShare\(\); return; \}/);
     // …and the release only mounts on the non-reduced path.
     expect(c).toMatch(/setReleasing\(true\)/);
   });
@@ -75,21 +77,38 @@ describe('the release never strands a share', () => {
 });
 
 describe('the after screen only plays on a real share', () => {
-  it('the composer gates it on choseTarget', () => {
-    expect(code(composer)).toMatch(/if \(result\.choseTarget\)/);
+  it('the flow gates it on choseTarget', () => {
+    // Moved out of the composer: the sheet is now presented by ShareFlow,
+    // AFTER the Modal has closed, because launching the Android chooser from
+    // behind a React Native Modal leaves it stuck behind that window.
+    expect(code(flow)).toMatch(/if \(result\.choseTarget\)/);
+  });
+
+  it('the composer never presents the sheet itself', () => {
+    expect(code(composer)).not.toContain('openShareSheet');
+  });
+
+  it('the modal is closed before the sheet opens', () => {
+    const c = code(flow);
+    expect(c).toMatch(/visible=\{visible && !after && !presenting\}/);
+    expect(c).toMatch(/setTimeout/);
   });
 
   it('the flow shows it only when the composer says so', () => {
     const c = code(flow);
-    expect(c).toMatch(/onShared=\{handleShared\}/);
+    // The composer hands the prepared capture up; the flow decides.
+    expect(c).toMatch(/onRelease=\{handleRelease\}/);
     expect(c).toMatch(/setAfter\(true\)/);
-    // There is exactly one place that turns it on.
+    // There is exactly one place that turns it on, and it sits inside the
+    // choseTarget branch.
     expect((c.match(/setAfter\(true\)/g) ?? []).length).toBe(1);
+    const branch = c.slice(c.indexOf('if (result.choseTarget)'));
+    expect(branch.slice(0, branch.indexOf('return;'))).toContain('setAfter(true)');
   });
 
   it('a dismissed chooser reaches no celebration', () => {
     // No else-branch that also fires onShared.
-    expect(code(composer)).not.toMatch(/else\s*\{[^}]*onShared/);
+    expect(code(flow)).not.toMatch(/else\s*\{[^}]*onShared/);
   });
 });
 
@@ -159,15 +178,59 @@ describe('the capture target is the full-size card', () => {
   });
 });
 
-describe('the capture starts before the animation, not after it', () => {
-  it('prepareShare is called on tap, and awaited only at the end', () => {
+describe('the capture starts before the animation, and finishes before the modal closes', () => {
+  it('prepareShare is kicked off on tap, not awaited there', () => {
     const c = code(composer);
     const share = c.slice(c.indexOf('async function handleShare'), c.indexOf('async function finishShare'));
     expect(share).toContain('prepareShare(captureRef, source)');
-    // Not awaited inside handleShare — that would serialise it with the
-    // animation and hand the user a 2.6s wait followed by a capture.
+    // Awaiting it here would serialise it with the animation and hand the
+    // reader a 2.6s wait followed by a capture.
     expect(share).not.toMatch(/await prepareShare/);
-    expect(c).toMatch(/await prepared\.current/);
+  });
+
+  it('the composer awaits its OWN capture, while the card is still mounted', () => {
+    /**
+     * THE grey-screen bug, pinned.
+     *
+     * This used to hand the in-flight promise to ShareFlow, which hid the
+     * Modal and awaited it afterwards — so captureRef ran against a view
+     * that had already unmounted. On Android that does not reliably throw;
+     * it can simply never settle, and then setPresenting(null) is never
+     * reached, the composer stays hidden, the after screen never opens,
+     * and the reader is stuck on a torn-down Modal.
+     *
+     * The previous version of this test asserted the buggy line
+     * (`await presenting.prepared`) and so held it in place.
+     */
+    const c = code(composer);
+    const finish = c.slice(c.indexOf('async function finishShare'), c.indexOf('async function handleCopy'));
+    expect(finish).toMatch(/await withTimeout\(p,/);
+    expect(finish).toMatch(/onRelease\(resolved,/);
+    // And it is bounded, so a hung capture cannot hold the overlay open.
+    expect(c).toMatch(/PREPARE_TIMEOUT_MS/);
+  });
+
+  it('ShareFlow receives a RESOLVED capture and never awaits one', () => {
+    const f = code(flow);
+    expect(f).toMatch(/prepared: PreparedShare;/);
+    expect(f).not.toMatch(/await presenting\.prepared/);
+    expect(f).toMatch(/openShareSheet\(presenting\.prepared\)/);
+  });
+
+  it('nothing can leave the reader on a blank screen forever', () => {
+    // A watchdog, because this screen has got stuck twice. The share may
+    // be lost; the way forward never is.
+    const f = code(flow);
+    expect(f).toMatch(/STUCK_AFTER_MS/);
+    expect(f).toMatch(/setTimeout\(\(\) => setPresenting\(null\), STUCK_AFTER_MS\)/);
+  });
+
+  it('the composer is hidden before the chooser is launched', () => {
+    // On Android the chooser is an Activity; launched while a React Native
+    // Modal is mounted it appears BEHIND it.
+    const f = code(flow);
+    expect(f).toMatch(/visible=\{visible && !after && !presenting\}/);
+    expect(f).toMatch(/setTimeout\(r, 250\)/);
   });
 });
 
@@ -189,5 +252,103 @@ describe('StoryCard is gone', () => {
 
   it('ShareSource moved to the module that owns the link rules', () => {
     expect(read('lib', 'shareLink.ts')).toMatch(/export type ShareSource = 'match' \| 'rtue' \| 'read'/);
+  });
+});
+
+describe('a confession in the feed can actually be shared', () => {
+  /**
+   * How it went missing, so it does not go missing the same way twice.
+   *
+   * The per-card share control lived on the S2 deck card. When the deck was
+   * removed the control went with it, and the list card had never had one —
+   * leaving a single nudge that appears ONCE a session and only above 50
+   * felts. Nothing failed: ReadCard's own tests only prove it CAN draw a
+   * share button when handed a handler, and the feed quietly stopped
+   * handing it one.
+   *
+   * So the guard is on the WIRING, which is the half that was missing.
+   */
+  const explore  = code(read('app', '(tabs)', 'explore.tsx'));
+  const readCard = code(read('components', 'ReadCard.tsx'));
+
+  it('the feed hands every card a share handler', () => {
+    const card = explore.slice(explore.indexOf('<ReadCard'));
+    expect(card.slice(0, card.indexOf('/>'))).toMatch(/onShare=\{onCardShare\}/);
+  });
+
+  it('the card draws a control for it', () => {
+    expect(readCard).toMatch(/accessibilityLabel="Share this confession"/);
+    expect(readCard).toMatch(/<Icon name="share"/);
+  });
+
+  it('the handler is stable, or ReadCard stops being memoized', () => {
+    // A fresh arrow per render changes every card's props on every render.
+    expect(explore).toMatch(/const onCardShare = useCallback\(/);
+  });
+
+  it('it opens the composer rather than firing a share sheet directly', () => {
+    // The reader chooses how the quotation looks before anything leaves.
+    const fn = explore.slice(explore.indexOf('const onCardShare'));
+    const body = fn.slice(0, fn.indexOf('}, ['));
+    expect(body).toMatch(/setComposerOpen\(true\)/);
+    expect(body).not.toMatch(/shareConfessionCard|Share\.share/);
+  });
+});
+
+describe('the release animation runs on the UI thread', () => {
+  /**
+   * Reported from a device on 2026-10-02: tapping Share threw
+   * "[Worklets] Tried to synchronously call a non-worklet function `px` on
+   * the UI thread", and the release animation took the share with it.
+   *
+   * `px` is an ordinary design-space conversion in lib/shareLooks.ts, and
+   * it was being called from inside useAnimatedStyle. Under the worklets
+   * runtime that is a hard throw, not a slow path.
+   *
+   * Its inputs are CONSTANT for the life of the animation, so the fix is
+   * to convert once per render and close over plain numbers — which is
+   * also less work than converting on every frame.
+   */
+  const release = code(read('components', 'share', 'ShareRelease.tsx'));
+
+  function workletBodies(src: string): string[] {
+    const out: string[] = [];
+    for (const m of src.matchAll(/useAnimatedStyle\(\(\)\s*=>\s*/g)) {
+      let depth = 0, j = m.index! + m[0].length;
+      const start = j;
+      for (; j < src.length; j++) {
+        if ('({['.includes(src[j])) depth++;
+        else if (')}]'.includes(src[j]) && --depth <= 0) break;
+      }
+      out.push(src.slice(start, j));
+    }
+    return out;
+  }
+
+  it('no animated style calls px', () => {
+    for (const body of workletBodies(release)) {
+      expect(body).not.toMatch(/\bpx\s*\(/);
+    }
+  });
+
+  it('the conversions happen outside, on plain numbers', () => {
+    // Hoisted into the hook body, where the JS thread can run them.
+    expect(release).toMatch(/const sx = px\(start\.x\)/);
+    const hook = release.indexOf('const sx = px(start.x)');
+    const style = release.indexOf('useAnimatedStyle', hook);
+    expect(hook).toBeLessThan(style);
+  });
+
+  it('nothing else in the share card reaches a JS helper from a worklet', () => {
+    // The whole family, since they share lib/shareLooks.
+    for (const f of ['QuotedCard.tsx', 'ShareRelease.tsx', 'ShareComposer.tsx']) {
+      const src = code(read('components', 'share', f));
+      for (const body of workletBodies(src)) {
+        for (const helper of [/\bpx\s*\(/, /\bbackgroundFor\s*\(/, /\bcategoryLabel\s*\(/,
+                              /\btextMultiplier\s*\(/, /\bsnippetFor\s*\(/, /\bmixToWhite\s*\(/]) {
+          expect([f, helper.source, helper.test(body)]).toEqual([f, helper.source, false]);
+        }
+      }
+    }
   });
 });

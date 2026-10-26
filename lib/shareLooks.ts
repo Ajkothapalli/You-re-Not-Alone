@@ -61,6 +61,14 @@ export interface TextSpec {
   italic?: boolean;
   align?: 'left' | 'center';
   color: string;
+  /**
+   * Design-space Y the words must stop above.
+   *
+   * Defaults to TEXT_FLOOR — just above the felt pill. Looks that set the
+   * words inside a paper slip override it with the slip's inner edge,
+   * because overflowing a slip is visible long before it reaches the pill.
+   */
+  maxY?: number;
 }
 
 export interface Look {
@@ -105,7 +113,8 @@ export const LOOKS: Record<LookId, Look> = {
 
   sticker: {
     id: 'sticker', name: 'Sticker', bg: YELLOW,
-    text:  { x: 44, y: 152, w: 184, size: 21, lineHeight: 1.26, weight: '600', color: INK },
+    // slip 108 + 268 = 376; the words stop a touch inside its edge.
+    text:  { x: 44, y: 152, w: 184, size: 21, lineHeight: 1.26, weight: '600', color: INK, maxY: 366 },
     open:  { x: 4,   y: 60,  w: 96, r: -14 },
     close: { x: 168, y: 318, w: 96, r: 11 },
     slip:  { x: 24, y: 108, w: 222, h: 268, r: -2.2, bg: PAPER, radius: 6, border: 2.5, shadow: 5 },
@@ -132,7 +141,8 @@ export const LOOKS: Record<LookId, Look> = {
   split: {
     id: 'split', name: 'Split', bg: '#9A78E6',
     field: { color: '#FF7A2A', points: [[0, 0], [100, 0], [100, 41], [0, 53]] },
-    text:  { x: 44, y: 162, w: 182, size: 20, lineHeight: 1.28, weight: '600', color: INK },
+    // slip 122 + 236 = 358; the words stop a touch inside its edge.
+    text:  { x: 44, y: 162, w: 182, size: 20, lineHeight: 1.28, weight: '600', color: INK, maxY: 348 },
     open:  { x: 20,  y: 40,  w: 84, r: -6 },
     close: { x: 166, y: 376, w: 84, r: 6 },
     slip:  { x: 26, y: 122, w: 218, h: 236, r: 1.6, bg: PAPER, radius: 6, border: 2.5, shadow: 0 },
@@ -157,9 +167,136 @@ export function textMultiplier(text: string): number {
   const n = text.length;
   if (n < 70)  return 1;
   if (n < 100) return 0.9;
-  if (n < 140) return 0.8;
-  return 0.72;
+  // Floor at 0.8. Below that a long confession became a wall of grey that
+  // nobody reads — and shrinking type was only ever a way to make the whole
+  // thing fit, which snippetFor now does properly by CUTTING it.
+  return 0.8;
 }
+
+// ─── The snippet ─────────────────────────────────────────────────────────────
+
+/**
+ * Design-space Y the words must stop above, when a look does not say.
+ *
+ * The felt pill sits at bottom 18 and stands about 28 high, so it starts at
+ * 480 − 18 − 28 = 434. Ten below that is the gutter.
+ */
+export const TEXT_FLOOR = 424;
+
+/**
+ * The most lines a card will show, however much room there is.
+ *
+ * Shrinking the type was the only defence before, and it is the wrong one
+ * past a point: a confession set small enough to fit entirely is a wall of
+ * grey nobody reads, and the card stops being an invitation and becomes the
+ * whole thing — there is then no reason to open the app at all.
+ *
+ * Nine is a backstop rather than the usual limit: most looks run out of
+ * room first (see textFit), and this only catches the tall, small-type
+ * compositions where geometry alone would allow a dozen lines.
+ */
+export const SNIPPET_MAX_LINES = 9;
+
+/** Average glyph advance as a fraction of font size, for the serif faces. */
+const CHAR_EM = 0.52;
+
+/**
+ * How the words are fitted, for one look at one size.
+ *
+ * Returns the hard line cap (geometry) and the snippet cap (editorial),
+ * which is the smaller of the two.
+ */
+export function textFit(look: Look, mult: number): {
+  lineHeight: number; charsPerLine: number; fits: number; maxLines: number;
+} {
+  const size       = look.text.size * mult;
+  const lineHeight = size * look.text.lineHeight;
+  const floor      = look.text.maxY ?? TEXT_FLOOR;
+  const fits       = Math.max(1, Math.floor((floor - look.text.y) / lineHeight));
+  return {
+    lineHeight,
+    charsPerLine: Math.max(8, Math.floor(look.text.w / (size * CHAR_EM))),
+    fits,
+    maxLines: Math.min(fits, SNIPPET_MAX_LINES),
+  };
+}
+
+/**
+ * Greedy wrap, respecting the writer's own line breaks.
+ *
+ * Paragraph breaks matter here: a confession with two blank lines in it
+ * spends those lines whether or not any words are on them, and a character
+ * count that ignores them underestimates the height by exactly the amount
+ * that was overflowing the card.
+ */
+export function wrapLines(text: string, charsPerLine: number): string[] {
+  const out: string[] = [];
+  for (const para of text.split('\n')) {
+    const words = para.split(/\s+/).filter(Boolean);
+    if (words.length === 0) { out.push(''); continue; }
+    let line = '';
+    for (const w of words) {
+      const next = line ? `${line} ${w}` : w;
+      if (next.length <= charsPerLine) { line = next; continue; }
+      if (line) out.push(line);
+      line = w;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * The words that actually go on the card.
+ *
+ * Cut at a LINE boundary rather than a character count, so the snippet ends
+ * on a whole word and the ellipsis reads as "there is more" rather than as a
+ * rendering accident.
+ *
+ * `numberOfLines` on the Text is still set from this, as a backstop: this is
+ * an estimate of glyph widths, and the one thing that must not happen is
+ * words spilling past the card. If the estimate is generous, the renderer
+ * clips; if it is tight, the string was already cut. Either way nothing
+ * overflows, which is the property that matters.
+ */
+export function snippetFor(text: string, look: Look, mult: number): {
+  body: string; truncated: boolean; maxLines: number;
+} {
+  const { charsPerLine, maxLines } = textFit(look, mult);
+  const lines = wrapLines(text, charsPerLine);
+  if (lines.length <= maxLines) {
+    return { body: text, truncated: false, maxLines };
+  }
+  // One line is given back to the "there is more" cue that will be drawn
+  // underneath, so the cue cannot be what pushes the card over.
+  const keep = Math.max(1, maxLines - 1);
+  const kept = lines.slice(0, keep);
+
+  /**
+   * The ellipsis has to fit on the last line too.
+   *
+   * Appending it to a line already at the full width wraps that line in
+   * two, so the snippet quietly came out one line taller than it asked
+   * for — which on the tightest look is the difference between sitting
+   * inside the paper slip and sitting on its edge. Drop words from the
+   * last line until the character fits.
+   */
+  let last = kept[kept.length - 1] ?? '';
+  while (last.length + 1 > charsPerLine && last.includes(' ')) {
+    last = last.slice(0, last.lastIndexOf(' '));
+  }
+  kept[kept.length - 1] = last.replace(/[\s.,;:—-]+$/, '');
+
+  return { body: `${kept.join('\n')}…`, truncated: true, maxLines: keep };
+}
+
+/**
+ * What the card says when it is only holding part of a confession.
+ *
+ * Not "read more" — there is nothing to tap on a PNG. It names where the
+ * rest is, which is the only thing a still image can honestly offer.
+ */
+export const MORE_CUE = 'The rest is on soulyap';
 
 // ─── Per-share jitter ────────────────────────────────────────────────────────
 

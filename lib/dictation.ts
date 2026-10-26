@@ -180,6 +180,24 @@ export interface Dictation {
   stop:      () => void;
 }
 
+/**
+ * Why the mic is not there — in development only.
+ *
+ * The control is absent rather than disabled on purpose (a dead mic on
+ * this screen is a small insult), and absent is indistinguishable from
+ * broken from the outside. Three different causes produce the identical
+ * empty space: no native module in the binary, a device with no
+ * recogniser, and a device whose recogniser is network-only.
+ *
+ * It was reported as "the dictation feature is missing" and answering it
+ * needed a source read, an autolinking check and an APK inspection.
+ * __DEV__ only: this says nothing to a reader, who correctly just sees a
+ * screen without a mic.
+ */
+function say(reason: string): void {
+  if (__DEV__) console.warn(`[dictation] mic hidden — ${reason}`);
+}
+
 export function useDictation({
   value,
   onChangeText,
@@ -206,14 +224,16 @@ export function useDictation({
     // `native` is null in any binary without the native code — Expo Go, web,
     // or a build made before this module was added. No mic, everything else
     // on the screen unchanged.
-    if (!native) { setAvailable(false); return; }
+    if (!native) { setAvailable(false); say('no native module in this binary'); return; }
     try {
-      setAvailable(
-        native.isRecognitionAvailable() === true
-        && native.supportsOnDeviceRecognition() === true,
-      );
+      const recogniser = native.isRecognitionAvailable() === true;
+      const onDevice   = native.supportsOnDeviceRecognition() === true;
+      setAvailable(recogniser && onDevice);
+      if (!recogniser)    say('device reports no speech recogniser');
+      else if (!onDevice) say('recogniser is network-only; on-device is required');
     } catch {
       setAvailable(false);
+      say('availability check threw');
     }
   }, []);
 

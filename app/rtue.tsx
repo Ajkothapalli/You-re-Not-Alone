@@ -227,7 +227,7 @@ export default function RtueScreen() {
 
   useEffect(() => {
     evaluateRtue().then(m => {
-      if (!m) { router.replace('/explore'); return; }
+      if (!m) { router.dismissTo('/explore'); return; }
       setMoment(m);
       getOwnRealFeltCount(m.id).then(setRealFelt).catch(() => setRealFelt(null));
       announce(
@@ -235,7 +235,7 @@ export default function RtueScreen() {
           ? 'Welcome back. Your confession is still travelling.'
           : `Welcome back. ${m.current.toLocaleString()} people felt this too.`
       );
-    }).catch(() => router.replace('/explore'));
+    }).catch(() => router.dismissTo('/explore'));
   }, []);
 
   function handleShare() {

@@ -92,10 +92,27 @@ jest.mock('react-native-purchases', () => ({
 jest.mock('react-native-reanimated', () => {
   const identity = (v) => v;
   const makeEasing = () => identity;
+  const RN = require('react-native');
+  /**
+   * [S2] Animated.View and friends.
+   *
+   * The default export used to carry only createAnimatedComponent, so
+   * `Animated.View` was undefined — which surfaces as "Element type is
+   * invalid ... Check the render method of `Deck`", pointing at the
+   * component rather than at the mock. Every animated primitive the app
+   * uses has to be here.
+   */
+  const animated = {
+    createAnimatedComponent: (c) => c,
+    View:       RN.View,
+    Text:       RN.Text,
+    ScrollView: RN.ScrollView,
+    Image:      RN.Image,
+  };
   return {
     __esModule: true,
-    default: { createAnimatedComponent: (c) => c },
-    createAnimatedComponent: (c) => c,
+    default: animated,
+    ...animated,
     useSharedValue:   jest.fn((init) => ({ value: init })),
     useAnimatedProps: jest.fn((fn) => fn()),
     useAnimatedStyle: jest.fn((fn) => fn()),
@@ -104,6 +121,32 @@ jest.mock('react-native-reanimated', () => {
     withDelay:        jest.fn((_, anim) => anim),
     withSequence:     jest.fn((...anims) => anims[anims.length - 1]),
     cancelAnimation:  jest.fn(),
+    // [S2] The deck interpolates the pile's rise from the drag. Without
+    // these the whole deck throws "Cannot read properties of undefined
+    // (reading 'CLAMP')" and every deck test fails on the mock rather than
+    // on anything real.
+    interpolate: jest.fn((v, inRange, outRange) => {
+      const [i0, i1] = inRange;
+      const [o0, o1] = outRange;
+      const t = i1 === i0 ? 0 : (v - i0) / (i1 - i0);
+      return o0 + Math.min(Math.max(t, 0), 1) * (o1 - o0);
+    }),
+    Extrapolation: { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
+    Extrapolate:   { CLAMP: 'clamp', EXTEND: 'extend', IDENTITY: 'identity' },
+    runOnJS: (fn) => fn,
+    useAnimatedRef: jest.fn(() => ({ current: null })),
+    /**
+     * Reanimated's own event plumbing. Kept after gesture-handler was
+     * removed: these are part of the library's surface, and a mock that
+     * only covers what today's callers happen to use is a landmine for
+     * the next one.
+     */
+    useEvent:              jest.fn(() => ({})),
+    useHandler:            jest.fn(() => ({ context: {}, doDependenciesDiffer: false })),
+    useComposedEventHandler: jest.fn(() => ({})),
+    setGestureState:       jest.fn(),
+    isSharedValue:         jest.fn(() => false),
+    makeMutable:           jest.fn((v) => ({ value: v })),
     ReduceMotion: { Never: 'never', Always: 'always', System: 'system' },
     Easing: {
       linear:  identity,
@@ -149,23 +192,117 @@ jest.mock('expo-apple-authentication', () => ({
   AppleAuthenticationScope: { EMAIL: 'email', FULL_NAME: 'fullName' },
 }));
 
+// expo-notifications
+//
+// Mocked rather than transformed. The real module imports isRunningInExpoGo
+// from `expo` (untransformed ESM) and reaches for a native module that does
+// not exist under jest — so every screen that so much as imports it would
+// fail to parse.
+//
+// The DEFAULTS MATTER: getPermissionsAsync reports undetermined, which is
+// the state the ask flow is designed around. A mock that reported `granted`
+// would make every eligibility test pass for the wrong reason.
+jest.mock('expo-notifications', () => ({
+  getPermissionsAsync:     jest.fn().mockResolvedValue({
+    granted: false, status: 'undetermined', canAskAgain: true,
+  }),
+  requestPermissionsAsync: jest.fn().mockResolvedValue({
+    granted: false, status: 'denied', canAskAgain: true,
+  }),
+  getExpoPushTokenAsync:   jest.fn().mockResolvedValue({ data: 'ExponentPushToken[test]' }),
+  setNotificationChannelAsync: jest.fn().mockResolvedValue(null),
+  setNotificationHandler:  jest.fn(),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+  getLastNotificationResponseAsync: jest.fn().mockResolvedValue(null),
+  AndroidImportance:           { DEFAULT: 3, HIGH: 4, LOW: 2 },
+  AndroidNotificationVisibility: { UNKNOWN: 0, PUBLIC: 1, PRIVATE: 2, SECRET: 3 },
+}));
+
+// expo-localization
+jest.mock('expo-localization', () => ({
+  getCalendars: jest.fn(() => [{ timeZone: 'Asia/Kolkata' }]),
+  getLocales:   jest.fn(() => [{ languageCode: 'en', regionCode: 'IN' }]),
+}));
+
 // expo-router
+//
+// Every method the app actually calls has to be here. A missing one is not an
+// obvious failure: the call throws inside a try/catch somewhere and the test
+// fails several assertions later, on a screen that simply never updated.
+// That is exactly what happened when Phase NAV introduced navigate/dismissTo/
+// setParams — the mock stopped at replace/push/back and the voice screen
+// looked like it had a reset bug. Keep this in step with:
+//   grep -rho "router\.[a-zA-Z]*" app components lib | sort -u
 jest.mock('expo-router', () => ({
-  router:               { replace: jest.fn(), push: jest.fn(), back: jest.fn() },
-  useRouter:            jest.fn(() => ({ replace: jest.fn(), push: jest.fn() })),
-  useLocalSearchParams: jest.fn(() => ({})),
-  usePathname:          jest.fn(() => '/'),
-  useSegments:          jest.fn(() => []),
-  Link:                 ({ children }) => children,
-  Stack:                { Screen: () => null },
+  router: {
+    replace:   jest.fn(),
+    push:      jest.fn(),
+    navigate:  jest.fn(),
+    dismissTo: jest.fn(),
+    back:      jest.fn(),
+    canGoBack: jest.fn(() => true),
+    setParams: jest.fn(),
+  },
+  useRouter: jest.fn(() => ({
+    replace:   jest.fn(),
+    push:      jest.fn(),
+    navigate:  jest.fn(),
+    dismissTo: jest.fn(),
+    back:      jest.fn(),
+    canGoBack: jest.fn(() => true),
+    setParams: jest.fn(),
+  })),
+  useLocalSearchParams:   jest.fn(() => ({})),
+  usePathname:            jest.fn(() => '/'),
+  useSegments:            jest.fn(() => []),
+  /**
+   * Runs the effect, like the real one does when a screen mounts focused.
+   *
+   * It was a bare jest.fn() — a no-op — from Phase NAV until H1, which meant
+   * every focus effect in the app silently did nothing under test: the Alerts
+   * fetch, the You fetch, the feed's playback cleanup. Nothing failed; the
+   * screens just rendered empty, which reads as a component bug rather than
+   * as a mock that quietly disabled half the app.
+   *
+   * The cleanup is returned so blur behaviour (stopAllPlayback, dismissing
+   * the keyboard) is exercised on unmount rather than skipped.
+   */
+  useFocusEffect: (cb) => {
+    const React = require('react');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    React.useEffect(() => cb(), [cb]);
+  },
+  // The root layout's dev-only single-(tabs) guard reads this. An undefined
+  // return is a state the guard must tolerate anyway (the tree is not mounted
+  // on the first render), so it is the honest default.
+  useRootNavigationState: jest.fn(() => undefined),
+  Link:                   ({ children }) => children,
+  Stack:                  { Screen: () => null },
+  Tabs:                   Object.assign(() => null, { Screen: () => null }),
 }));
 
 // react-native-safe-area-context
-jest.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: jest.fn(() => ({ top: 0, bottom: 0, left: 0, right: 0 })),
-  SafeAreaProvider:  ({ children }) => children,
-  SafeAreaView:      ({ children }) => children,
-}));
+//
+// The CONTEXTS are real React contexts with a real default, not stubs. Several
+// things read them with React.use() — expo-router's SafeAreaProviderCompat
+// among them — and `use(undefined)` is a hard throw ("An unsupported type was
+// passed to use()"), not a graceful degradation.
+jest.mock('react-native-safe-area-context', () => {
+  // Required inside the factory: jest hoists these above every import, so a
+  // module-scope binding would not exist yet when this runs.
+  const React = require('react');
+  const ZERO  = { top: 0, bottom: 0, left: 0, right: 0 };
+  const FRAME = { x: 0, y: 0, width: 390, height: 844 };
+  return {
+    useSafeAreaInsets:     jest.fn(() => ZERO),
+    useSafeAreaFrame:      jest.fn(() => FRAME),
+    SafeAreaProvider:      ({ children }) => children,
+    SafeAreaView:          ({ children }) => children,
+    SafeAreaInsetsContext: React.createContext(ZERO),
+    SafeAreaFrameContext:  React.createContext(FRAME),
+    initialWindowMetrics:  { insets: ZERO, frame: FRAME },
+  };
+});
 
 // expo-linear-gradient
 jest.mock('expo-linear-gradient', () => {

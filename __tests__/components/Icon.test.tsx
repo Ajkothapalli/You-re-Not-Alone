@@ -67,8 +67,18 @@ const TONES:  IconTone[]  = ['light', 'dark', 'auto'];
 // ─── Every icon, every state, every tone ─────────────────────────────────────
 
 describe('the icon set renders', () => {
-  it('has all 29 names', () => {
-    expect(ICON_NAMES).toHaveLength(29);
+  it('has every name', () => {
+    // The count is here so adding OR removing an icon is deliberate. An
+    // unknown name renders an empty wrapper rather than throwing, so a
+    // glyph can go missing without anything failing at runtime.
+    //
+    // 2026-10-01: `deck` and `list` went out with the S2 view toggle (31 →
+    // 29); `share` came in for the feed card's share control (29 → 30).
+    // 2026-10-02: `clock` came in for the feed clock pill (30 → 31).
+    expect(ICON_NAMES).toHaveLength(31);
+    expect(ICON_NAMES).not.toContain('deck');
+    expect(ICON_NAMES).toContain('share');
+    expect(ICON_NAMES).toContain('clock');
   });
 
   it.each(ICON_NAMES)('%s renders in all 3 states x 3 tones', async (name) => {
@@ -105,7 +115,18 @@ describe('the icon set renders', () => {
 // ─── ScrawlIcon is decoration only now ───────────────────────────────────────
 
 describe('ScrawlIcon stays decorative', () => {
-  it('is imported by exactly the three files that draw texture', () => {
+  it('is imported by exactly the files that draw texture', () => {
+    /**
+     * The thing being prevented is a file reaching for ScrawlIcon to draw a
+     * FUNCTIONAL icon — a button, an affordance, anything a reader acts on.
+     * Those belong to Icon.
+     *
+     * QuestionCard joined the list on 2026-10-01: its `featured` treatment
+     * draws one roughened mark behind the text, pointerEvents="none" at
+     * 0.13 opacity, which is the same decorative use ReadCard already makes
+     * of it. Adding a name here is fine when it is texture; it is not fine
+     * when the new drawing is something somebody taps.
+     */
     const importers = APP_SOURCES
       .filter((f) => /from\s+'[^']*ScrawlIcon'/.test(code(read(f))))
       .map((f) => f.replace(/\\/g, '/'))
@@ -113,8 +134,21 @@ describe('ScrawlIcon stays decorative', () => {
     expect(importers).toEqual([
       'components/BackgroundPattern.tsx',
       'components/ConfessionCard.tsx',
+      'components/QuestionCard.tsx',
       'components/ReadCard.tsx',
     ]);
+  });
+
+  it('and every one of those uses it as decoration, never as an affordance', () => {
+    // The property the allowlist is a proxy for. A ScrawlIcon inside a
+    // Pressable would be a functional icon wearing texture's clothes.
+    for (const f of ['components/QuestionCard.tsx', 'components/ReadCard.tsx']) {
+      const src = code(read(f));
+      for (const m of src.matchAll(/<ScrawlIcon/g)) {
+        const before = src.slice(Math.max(0, m.index! - 220), m.index!);
+        expect([f, /pointerEvents="none"/.test(before)]).toEqual([f, true]);
+      }
+    }
   });
 
   it('still has its pool untouched — iconAtOffset hashes modulo its size', () => {
@@ -132,6 +166,37 @@ describe('ScrawlIcon stays decorative', () => {
 // ─── The half-finish traps ───────────────────────────────────────────────────
 
 describe('the migration is complete', () => {
+  it('the feed clock draws our icon, not a Unicode glyph', () => {
+    /**
+     * It shipped as "◷" in a <Text>. A text glyph renders as whatever the
+     * device's font happens to have, ignores the duotone palette, and
+     * matches nothing else in the app — which is exactly how it looked
+     * next to the rest of the pill.
+     */
+    // Comments stripped: the comment in that file names the glyph it
+    // replaced, which is worth keeping and is not a glyph being rendered.
+    const src = code(read('components', 'FeedClock.tsx'));
+    expect(src).toMatch(/<Icon name="clock"/);
+    expect(src).not.toMatch(/◷|◶|◵|◴/);
+  });
+
+  it('the clock reads on the dusk pill, which is the accent colour', () => {
+    /**
+     * The pill's ground changes through the day and one of those grounds
+     * is #FF7A2A — accent 'A'. An accent-filled face (what check_circle,
+     * its nearest sibling, uses) would vanish into it completely. The
+     * face is `body` for that reason, and this is the guard, because the
+     * bug would only be visible between 17:00 and 21:00.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { PERIOD_COLOR } = require('@/lib/timeOfDay');
+    const face = /clock: \{[^]*?\{ r: '(\w+)'/.exec(code(read('components', 'Icon.tsx')));
+    expect(face?.[1]).toBe('body');
+    // The premise: a ground really does collide with the accent.
+    expect(Object.values(PERIOD_COLOR).map((c: any) => c.bg.toUpperCase()))
+      .toContain('#FF7A2A');
+  });
+
   it('no back button flips an arrow with scaleX', () => {
     const offenders = APP_SOURCES.filter((f) => /scaleX:\s*-1/.test(code(read(f))));
     expect(offenders).toEqual([]);

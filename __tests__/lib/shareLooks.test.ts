@@ -13,6 +13,7 @@ import {
   textMultiplier, jitterFor, hashSeed, newSeed, JITTER_MAX_DEG,
   mixToWhite, categoryColor, backgroundFor, nextLook, lookIndex,
   cardText, pillText, showPill, INCLUDE_WORDS_CONSENT,
+  snippetFor, textFit, wrapLines, TEXT_FLOOR, SNIPPET_MAX_LINES, MORE_CUE,
   INK, PAPER,
 } from '@/lib/shareLooks';
 import { LOCKUP_GAP_RATIO } from '@/components/brand/SoulyapLogo';
@@ -144,9 +145,19 @@ describe('the spec numbers, at capture scale', () => {
 describe('longer text gets smaller', () => {
   it.each([
     [10, 1], [69, 1], [70, 0.9], [99, 0.9],
-    [100, 0.8], [139, 0.8], [140, 0.72], [400, 0.72],
+    // Floored at 0.8 on 2026-10-02. It used to drop to 0.72, which was the
+    // only thing standing between a long confession and the bottom edge of
+    // the card — and it lost. snippetFor CUTS the text now, so the type no
+    // longer has to shrink past readable to make a wall of grey fit.
+    [100, 0.8], [139, 0.8], [140, 0.8], [400, 0.8],
   ])('%s characters → ×%s', (len, mult) => {
     expect(textMultiplier('x'.repeat(len))).toBe(mult);
+  });
+
+  it('never shrinks past readable, however long the confession', () => {
+    for (const n of [140, 400, 2000]) {
+      expect(textMultiplier('x'.repeat(n))).toBeGreaterThanOrEqual(0.8);
+    }
   });
 
   it('never grows text, only shrinks it', () => {
@@ -335,5 +346,143 @@ describe('the felt pill at zero', () => {
     // getOwnRealFeltCount returns null when it cannot establish a real number;
     // callers pass 0, and the card must then claim nothing.
     for (const n of [-1, NaN, Infinity]) expect(showPill(n)).toBe(false);
+  });
+});
+
+// ─── The snippet ─────────────────────────────────────────────────────────────
+
+/**
+ * The card is a fixed 1080×1920 PNG that goes to strangers and cannot be
+ * recalled. Text running off the bottom of it — through the felt pill, the
+ * brand and out of the picture — is not a layout nit; it is the product
+ * arriving broken on someone else's phone, forever.
+ *
+ * There was no line limit at all. Shrinking the type was the only defence
+ * and it ran out long before the text did.
+ */
+
+/** A real confession, the length that was overflowing. */
+const LONG = [
+  'everyone said the first christmas would be the hard one so i braced for months',
+  '',
+  "it was fine. we were all braced together, that's the thing, everyone was watching everyone",
+  '',
+  "it was the second one, when the bracing stopped and they'd all gone back to normal, that flattened me",
+].join('\n');
+
+describe('nothing can run off the bottom of the card', () => {
+  it.each(LOOK_IDS)('%s keeps the words above its floor', (id) => {
+    const look = LOOKS[id];
+    const mult = textMultiplier(LONG);
+    const { body, maxLines } = snippetFor(LONG, look, mult);
+    const { lineHeight, charsPerLine } = textFit(look, mult);
+
+    const lines = wrapLines(body, charsPerLine).length;
+    expect(lines).toBeLessThanOrEqual(maxLines);
+
+    const bottom = look.text.y + lines * lineHeight;
+    const floor  = look.text.maxY ?? TEXT_FLOOR;
+    expect([id, bottom <= floor]).toEqual([id, true]);
+  });
+
+  it('the floor clears the felt pill', () => {
+    // pill: bottom 18, about 28 tall → starts at 434.
+    expect(TEXT_FLOOR).toBeLessThan(DESIGN_H - 18 - 28);
+  });
+
+  it.each(['sticker', 'split'] as const)('%s stays inside its paper slip', (id) => {
+    // Overflowing a slip is visible long before the words reach the pill.
+    const look = LOOKS[id];
+    expect(look.slip).toBeDefined();
+    expect(look.text.maxY).toBeDefined();
+    expect(look.text.maxY!).toBeLessThanOrEqual(look.slip!.y + look.slip!.h);
+  });
+
+  it('survives a confession far longer than anything realistic', () => {
+    const wall = 'word '.repeat(600);
+    for (const id of LOOK_IDS) {
+      const look = LOOKS[id];
+      const mult = textMultiplier(wall);
+      const { body, maxLines } = snippetFor(wall, look, mult);
+      const { charsPerLine } = textFit(look, mult);
+      expect([id, wrapLines(body, charsPerLine).length <= maxLines]).toEqual([id, true]);
+    }
+  });
+});
+
+describe('it is a snippet, not the whole confession', () => {
+  it('cuts a long one and says so', () => {
+    const { body, truncated } = snippetFor(LONG, LOOKS.classic, textMultiplier(LONG));
+    expect(truncated).toBe(true);
+    expect(body.endsWith('…')).toBe(true);
+    expect(body.length).toBeLessThan(LONG.length);
+  });
+
+  it('leaves a short one completely alone', () => {
+    // Most confessions are short. They must look exactly as they did.
+    const short = 'i still check his profile every night.';
+    const { body, truncated } = snippetFor(short, LOOKS.classic, textMultiplier(short));
+    expect(truncated).toBe(false);
+    expect(body).toBe(short);
+  });
+
+  it('cuts on a word, never mid-word', () => {
+    const { body } = snippetFor(LONG, LOOKS.split, textMultiplier(LONG));
+    const stem = body.slice(0, -1);
+    // Every word kept is a word the writer actually wrote.
+    for (const w of stem.split(/\s+/).filter(Boolean)) {
+      expect(LONG).toContain(w);
+    }
+  });
+
+  it('does not leave dangling punctuation before the ellipsis', () => {
+    const { body } = snippetFor(LONG, LOOKS.classic, textMultiplier(LONG));
+    expect(body).not.toMatch(/[\s,;:—-]…$/);
+  });
+
+  it('gives a line back to the cue, so the cue cannot be what overflows', () => {
+    const look = LOOKS.classic;
+    const mult = textMultiplier(LONG);
+    const full = textFit(look, mult);
+    const { maxLines } = snippetFor(LONG, look, mult);
+    expect(maxLines).toBe(full.maxLines - 1);
+  });
+
+  it('the cue names where the rest is, and promises no tap', () => {
+    // It is printed into a PNG. "Read more" on a still image is a button
+    // that does not exist.
+    expect(MORE_CUE).toMatch(/soulyap/i);
+    expect(MORE_CUE.toLowerCase()).not.toContain('tap');
+    expect(MORE_CUE.toLowerCase()).not.toContain('click');
+  });
+});
+
+describe('wrapping respects what the writer typed', () => {
+  it('spends a line on a blank line', () => {
+    // Paragraph breaks are why the old character-count sizing underestimated
+    // the height by exactly the amount that was overflowing.
+    expect(wrapLines('a\n\nb', 40)).toEqual(['a', '', 'b']);
+  });
+
+  it('breaks a long paragraph at the width', () => {
+    expect(wrapLines('aaa bbb ccc ddd', 7)).toEqual(['aaa bbb', 'ccc ddd']);
+  });
+
+  it('never splits a word that is longer than the line', () => {
+    expect(wrapLines('supercalifragilistic', 5)).toEqual(['supercalifragilistic']);
+  });
+});
+
+describe('the line cap', () => {
+  it('is whichever is smaller: what fits, or the snippet limit', () => {
+    for (const id of LOOK_IDS) {
+      const f = textFit(LOOKS[id], 1);
+      expect(f.maxLines).toBe(Math.min(f.fits, SNIPPET_MAX_LINES));
+    }
+  });
+
+  it('always leaves at least one line, however cramped', () => {
+    const cramped = { ...LOOKS.classic, text: { ...LOOKS.classic.text, y: 420 } };
+    expect(textFit(cramped, 1).maxLines).toBeGreaterThanOrEqual(1);
   });
 });

@@ -13,14 +13,18 @@ import { NotificationsEmpty, IllustrationGround } from '@/components/illustratio
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
 import { getNotifications, markNotificationsRead, type AppNotification } from '@/lib/notifications';
 import { useNotificationsContext } from '@/lib/notificationsContext';
+import { readTabMemory, writeTabMemory, TAB_MEMORY } from '@/lib/tabMemory';
+import PushAskCard from '@/components/PushAskCard';
+import { usePushAsk } from '@/hooks/usePushAsk';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { Icon, type IconName } from '@/components/Icon';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   ScrollView,
   StyleSheet,
   Text,
@@ -89,26 +93,49 @@ export default function NotificationsScreen() {
   const styles = useMemo(() => createStyles(color), [color]);
 
   const { setUnreadCount } = useNotificationsContext();
-  const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [loading, setLoading]             = useState(true);
+
+  // Seeded from memory so a remount paints the last known list instead of a
+  // spinner over content the app already has. null means "nothing known yet",
+  // which is the only state that earns a spinner — an empty ARRAY is a real
+  // answer with its own designed screen.
+  const cached = readTabMemory<AppNotification[]>(TAB_MEMORY.alerts);
+  const [notifications, setNotifications] = useState<AppNotification[] | null>(cached);
 
   useFocusEffect(useCallback(() => {
     let active = true;
     (async () => {
-      setLoading(true);
       try {
         const { notifications: data, unreadCount } = await getNotifications();
         if (!active) return;
+        // The refresh happens BEHIND whatever is on screen. Blanking to a
+        // spinner first made every return to this tab flash, including the
+        // overwhelmingly common case where the list came back unchanged.
         setNotifications(data);
+        writeTabMemory(TAB_MEMORY.alerts, data);
         if (unreadCount > 0) {
           setUnreadCount(0);
           markNotificationsRead().catch(() => {}); // fire-and-forget
         }
-      } catch { /* fail silently */ }
-      finally { if (active) setLoading(false); }
+      } catch {
+        // Fail silently, and keep showing what we had. A failed refresh must
+        // not take away alerts the person can already see.
+      }
     })();
     return () => { active = false; };
   }, []));
+
+  /**
+   * [N1] Moment A — PROOF.
+   *
+   * The strongest of the three: the reader is looking at evidence that a
+   * stranger felt what they wrote, and the card asks whether they want to
+   * know next time. It is only offered when the NEWEST item is an unread
+   * felt — further down the list it is a card about something they have
+   * already scrolled past, which is a different and much weaker ask.
+   */
+  const newest = notifications?.[0];
+  const proofMoment = (newest && newest.type === 'felt' && !newest.read_at) ? 'proof' as const : null;
+  const ask = usePushAsk(proofMoment);
 
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -117,7 +144,7 @@ export default function NotificationsScreen() {
         <Text style={styles.title}>Alerts</Text>
       </View>
 
-      {loading ? (
+      {notifications === null ? (
         <View style={styles.center}>
           <ActivityIndicator color={color.dim} />
         </View>
@@ -128,8 +155,19 @@ export default function NotificationsScreen() {
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 70 }]}
           showsVerticalScrollIndicator={false}
         >
-          {notifications.map((n) => (
-            <NotificationItem key={n.id} item={n} />
+          {notifications.map((n, i) => (
+            <React.Fragment key={n.id}>
+              <NotificationItem item={n} />
+              {/* Inline, directly under the item that earned it. */}
+              {i === 0 && ask.moment && (
+                <PushAskCard
+                  moment={ask.moment}
+                  onAccept={ask.onAccept}
+                  onDecline={ask.onDecline}
+                  collapsed={ask.collapsed}
+                />
+              )}
+            </React.Fragment>
           ))}
         </ScrollView>
       )}
@@ -141,7 +179,11 @@ export default function NotificationsScreen() {
 
 function AlertsEmptyState() {
   const color = useThemeColors();
-  const fit   = useAspectFitWidth(4 / 3);
+  // Seeded so the empty state paints the bench on its FIRST frame rather
+  // than one blank frame then the artwork. The number is this wrapper's own
+  // width: the screen root has no horizontal padding, emptyStyles.root has 32
+  // a side. onLayout corrects it the moment the real measurement lands.
+  const fit   = useAspectFitWidth(4 / 3, Dimensions.get('window').width - 64);
   return (
     <View style={emptyStyles.root}>
       <View style={{ width: '100%' }} onLayout={fit.onLayout}>

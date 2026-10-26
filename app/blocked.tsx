@@ -2,7 +2,8 @@
  * Blocked screen — shown when the moderation gate rejects a submission.
  * Gentle, non-shaming, no details about why.
  */
-import { useMemo } from 'react';
+import { markCrisisOrBlock } from '@/lib/pushAsk';
+import { useEffect, useMemo } from 'react';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
@@ -14,6 +15,10 @@ const typography = {
 };
 
 export default function BlockedScreen() {
+  // [N1] Same rule as crisis: somebody just told their words were refused
+  // is not somebody to ask a favour of. Flagged for the session.
+  useEffect(() => { markCrisisOrBlock(); }, []);
+
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
 
@@ -29,7 +34,7 @@ export default function BlockedScreen() {
       </Text>
       <Pressable
         style={styles.primaryBtn}
-        onPress={() => router.replace('/write')}
+        onPress={() => router.dismissTo('/write')}
         accessibilityRole="button"
         accessibilityLabel="Write something else"
       >

@@ -185,6 +185,111 @@
    2026-09-12 read screen limited to outside-D7 + explore made a scrollable
    list. Both are obsolete — the screen they governed no longer exists.
 
+   **HEADLINES — a pull-quote, never a title (owner decision 2026-09-30).**
+
+   Every confession may carry a 2-8 word headline shown in bold above the
+   full text. It is a PHRASE COPIED VERBATIM from the confession. It is never
+   an invented title, never a summary, never a rewrite, and it never
+   sensationalises.
+
+   Why that line is absolute: a headline is the most prominent thing on the
+   card. If a model may paraphrase, the loudest words on a stranger's
+   confession are the model's words attributed by position to a person who
+   did not say them — on a surface with no reply channel, so they cannot
+   object, correct it, or even know. The model is therefore a SELECTOR, not
+   an author.
+
+   - **Validated on the server, on every write.** `_shared/headline.ts`
+     normalises whitespace, quotes and case, then requires the phrase to be a
+     literal substring of the text, 2-8 words (characters for spaceless
+     scripts) and <= 60 chars. The stored value is CUT OUT OF THE TEXT rather
+     than taken from the model's reply, so it is the writer's own characters.
+     `confessions_with_invented_headlines` asks the live data the same
+     question; it is expected to be empty.
+   - **Everything fails to the writer's own opening words, or to nothing.**
+     No key, API down, timeout (1.5s), paraphrase, over-length, a name, a
+     self-harm lead — all land on the fallback or on NULL. A headline must
+     NEVER block a post or be the reason a submission fails. NULL is always
+     valid and is the normal state for short confessions (< 12 words: the
+     confession is its own headline).
+   - **Never leads with self-harm, suicide, abuse detail, sexual or graphic
+     content.** Deterministic blocklist, applied to the model's pick AND to
+     the fallback — if the confession OPENS with it, there is no headline at
+     all. Crisis text never reaches the generator: it runs after the crisis
+     hard-return in both callers, so this is structural, not remembered.
+   - **No names, places or workplaces.** Asked of the model and checked
+     server-side by a capitalisation heuristic. KNOWN GAP, stated because it
+     cannot be closed here: a name at the START of a sentence is
+     indistinguishable from an ordinary capitalised opening and will pass,
+     and the check is blind to scripts without capitals. It narrows the hole.
+   - **The writer can remove it.** My confessions shows the headline with
+     "Picked from your own words" and a Remove action, owner-checked in
+     manage-confession under the SAME sealing rule as an edit
+     (`real_felt_count = 0`) — once a real person has felt a confession, what
+     they felt stops changing.
+   - **Never regenerated behind the writer's back.** An edit recomputes it
+     from the new text (a headline quoting deleted words would be a
+     fabrication). The backfill only ever touches rows where it is NULL, and
+     must not be put on a schedule: "NULL" cannot distinguish "never had one"
+     from "the writer removed theirs", so a repeating job would overturn a
+     person's decision about their own words.
+   - Share cards are unchanged and carry no headline.
+
+   **PUSH NOTIFICATIONS — two things, and never at install (owner decision
+   2026-09-30).**
+
+   Exactly two kinds leave this app, and nothing else may be added without
+   a decision recorded here:
+     felt     — "Someone felt what you wrote." / "n more people felt what
+                you wrote."
+     question — "This week's question is here." plus the approved text.
+
+   **NEVER in any push:** confession text, headlines, ids, names, upsells,
+   plans, referral rewards, or anything on the crisis path.
+
+   The referral reward is on that list for a reason that is not obvious. Its
+   timing is tied to the moment an invitee's confession cleared the reward
+   criteria, so a push about it would tell the inviter, by timing alone,
+   that a specific person just wrote something — the author↔account link #3
+   forbids, arriving through the back door. Referral rewards stay IN-APP.
+
+   Enforced in three places rather than by discipline: `buildMessage` in
+   `_shared/pushRules.ts` is handed counts and one approved question and
+   cannot see a confession; `push_outbox.counts` is jsonb constrained to
+   NUMBERS ONLY; and the data payload is `{ route }`, built from scratch
+   rather than filtered.
+
+   - **The dialog is never shown at install, at launch, in onboarding, or by
+     anything the app does on its own.** It can be shown ONCE — neither OS
+     offers a second chance, and a "no" stands until somebody walks into
+     their phone settings, which almost nobody does. Exactly two callers may
+     trigger it, both a deliberate tap: the pre-permission card's primary
+     button, and the Settings master toggle. `lib/pushPermission.ts` is the
+     only file that may call `requestPermissionsAsync` for notifications,
+     and an invariant test fails if that changes.
+   - **A pre-permission card always comes first**, inline and never a modal.
+     It says what will arrive AND what will not, in owner-fixed copy. Shown
+     only when: not the install day, the app has been opened on 2+ local
+     days, permission is still undetermined, no card yet this session, no
+     "Not now" in the last 14 days and fewer than 3 ever, no crisis or
+     blocked result this session, and no other ask on screen. Three declines
+     and cards never appear again; the Settings toggle still works.
+     Never on crisis, blocked, auth, welcome, rtue or onboarding.
+   - **Caps and quiet.** At most 2 per account per day. One push per
+     confession per local day — later felts that day raise the count on the
+     same row rather than stacking. Quiet 22:00–08:00 in the DEVICE's
+     timezone, deferred to 09:00 local, and quiet hours are checked before
+     the cap so a deferred push does not spend the day's allowance.
+   - **Discreet mode** replaces every body with "Something new for you".
+     The Android channel is `soulyap` with lockscreenVisibility PRIVATE, so
+     a secure lock screen shows "Contents hidden" — somebody whose phone is
+     shared or face-up does not have this read out by whoever walks past.
+   - **No copy may promise speed** ("the moment", "instantly"): pushes are
+     batched on a 10-minute cron, capped, and deferred past quiet hours. No
+     urgency, no guilt on a decline — India's CCPA dark-pattern guidelines
+     apply and list confirmshaming by name.
+   - Logs carry counts only. Nothing pairs an account with a confession.
+
    No other read surface may be added.
 
 3. **Anonymity is user-facing (owner decision 2026-07-05; supersedes the original
@@ -603,11 +708,21 @@ Note what "passes the gate" excludes: a 422 from [3.6] is not a conversion, and
 `substance_check = 'unchecked'` is not a pass (see that section — reading it as
 one would make an API outage look like a growth win).
 - `report_submitted` `{ confession_id }`
+- `push_ask_shown` `{ moment }` — `proof` | `just_posted` | `question`
+- `push_ask_choice` `{ moment, choice }` — `yes` | `not_now`
+- `push_permission` `{ moment, result }` — `granted` | `denied`
+- `push_opened` `{ kind }` — `felt` | `question`; no id, no text
+- `push_prefs_changed` `{ setting }` — the setting NAME only, never its value
+  and never which account
 - `question_card_shown` `{ }` / `question_answer_tapped` `{ }` /
   `question_filter_opened` `{ }` / `question_detached` `{ }` /
   `question_shared` `{ }` — no payload at all
 - `question_answer_submitted` `{ question_id }` — the question id only, never
   the answer and never who wrote it
+- `headline_generated` `{ source }` — `model` | `fallback` | `none`. Emitted
+  as an Edge Function log line, not a client event: the text and the headline
+  are NEVER logged, stored in analytics, or sent anywhere — only which of the
+  three outcomes happened, which carries no content
 - `invite_entry_opened` `{ variant }` / `invite_shared` `{ variant, source }`
 - `invite_claimed` `{ }` / `referral_capped` `{ }` — no payload at all
 - `invite_claim_rejected` `{ reason }` — a reason CODE only
@@ -626,3 +741,15 @@ one would make an API outage look like a growth win).
 - [ ] Terms of Service + Privacy Policy matching actual app behaviour
 - [ ] App store UGC requirements — moderation, reporting, blocking, content-policy page
 - [ ] Data retention policy for confessions, crisis events, and reports
+- [ ] **Push (N1).** Privacy policy line to add, verbatim:
+      "If you turn on notifications, we store a push token for your device,
+      the platform it runs on, and your time zone, so we can tell you when
+      someone feels what you wrote and when the weekly question arrives. We
+      never put your words, or anyone else's, in a notification. You can
+      turn notifications off at any time in the app or in your phone
+      settings, and we delete the token when you do."
+      Play Data Safety: declare **Device or other IDs — collected**, purpose
+      **App functionality**, **not shared** with third parties, **not** used
+      for advertising or tracking, and deletable on request. The Expo push
+      token is a device identifier under Google's definition even though it
+      identifies an install rather than a person.

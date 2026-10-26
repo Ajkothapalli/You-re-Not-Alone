@@ -264,6 +264,8 @@ export interface OwnConfession {
   audio_duration_ms: number | null;
   /** Loudness envelope, 0..100 peaks. Null for a typed confession. */
   audio_waveform: number[] | null;
+  /** [H1] The pull-quote, or null. Always a substring of `text`. */
+  headline: string | null;
 }
 
 export interface EditResult {
@@ -312,6 +314,32 @@ export async function getMyConfessions(): Promise<OwnConfession[]> {
   );
   if (error) throw error;
   return data?.confessions ?? [];
+}
+
+/**
+ * [H1] Clear the headline on one of your own confessions.
+ *
+ * Server-side this is owner-checked and subject to the same sealing rule as
+ * an edit: once a real person has felt the confession, what they felt stops
+ * changing. A sealed attempt comes back as `sealed`, not as an error — the
+ * UI hides the action in that state anyway, so this is the race, not the
+ * common case.
+ */
+export async function removeHeadline(confessionId: string): Promise<{ sealed?: true }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) throw new Error('Not authenticated');
+
+  const { data, error } = await supabase.functions.invoke<{ ok?: true; sealed?: true }>(
+    'manage-confession',
+    { body: { confessionId, action: 'remove_headline' } },
+  );
+  // A 409 surfaces as an error here; the body still says which one it was.
+  if (error) {
+    const ctx = (error as { context?: { status?: number } })?.context;
+    if (ctx?.status === 409) return { sealed: true };
+    throw error;
+  }
+  return data?.sealed ? { sealed: true } : {};
 }
 
 export async function retireConfession(confessionId: string): Promise<void> {
@@ -388,6 +416,15 @@ export interface Recommendation {
   categories: string[];
   /** [W2] Set when this confession answers a weekly question. */
   questionId?: string;
+  /**
+   * [H1] A 2-8 word phrase the writer wrote, shown in bold above the text.
+   *
+   * Always a literal substring of `text` — validated server-side on every
+   * write (supabase/functions/_shared/headline.ts). Absent on confessions
+   * that have none, which is a normal state and renders exactly as the card
+   * did before this feature existed.
+   */
+  headline?: string;
   /**
    * Present when this confession has a recording. The object KEY is never sent
    * — it is revoked at column level and absent from confessions_public

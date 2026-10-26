@@ -186,8 +186,10 @@ describe('consent', () => {
     expect(fn.slice(0, fn.indexOf('}\n'))).toMatch(/return false/);
   });
 
-  it('both write screens gate on it before entering voice mode', () => {
-    for (const f of [['app', 'write.tsx'], ['app', '(tabs)', 'write.tsx']]) {
+  it('the write screen gates on it before entering voice mode', () => {
+    // There is exactly one compose screen since Phase NAV; the root-stack
+    // duplicate that used to need the same guard is deleted.
+    for (const f of [['app', '(tabs)', 'write.tsx']]) {
       const src = read(...f);
       expect([f.join('/'), /hasAcceptedVoiceConsent/.test(src)]).toEqual([f.join('/'), true]);
       expect([f.join('/'), /VoiceConsentSheet/.test(src)]).toEqual([f.join('/'), true]);
@@ -217,7 +219,7 @@ describe('nothing autoplays', () => {
   });
 
   it('playback stops when the feed loses focus or the app backgrounds', () => {
-    const src = read('app', 'explore.tsx');
+    const src = read('app', '(tabs)', 'explore.tsx');
     expect(src).toMatch(/stopAllPlayback/);
     expect(src).toMatch(/AppState\.addEventListener/);
   });
@@ -263,7 +265,7 @@ describe('the full-text view keeps the audio', () => {
   });
 
   it('the feed carries the duration through the handoff', () => {
-    const src = read('app', 'explore.tsx');
+    const src = read('app', '(tabs)', 'explore.tsx');
     const blk = src.slice(src.indexOf('setConfessionHandoff({'));
     expect(blk.slice(0, 300)).toMatch(/audioDurationMs/);
   });

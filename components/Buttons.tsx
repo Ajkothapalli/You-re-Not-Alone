@@ -181,6 +181,75 @@ export function GhostButton({
   );
 }
 
+// ── TertiaryButton ───────────────────────────────────────────────────────────
+
+/**
+ * The third rung.
+ *
+ * Primary is a filled face with a 4px edge; Ghost is an outlined one with a
+ * 3px edge. Both read as objects you press. Tertiary has neither: no fill, no
+ * border, no depth — a label with a real touch target around it.
+ *
+ * It exists for the action a card offers but does not want: dismissing this
+ * week's question, for one. As a Ghost it would sit at the same visual weight
+ * as the thing it declines, and the card would read as two equal choices; as
+ * a bare text link it would not read as pressable at all. This is the rung in
+ * between, and the app had no name for it until now.
+ *
+ * Deliberately NOT haptic: usePressDepth fires an impact on press-in, which
+ * is the right feel for committing to something. Declining should not buzz.
+ */
+export function TertiaryButton({
+  label, loading, style, disabled, ...rest
+}: ButtonProps) {
+  const isDisabled = !!(disabled || loading);
+  const color  = useThemeColors();
+  const styles = useMemo(() => createTertiaryStyles(color), [color]);
+
+  return (
+    <Pressable
+      {...rest}
+      disabled={isDisabled}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: isDisabled, busy: !!loading }}
+      // The label is small, so the tap target is grown rather than the type.
+      hitSlop={10}
+      style={({ pressed }) => [
+        styles.root,
+        isDisabled && styles.disabled,
+        pressed && styles.pressed,
+        style,
+      ]}
+    >
+      {loading
+        ? <ActivityIndicator color={color.dim} />
+        : <Text style={styles.label}>{label}</Text>}
+    </Pressable>
+  );
+}
+
+function createTertiaryStyles(color: ColorSet) {
+  return StyleSheet.create({
+    root: {
+      paddingVertical:   14,
+      paddingHorizontal: 14,
+      alignItems:        'center',
+      justifyContent:    'center',
+      // No background, no border, no edge. That absence IS the hierarchy.
+    },
+    label: {
+      fontFamily:    fontFamily.sansBold,
+      fontSize:      14,
+      letterSpacing: 0.18 * 14,
+      textTransform: 'uppercase',
+      color:         color.dim,
+    },
+    pressed:  { opacity: 0.55 },
+    disabled: { opacity: 0.32 },
+  });
+}
+
 // ── Static styles (PrimaryButton — intentional hardcoded colors) ─────────────
 
 const primaryStyles = StyleSheet.create({

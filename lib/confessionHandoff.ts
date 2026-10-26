@@ -35,6 +35,13 @@ export interface ConfessionHandoff {
   audioWaveform?:   number[];
   id:           string;
   text:         string;
+  /**
+   * [H1] The pull-quote, carried so the detail screen shows the same
+   * headline the card did. Without it, tapping a card to read the whole
+   * thing would make the bold line vanish — which reads as the app having
+   * made it up and then thought better of it.
+   */
+  headline?:    string;
   feltCount:    number;
   paletteIndex: number;
 }

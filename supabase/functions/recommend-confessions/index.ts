@@ -72,6 +72,12 @@ interface Candidate {
   source?:    string | null;
   /** [W2] Set when this confession answers a weekly question. */
   question_id?: string | null;
+  /**
+   * [H1] A 2-8 word phrase copied VERBATIM from `text` above. Safe to send
+   * for exactly one reason: it is a substring of a field this payload
+   * already carries. It reveals nothing new about anybody.
+   */
+  headline?: string | null;
 }
 
 interface ScoredCandidate extends Candidate {
@@ -203,6 +209,7 @@ function toClient(c: Candidate) {
     // Lets the feed label an answer "Answering: <question>" wherever it
     // appears — inside the filter or in its ordinary category.
     ...(c.question_id ? { questionId: c.question_id } : {}),
+    ...(c.headline ? { headline: c.headline } : {}),
   };
 }
 

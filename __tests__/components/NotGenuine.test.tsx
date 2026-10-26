@@ -32,7 +32,7 @@ jest.mock('@/lib/api', () => {
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
-import WriteScreen from '../../app/write';
+import WriteScreen from '../../app/(tabs)/write';
 import { DraftProvider } from '@/lib/draftContext';
 import { NotGenuineError, type NotGenuineReason } from '@/lib/api';
 import { notGenuineCopy } from '@/lib/notGenuineCopy';

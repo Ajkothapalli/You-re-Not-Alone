@@ -14,11 +14,25 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 const ROOT = path.join(__dirname, '..');
+
+/**
+ * Where the useCallback starting at `from` ends — its dependency array.
+ * Throws rather than returning -1: a guard that silently slices to
+ * end-of-file, or to zero length, is how several assertions in this repo
+ * have quietly stopped testing anything.
+ */
+function closingDeps(src: string, from: number): number {
+  const block   = src.indexOf('\n  }, [', from);
+  const concise = src.indexOf('\n  ), [', from);
+  const candidates = [block, concise].filter((i) => i > -1);
+  if (candidates.length === 0) throw new Error('no closing dependency array after index ' + from);
+  return Math.min(...candidates);
+}
 const read = (...p: string[]) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
 const ddl  = (s: string) => s.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
 
-const explore   = code(read('app', 'explore.tsx'));
+const explore   = code(read('app', '(tabs)', 'explore.tsx'));
 const recommend = code(read('supabase', 'functions', 'recommend-confessions', 'index.ts'));
 const perfSql   = ddl(read('supabase', 'migrations', '20260929000001_feed_perf.sql'));
 
@@ -45,7 +59,18 @@ describe('no Provider passes a fresh object as its value', () => {
 
 describe('the feed does not mint closures per card', () => {
   it('passes stable callbacks, not inline arrows', () => {
-    const renderItem = explore.slice(explore.indexOf('renderItem='), explore.indexOf('ItemSeparatorComponent'));
+    // Anchored on the declaration: the row body lives in a useCallback now,
+    // and slicing from the JSX prop `renderItem={renderItem}` to
+    // `ItemSeparatorComponent` returns a region with no ReadCard in it at all.
+    const start = explore.indexOf('const renderItem = useCallback(');
+    expect(start).toBeGreaterThan(-1);
+    // A concise arrow closes with `), [deps]`, a block body with `}, [deps]`.
+    // Matching only the block form overran into the NEXT useCallback, and the
+    // separator's own `onPress={() => …}` then failed the inline-arrow guard
+    // below — a true-looking failure about the wrong function.
+    const end = closingDeps(explore, start);
+    const renderItem = explore.slice(start, end);
+    expect(renderItem).toContain('<ReadCard');
     expect(renderItem).toMatch(/onReport=\{handleReport\}/);
     expect(renderItem).toMatch(/onFelt=\{onCardFelt\}/);
     expect(renderItem).toMatch(/onPress=\{onCardPress\}/);

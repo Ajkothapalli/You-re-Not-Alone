@@ -21,7 +21,7 @@ import { showDialog } from '@/components/AppDialog';
 import { BackgroundPattern } from '@/components/BackgroundPattern';
 import { EmptyBench, IllustrationGround } from '@/components/illustrations';
 import { useAspectFitWidth } from '@/hooks/useAspectFit';
-import { getMyConfessions, retireConfession, type OwnConfession } from '@/lib/api';
+import { getMyConfessions, retireConfession, removeHeadline, type OwnConfession } from '@/lib/api';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
@@ -61,10 +61,12 @@ function ConfessionRow({
   item,
   onEdit,
   onRemove,
+  onRemoveHeadline,
 }: {
   item:     OwnConfession;
   onEdit:   (item: OwnConfession) => void;
   onRemove: (id: string) => void;
+  onRemoveHeadline: (id: string) => void;
 }) {
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
@@ -86,6 +88,44 @@ function ConfessionRow({
         </View>
         <Text style={styles.felt}>{item.felt_count} felt this</Text>
       </View>
+
+      {/**
+        * [H1] The headline, and the writer's veto over it.
+        *
+        * Shown to the owner with the line "Picked from your own words"
+        * because the alternative reading — that the app wrote a title for
+        * their confession — is the thing this whole feature is built not to
+        * do, and a writer seeing bold words they did not deliberately choose
+        * will assume exactly that unless told otherwise.
+        *
+        * The remove action follows the SAME sealing rule as editing: once a
+        * real person has felt this, what they felt stops changing. can_edit
+        * already carries that server-computed answer, so the action simply
+        * is not offered on a sealed confession rather than being offered and
+        * then refused.
+        */}
+      {item.headline && !isGone ? (
+        <View style={styles.headlineBlock}>
+          <Text style={[styles.headline, isGone && styles.textDim]}>{item.headline}</Text>
+          <View style={styles.headlineMetaRow}>
+            <Text style={styles.headlineNote}>Picked from your own words</Text>
+            {item.can_edit && (
+              <>
+                <Text style={styles.actionSep}>·</Text>
+                <Pressable
+                  onPress={() => onRemoveHeadline(item.id)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove the headline from this confession"
+                  testID={`remove-headline-${item.id}`}
+                >
+                  <Text style={styles.removeHeadlineLink}>Remove headline</Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      ) : null}
 
       <Text style={[styles.text, isGone && styles.textDim]} numberOfLines={5}>
         {item.text}
@@ -166,6 +206,37 @@ export default function MyConfessionsScreen() {
         c.id === confessionId ? { ...c, status: 'retired' as const } : c,
       ),
     );
+  }
+
+  /**
+   * [H1] Remove the headline from one of your own confessions.
+   *
+   * Optimistic, and it stays optimistic on failure in only one direction:
+   * the row is cleared immediately because that is the writer asking for
+   * their own words to stop being singled out, and making them wait on a
+   * round trip to see it gone is the wrong way round. If the server refuses
+   * — sealed, offline — the headline is put BACK and they are told, because
+   * leaving it hidden locally while it is still live in the feed would be a
+   * lie about the one thing they came here to change.
+   */
+  async function handleRemoveHeadline(confessionId: string) {
+    const previous = confessions.find((c) => c.id === confessionId)?.headline ?? null;
+    setConfessions((prev) =>
+      prev.map((c) => (c.id === confessionId ? { ...c, headline: null } : c)));
+
+    try {
+      const res = await removeHeadline(confessionId);
+      if (res.sealed) throw new Error('sealed');
+    } catch (err) {
+      setConfessions((prev) =>
+        prev.map((c) => (c.id === confessionId ? { ...c, headline: previous } : c)));
+      showDialog(
+        (err as Error)?.message === 'sealed' ? 'Already felt' : 'Could not remove it',
+        (err as Error)?.message === 'sealed'
+          ? 'Someone has already felt this confession, so it stays as they read it.'
+          : 'Check your connection and try again.',
+      );
+    }
   }
 
   function handleEdit(item: OwnConfession) {
@@ -278,7 +349,12 @@ export default function MyConfessionsScreen() {
           data={confessions}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <ConfessionRow item={item} onEdit={handleEdit} onRemove={handleRemove} />
+            <ConfessionRow
+              item={item}
+              onEdit={handleEdit}
+              onRemove={handleRemove}
+              onRemoveHeadline={handleRemoveHeadline}
+            />
           )}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
@@ -409,6 +485,25 @@ function createStyles(color: ColorSet) {
       fontFamily: fontFamily.sans,
       fontSize:   11,
       color:      color.dim,
+    },
+    headlineBlock: { gap: 4, marginBottom: 4 },
+    headline: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   17,
+      lineHeight: 22,
+      color:      color.paper,
+    },
+    headlineMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+    headlineNote: {
+      fontFamily: fontFamily.sans,
+      fontSize:   11,
+      color:      color.dim,
+    },
+    removeHeadlineLink: {
+      fontFamily: fontFamily.sansBold,
+      fontSize:   11,
+      color:      color.dim,
+      textDecorationLine: 'underline',
     },
     text: {
       fontFamily: fontFamily.serif,

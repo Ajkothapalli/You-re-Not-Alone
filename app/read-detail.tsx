@@ -28,6 +28,16 @@ export default function ReadDetailScreen() {
   const handoff = getConfessionHandoff(id);
 
   const body    = handoff?.text ?? String(text ?? '');
+  /**
+   * [H1] Handoff only, with no param fallback — deliberately.
+   *
+   * A deep link arriving without a handoff has no headline, and the detail
+   * screen then shows the confession with no bold line, which is exactly
+   * what a confession without a headline looks like. The alternative would
+   * be putting the quote in a URL, and nothing about a confession belongs in
+   * a URL (CLAUDE.md invariant 3).
+   */
+  const head    = handoff?.headline;
   const count   = handoff?.feltCount ?? (Number(feltCount) || 0);
   const palIdx  = handoff?.paletteIndex ?? (Number(paletteIndex) || 0);
   // Voice confessions keep their recording here. Text stays primary and always
@@ -81,6 +91,7 @@ export default function ReadDetailScreen() {
 
       <ReadCard
         text={body}
+        headline={head}
         feltCount={count}
         palette={palette}
         onReport={handleReport}

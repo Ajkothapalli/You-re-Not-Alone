@@ -117,12 +117,36 @@ export function useAspectFit(targetAspectRatio: number): UseAspectFitResult {
  * the available width on `onLayout` and derives height arithmetically.
  * Drop-in replacement for `{ width: X, aspectRatio: ratio }`.
  */
-export function useAspectFitWidth(targetAspectRatio: number): UseAspectFitResult {
-  const [box, setBox] = useState<AspectFitBox>({ width: 0, height: 0 });
+export function useAspectFitWidth(
+  targetAspectRatio: number,
+  seedWidth?: number,
+): UseAspectFitResult {
+  /**
+   * `seedWidth` exists because `ready` is false until the first layout pass
+   * lands, and callers gate the whole illustration on it — so an empty state
+   * painted one blank frame on every mount before the artwork appeared. With
+   * the tabs staying mounted that is now rare, but it is exactly what a
+   * reader saw on a cold start, and it read as the screen being broken.
+   *
+   * A seed is a GUESS at the container width, corrected by the real
+   * measurement in the same commit the layout arrives — so it never fights
+   * the measurement, it only fills the gap before it. Callers pass one only
+   * when they can compute it from something already known (the window width
+   * minus the screen padding, say); anything else should leave it out and
+   * take the frame.
+   */
+  const [box, setBox] = useState<AspectFitBox>(() =>
+    seedWidth && seedWidth > 0
+      ? { width: seedWidth, height: deriveHeightFromWidth(seedWidth, targetAspectRatio) }
+      : { width: 0, height: 0 });
 
   const onLayout = useCallback((event: LayoutChangeEvent) => {
     const { width: availWidth } = event.nativeEvent.layout;
-    setBox({ width: availWidth, height: deriveHeightFromWidth(availWidth, targetAspectRatio) });
+    if (availWidth <= 0) return;   // a collapsed pass must not un-seed the box
+    setBox((prev) =>
+      prev.width === availWidth
+        ? prev                     // same width: keep the object, skip the render
+        : { width: availWidth, height: deriveHeightFromWidth(availWidth, targetAspectRatio) });
   }, [targetAspectRatio]);
 
   return { ...box, onLayout, ready: box.width > 0 && box.height > 0 };

@@ -56,6 +56,8 @@ const mockSubmitText = jest.fn();
 jest.mock('@/lib/api', () => ({
   submitConfession:     (...a: unknown[]) => mockSubmitText(...a),
   getReaderPreferences: jest.fn().mockResolvedValue({ categories: [] }),
+  // The real predicate — see the note in Question.test.tsx.
+  isNotGenuine: jest.requireActual('@/lib/api').isNotGenuine,
 }));
 
 jest.mock('@/lib/deviceHash', () => ({ getDeviceHash: jest.fn().mockResolvedValue('h') }));
@@ -66,7 +68,7 @@ jest.mock('@/lib/a11y', () => ({ useReducedMotion: () => true, announce: jest.fn
 jest.mock('@/lib/analytics', () => ({ analytics: new Proxy({}, { get: () => jest.fn() }) }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import WriteScreen from '../../app/write';
+import WriteScreen from '../../app/(tabs)/write';
 import { DraftProvider } from '@/lib/draftContext';
 import { VOICE_CONSENT_LINE } from '@/lib/voiceConsent';
 // eslint-disable-next-line @typescript-eslint/no-var-requires

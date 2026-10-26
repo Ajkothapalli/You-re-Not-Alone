@@ -111,7 +111,7 @@ describe('the sanctioned phrasing is actually in use', () => {
   });
 
   it('the write button names the act, not a person it will locate', () => {
-    const src = fs.readFileSync(path.join(ROOT, 'app', 'write.tsx'), 'utf8');
+    const src = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'write.tsx'), 'utf8');
     expect(src).toMatch(/label="Let it out"/);
   });
 
@@ -138,7 +138,7 @@ describe('the sanctioned phrasing is actually in use', () => {
 
 describe('reading-allowance copy tells the truth about the cap', () => {
   const plans   = fs.readFileSync(path.join(ROOT, 'app', 'plans.tsx'), 'utf8');
-  const explore = fs.readFileSync(path.join(ROOT, 'app', 'explore.tsx'), 'utf8');
+  const explore = fs.readFileSync(path.join(ROOT, 'app', '(tabs)', 'explore.tsx'), 'utf8');
   const cards   = fs.readFileSync(path.join(ROOT, 'components', 'EndOfReadingCards.tsx'), 'utf8');
 
   /**

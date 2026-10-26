@@ -60,14 +60,23 @@ type AnalyticsEvent =
   | { name: 'invite_claimed';           props: Record<string, never> }
   | { name: 'invite_claim_rejected';    props: { reason: string } }
   | { name: 'gift_week_granted';        props: { role: 'invitee' | 'inviter' } }
-  | { name: 'referral_capped';          props: Record<string, never> };
+  | { name: 'referral_capped';          props: Record<string, never> }
+  // [N1] Push. Labels and counts only — no ids, no text, and never which
+  // account. `moment` is which of the three cards was shown.
+  | { name: 'push_ask_shown';          props: { moment: string } }
+  | { name: 'push_ask_choice';         props: { moment: string; choice: 'yes' | 'not_now' } }
+  | { name: 'push_permission';         props: { moment: string; result: 'granted' | 'denied' } }
+  | { name: 'push_opened';             props: { kind: 'felt' | 'question' } }
+  | { name: 'push_prefs_changed';      props: { setting: string } }
 
 /** Where a write invite was shown. Labels, not content. */
 export type WriteInviteKind = 'targeted' | 'interstitial' | 'footer';
 
 function track(event: AnalyticsEvent): void {
+  const props = event.props;
+
   if (__DEV__) {
-    console.log('[analytics]', event.name, event.props);
+    console.log('[analytics]', event.name, props);
   }
 
   if (!ANALYTICS_KEY) return;
@@ -79,7 +88,7 @@ function track(event: AnalyticsEvent): void {
     body: JSON.stringify({
       api_key:    ANALYTICS_KEY,
       event:      event.name,
-      properties: event.props,
+      properties: props,
       timestamp:  new Date().toISOString(),
     }),
   }).catch(() => {
@@ -196,6 +205,25 @@ export const analytics = {
       }).catch(() => {});
     }
   },
+  // ── [N1] Push ──────────────────────────────────────────────────────────
+  /** [S2] to = the view being switched TO. */
+  pushAskShown(moment: string) {
+    track({ name: 'push_ask_shown', props: { moment } });
+  },
+  pushAskChoice(moment: string, choice: 'yes' | 'not_now') {
+    track({ name: 'push_ask_choice', props: { moment, choice } });
+  },
+  pushPermission(moment: string, result: 'granted' | 'denied') {
+    track({ name: 'push_permission', props: { moment, result } });
+  },
+  pushOpened(kind: 'felt' | 'question') {
+    track({ name: 'push_opened', props: { kind } });
+  },
+  /** The setting NAME only — never its value, never which account. */
+  pushPrefsChanged(setting: string) {
+    track({ name: 'push_prefs_changed', props: { setting } });
+  },
+
   reportSubmitted(confession_id: string) {
     track({ name: 'report_submitted', props: { confession_id } });
   },

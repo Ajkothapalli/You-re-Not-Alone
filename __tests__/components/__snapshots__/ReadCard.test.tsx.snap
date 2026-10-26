@@ -1,0 +1,977 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`the headline a card with no headline renders exactly as it did before: read-card without headline 1`] = `
+<View
+  collapsable={false}
+  style={
+    {
+      "opacity": 0,
+      "transform": [
+        {
+          "translateY": 16,
+        },
+      ],
+    }
+  }
+>
+  <View
+    style={
+      {
+        "alignSelf": "stretch",
+        "paddingBottom": 5,
+        "paddingRight": 5,
+        "position": "relative",
+      }
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 18,
+            "bottom": 0,
+            "left": 5,
+            "position": "absolute",
+            "right": 0,
+            "top": 5,
+          },
+          {
+            "backgroundColor": "#F5996E",
+          },
+        ]
+      }
+    />
+    <View
+      accessibilityRole="none"
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": true,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onBlur={[Function]}
+      onClick={[Function]}
+      onFocus={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        [
+          {
+            "backgroundColor": "#FFFFFF",
+            "borderColor": "#1A1A1A",
+            "borderRadius": 18,
+            "borderWidth": 2,
+            "minHeight": 220,
+            "overflow": "hidden",
+          },
+          undefined,
+        ]
+      }
+    >
+      <View
+        pointerEvents="none"
+        style={
+          [
+            {
+              "position": "absolute",
+              "transform": [
+                {
+                  "rotate": "45deg",
+                },
+              ],
+            },
+            {
+              "opacity": 0.13,
+              "right": 14,
+              "top": 14,
+            },
+          ]
+        }
+      >
+        <View
+          testID="Svg"
+        >
+          <View
+            testID="Defs"
+          >
+            <View
+              testID="Filter"
+            >
+              <View
+                testID="FeTurbulence"
+              />
+              <View
+                testID="FeDisplacementMap"
+              />
+            </View>
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+        </View>
+      </View>
+      <View
+        pointerEvents="none"
+        style={
+          [
+            {
+              "position": "absolute",
+              "transform": [
+                {
+                  "rotate": "45deg",
+                },
+              ],
+            },
+            {
+              "bottom": 50,
+              "left": 12,
+              "opacity": 0.1,
+              "transform": [
+                {
+                  "rotate": "-42deg",
+                },
+              ],
+            },
+          ]
+        }
+      >
+        <View
+          testID="Svg"
+        >
+          <View
+            testID="Defs"
+          >
+            <View
+              testID="Filter"
+            >
+              <View
+                testID="FeTurbulence"
+              />
+              <View
+                testID="FeDisplacementMap"
+              />
+            </View>
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+        </View>
+      </View>
+      <View
+        style={
+          {
+            "flex": 1,
+            "padding": 28,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "flexShrink": 1,
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "marginBottom": 14,
+              }
+            }
+          >
+            <View
+              testID="PersonaBadge"
+            />
+          </View>
+          <Text
+            style={
+              {
+                "color": "#1A1A1A",
+                "fontFamily": "Fraunces_400Regular",
+                "fontSize": 19,
+                "lineHeight": 28.5,
+              }
+            }
+          >
+            I still keep the last voicemail. The day I stopped calling was the day I started pretending.
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "flex": 1,
+              "minHeight": 32,
+            }
+          }
+        />
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "justifyContent": "space-between",
+              "paddingTop": 16,
+            }
+          }
+        >
+          <View
+            accessibilityHint="Adds that you felt this too"
+            accessibilityLabel="412 people felt this too"
+            accessibilityRole="button"
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": undefined,
+                "expanded": undefined,
+                "selected": false,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={true}
+            hitSlop={12}
+            onBlur={[Function]}
+            onClick={[Function]}
+            onFocus={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+            style={
+              {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 4,
+              }
+            }
+          >
+            <View
+              collapsable={false}
+              style={
+                {
+                  "transform": [
+                    {
+                      "scale": 1,
+                    },
+                  ],
+                }
+              }
+            >
+              <View
+                accessibilityElementsHidden={true}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+                style={
+                  [
+                    {
+                      "height": 18,
+                      "width": 18,
+                    },
+                    undefined,
+                  ]
+                }
+              >
+                <View
+                  testID="Svg"
+                >
+                  <View
+                    testID="G"
+                  >
+                    <View
+                      testID="Path"
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View
+              style={
+                {
+                  "flexDirection": "row",
+                  "overflow": "hidden",
+                }
+              }
+            >
+              <Text
+                collapsable={false}
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "opacity": 1,
+                    "textTransform": "uppercase",
+                    "transform": [
+                      {
+                        "translateY": 0,
+                      },
+                    ],
+                  }
+                }
+              >
+                4
+              </Text>
+              <Text
+                collapsable={false}
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "opacity": 1,
+                    "textTransform": "uppercase",
+                    "transform": [
+                      {
+                        "translateY": 0,
+                      },
+                    ],
+                  }
+                }
+              >
+                1
+              </Text>
+              <Text
+                collapsable={false}
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "opacity": 1,
+                    "textTransform": "uppercase",
+                    "transform": [
+                      {
+                        "translateY": 0,
+                      },
+                    ],
+                  }
+                }
+              >
+                2
+              </Text>
+            </View>
+            <Text
+              style={
+                [
+                  {
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "textTransform": "uppercase",
+                  },
+                  {
+                    "color": "#888888",
+                  },
+                ]
+              }
+            >
+               felt this too
+            </Text>
+          </View>
+          <View
+            style={
+              {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 14,
+              }
+            }
+          >
+            <View
+              accessibilityHint="Hides it and sends it for review"
+              accessibilityLabel="Report this confession"
+              accessibilityRole="button"
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              hitSlop={12}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+            >
+              <Text
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_400Regular",
+                    "fontSize": 12,
+                    "textDecorationLine": "underline",
+                  }
+                }
+              >
+                report
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  </View>
+</View>
+`;
+
+exports[`the headline an explicitly undefined headline is the same as none: read-card without headline 1`] = `
+<View
+  collapsable={false}
+  style={
+    {
+      "opacity": 0,
+      "transform": [
+        {
+          "translateY": 16,
+        },
+      ],
+    }
+  }
+>
+  <View
+    style={
+      {
+        "alignSelf": "stretch",
+        "paddingBottom": 5,
+        "paddingRight": 5,
+        "position": "relative",
+      }
+    }
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 18,
+            "bottom": 0,
+            "left": 5,
+            "position": "absolute",
+            "right": 0,
+            "top": 5,
+          },
+          {
+            "backgroundColor": "#F5996E",
+          },
+        ]
+      }
+    />
+    <View
+      accessibilityRole="none"
+      accessibilityState={
+        {
+          "busy": undefined,
+          "checked": undefined,
+          "disabled": true,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      onBlur={[Function]}
+      onClick={[Function]}
+      onFocus={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        [
+          {
+            "backgroundColor": "#FFFFFF",
+            "borderColor": "#1A1A1A",
+            "borderRadius": 18,
+            "borderWidth": 2,
+            "minHeight": 220,
+            "overflow": "hidden",
+          },
+          undefined,
+        ]
+      }
+    >
+      <View
+        pointerEvents="none"
+        style={
+          [
+            {
+              "position": "absolute",
+              "transform": [
+                {
+                  "rotate": "45deg",
+                },
+              ],
+            },
+            {
+              "opacity": 0.13,
+              "right": 14,
+              "top": 14,
+            },
+          ]
+        }
+      >
+        <View
+          testID="Svg"
+        >
+          <View
+            testID="Defs"
+          >
+            <View
+              testID="Filter"
+            >
+              <View
+                testID="FeTurbulence"
+              />
+              <View
+                testID="FeDisplacementMap"
+              />
+            </View>
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+        </View>
+      </View>
+      <View
+        pointerEvents="none"
+        style={
+          [
+            {
+              "position": "absolute",
+              "transform": [
+                {
+                  "rotate": "45deg",
+                },
+              ],
+            },
+            {
+              "bottom": 50,
+              "left": 12,
+              "opacity": 0.1,
+              "transform": [
+                {
+                  "rotate": "-42deg",
+                },
+              ],
+            },
+          ]
+        }
+      >
+        <View
+          testID="Svg"
+        >
+          <View
+            testID="Defs"
+          >
+            <View
+              testID="Filter"
+            >
+              <View
+                testID="FeTurbulence"
+              />
+              <View
+                testID="FeDisplacementMap"
+              />
+            </View>
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+        </View>
+      </View>
+      <View
+        style={
+          {
+            "flex": 1,
+            "padding": 28,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "flexShrink": 1,
+            }
+          }
+        >
+          <View
+            style={
+              {
+                "marginBottom": 14,
+              }
+            }
+          >
+            <View
+              testID="PersonaBadge"
+            />
+          </View>
+          <Text
+            style={
+              {
+                "color": "#1A1A1A",
+                "fontFamily": "Fraunces_400Regular",
+                "fontSize": 19,
+                "lineHeight": 28.5,
+              }
+            }
+          >
+            I still keep the last voicemail. The day I stopped calling was the day I started pretending.
+          </Text>
+        </View>
+        <View
+          style={
+            {
+              "flex": 1,
+              "minHeight": 32,
+            }
+          }
+        />
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "flexDirection": "row",
+              "justifyContent": "space-between",
+              "paddingTop": 16,
+            }
+          }
+        >
+          <View
+            accessibilityHint="Adds that you felt this too"
+            accessibilityLabel="412 people felt this too"
+            accessibilityRole="button"
+            accessibilityState={
+              {
+                "busy": undefined,
+                "checked": undefined,
+                "disabled": undefined,
+                "expanded": undefined,
+                "selected": false,
+              }
+            }
+            accessibilityValue={
+              {
+                "max": undefined,
+                "min": undefined,
+                "now": undefined,
+                "text": undefined,
+              }
+            }
+            accessible={true}
+            collapsable={false}
+            focusable={true}
+            hitSlop={12}
+            onBlur={[Function]}
+            onClick={[Function]}
+            onFocus={[Function]}
+            onResponderGrant={[Function]}
+            onResponderMove={[Function]}
+            onResponderRelease={[Function]}
+            onResponderTerminate={[Function]}
+            onResponderTerminationRequest={[Function]}
+            onStartShouldSetResponder={[Function]}
+            style={
+              {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 4,
+              }
+            }
+          >
+            <View
+              collapsable={false}
+              style={
+                {
+                  "transform": [
+                    {
+                      "scale": 1,
+                    },
+                  ],
+                }
+              }
+            >
+              <View
+                accessibilityElementsHidden={true}
+                accessible={false}
+                importantForAccessibility="no-hide-descendants"
+                style={
+                  [
+                    {
+                      "height": 18,
+                      "width": 18,
+                    },
+                    undefined,
+                  ]
+                }
+              >
+                <View
+                  testID="Svg"
+                >
+                  <View
+                    testID="G"
+                  >
+                    <View
+                      testID="Path"
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
+            <View
+              style={
+                {
+                  "flexDirection": "row",
+                  "overflow": "hidden",
+                }
+              }
+            >
+              <Text
+                collapsable={false}
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "opacity": 1,
+                    "textTransform": "uppercase",
+                    "transform": [
+                      {
+                        "translateY": 0,
+                      },
+                    ],
+                  }
+                }
+              >
+                4
+              </Text>
+              <Text
+                collapsable={false}
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "opacity": 1,
+                    "textTransform": "uppercase",
+                    "transform": [
+                      {
+                        "translateY": 0,
+                      },
+                    ],
+                  }
+                }
+              >
+                1
+              </Text>
+              <Text
+                collapsable={false}
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "opacity": 1,
+                    "textTransform": "uppercase",
+                    "transform": [
+                      {
+                        "translateY": 0,
+                      },
+                    ],
+                  }
+                }
+              >
+                2
+              </Text>
+            </View>
+            <Text
+              style={
+                [
+                  {
+                    "fontFamily": "Inter_600SemiBold",
+                    "fontSize": 11,
+                    "letterSpacing": 1.98,
+                    "textTransform": "uppercase",
+                  },
+                  {
+                    "color": "#888888",
+                  },
+                ]
+              }
+            >
+               felt this too
+            </Text>
+          </View>
+          <View
+            style={
+              {
+                "alignItems": "center",
+                "flexDirection": "row",
+                "gap": 14,
+              }
+            }
+          >
+            <View
+              accessibilityHint="Hides it and sends it for review"
+              accessibilityLabel="Report this confession"
+              accessibilityRole="button"
+              accessibilityState={
+                {
+                  "busy": undefined,
+                  "checked": undefined,
+                  "disabled": undefined,
+                  "expanded": undefined,
+                  "selected": undefined,
+                }
+              }
+              accessibilityValue={
+                {
+                  "max": undefined,
+                  "min": undefined,
+                  "now": undefined,
+                  "text": undefined,
+                }
+              }
+              accessible={true}
+              collapsable={false}
+              focusable={true}
+              hitSlop={12}
+              onBlur={[Function]}
+              onClick={[Function]}
+              onFocus={[Function]}
+              onResponderGrant={[Function]}
+              onResponderMove={[Function]}
+              onResponderRelease={[Function]}
+              onResponderTerminate={[Function]}
+              onResponderTerminationRequest={[Function]}
+              onStartShouldSetResponder={[Function]}
+            >
+              <Text
+                style={
+                  {
+                    "color": "#888888",
+                    "fontFamily": "Inter_400Regular",
+                    "fontSize": 12,
+                    "textDecorationLine": "underline",
+                  }
+                }
+              >
+                report
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  </View>
+</View>
+`;

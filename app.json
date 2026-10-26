@@ -33,7 +33,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "me.soulyap.app",
-      "versionCode": 42
+      "versionCode": 65
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -63,7 +63,16 @@
         }
       ],
       "./plugins/withOptionalMicrophone",
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#FFE500",
+          "defaultChannel": "soulyap",
+          "enableBackgroundRemoteNotifications": false
+        }
+      ]
     ],
     "extra": {
       "supabaseUrl": "$EXPO_PUBLIC_SUPABASE_URL",

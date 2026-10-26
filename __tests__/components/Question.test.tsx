@@ -28,13 +28,17 @@ const mockSubmit = jest.fn();
 jest.mock('@/lib/api', () => ({
   submitConfession:     (...a: unknown[]) => mockSubmit(...a),
   getReaderPreferences: jest.fn().mockResolvedValue({ categories: ['grief'] }),
+  // The REAL predicate, not a stub: it decides whether a submission failure
+  // leaves the writer's words in the field or wipes them, and a mock that
+  // always said "no" would pass this suite while hiding that.
+  isNotGenuine: jest.requireActual('@/lib/api').isNotGenuine,
 }));
 
 import React from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { render, fireEvent, act, waitFor } from '@testing-library/react-native';
 import QuestionCard from '@/components/QuestionCard';
-import WriteScreen from '../../app/write';
+import WriteScreen from '../../app/(tabs)/write';
 import { DraftProvider } from '@/lib/draftContext';
 import { ThemeProvider } from '@/theme/ThemeProvider';
 import type { LiveQuestion } from '@/lib/question';
@@ -245,5 +249,128 @@ describe('the write screen while answering', () => {
     await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
 
     expect(mockTrack.mock.calls.map(([n]) => n)).not.toContain('questionAnswerSubmitted');
+  });
+});
+
+// ─── Pinned, and the dismiss that pinning made necessary ─────────────────────
+
+describe('the question opens the feed and then scrolls away', () => {
+  const fs   = require('fs');
+  const path = require('path');
+  const explore = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'app', '(tabs)', 'explore.tsx'), 'utf8');
+  // Guards constrain CODE; a comment explaining the old arrangement would
+  // otherwise fail the guard against it.
+  const code = explore.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '')
+                      .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '');
+
+  /**
+   * Owner decision 2026-10-01 — this REVERSES the arrangement the previous
+   * version of this block pinned.
+   *
+   * It was pinned above the list so a reader who had started reading could
+   * always see it. That made it a card permanently parked on top of the one
+   * reading surface, above every confession, every session. It is the list's
+   * header again: first, then passed.
+   *
+   * The reason it was pinned has not gone away, it is answered differently —
+   * `featured` makes it hard to miss once rather than impossible to miss
+   * ever.
+   */
+  it('is the list header, so it scrolls with the feed', () => {
+    const header = code.indexOf('ListHeaderComponent={questionHeader}');
+    expect(header).toBeGreaterThan(-1);
+    expect(code).toMatch(/const questionHeader = useMemo\(/);
+
+    const block = code.slice(code.indexOf('const questionHeader'));
+    expect(block.slice(0, block.indexOf('}, ['))).toContain('<QuestionCard');
+  });
+
+  it('is not pinned outside the list any more', () => {
+    // The pinned region still exists — the filter chip lives there — so the
+    // guard is that the CARD is not in it, not that the region is gone.
+    const pinnedUses = [...code.matchAll(/<View style=\{styles\.pinned\}>/g)];
+    for (const m of pinnedUses) {
+      const region = code.slice(m.index, m.index + 600);
+      expect(region).not.toContain('<QuestionCard');
+    }
+  });
+
+  it('gets the featured treatment, since it no longer stays on screen', () => {
+    const block = code.slice(code.indexOf('<QuestionCard'));
+    expect(block.slice(0, block.indexOf('/>'))).toMatch(/featured/);
+  });
+
+  it('is a header, never a row — it must never count as a confession', () => {
+    // `visible` is the confession array the allowance, the impressions and
+    // the separators all index into. A question inside it would be counted
+    // against somebody's ten a day.
+    expect(code).toMatch(/data=\{visible\}/);
+    const data = code.indexOf('data={visible}');
+    const hdr  = code.indexOf('ListHeaderComponent={questionHeader}');
+    expect(hdr).toBeGreaterThan(data);
+  });
+
+  it('the filter chip stays PINNED — it is the only way out of the filter', () => {
+    // Scrolled out of sight it left a reader stuck in a short filtered list
+    // with no exit. Unlike the question card, this one does not scroll.
+    expect(code).toContain('question-filter-chip');
+    const chip = code.indexOf('question-filter-chip');
+    const list = code.indexOf('data={visible}');
+    expect(chip).toBeGreaterThan(-1);
+    expect(chip).toBeLessThan(list);
+  });
+
+  it('shows the card or the chip, never both', () => {
+    // They are the two directions of one switch.
+    expect(code).toMatch(/!question \|\| filterQuestion !== null \|\| questionHidden/);
+    expect(code).toMatch(/question && filterQuestion !== null/);
+  });
+
+  it('hands the card stable callbacks', () => {
+    // Memoised into the list header, so inline arrows would rebuild it on
+    // every impression and every felt and restart its entrance.
+    const start = code.indexOf('<QuestionCard');
+    const block = code.slice(start, code.indexOf('/>', start));
+    expect(block).not.toMatch(/=\{\(\)\s*=>/);
+    expect(block).toMatch(/onDismiss=\{onDismissQuestion\}/);
+  });
+});
+
+describe('dismissing this week\'s question', () => {
+  it('is a real button, not a corner text link', async () => {
+    // Pinned, the card does not go anywhere on its own, so declining is a
+    // deliberate action and needs a control that reads as one.
+    const u = await card(Q);
+    const dismiss = u.getByTestId('question-dismiss');
+    expect(dismiss.props.accessibilityRole).toBe('button');
+  });
+
+  it('is quieter than the thing it declines', async () => {
+    /**
+     * The hierarchy IS the feature: "Answer it" is the loud one, and a
+     * dismiss at equal weight would turn one invitation into two equal
+     * choices. TertiaryButton has no fill, no border and no depth — that
+     * absence is what makes it the third rung.
+     */
+    const src = require('fs').readFileSync(
+      require('path').join(__dirname, '..', '..', 'components', 'QuestionCard.tsx'), 'utf8');
+    expect(src).toMatch(/<TertiaryButton/);
+    // Not a Ghost or a Primary, which would both read as an equal choice.
+    const block = src.slice(src.indexOf('<TertiaryButton'), src.indexOf('/>', src.indexOf('<TertiaryButton')));
+    expect(src).not.toMatch(/<GhostButton[\s\S]*?label="Not now"/);
+    expect(block).toMatch(/label="Not now"/);
+  });
+
+  it('still says "Not now" — declining an invitation is not an error', async () => {
+    const u = await card(Q);
+    expect(u.getByText('Not now')).toBeTruthy();
+  });
+
+  it('takes the card away', async () => {
+    const onDismiss = jest.fn();
+    const u = await card(Q, { onDismiss });
+    await act(async () => { fireEvent.press(u.getByTestId('question-dismiss')); });
+    expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });

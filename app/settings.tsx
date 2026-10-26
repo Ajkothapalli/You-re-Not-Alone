@@ -6,7 +6,12 @@ import {
   getVariant, markInvitePrompted, VARIANT_COPY, HONEST_LINE, type ReferralVariant,
 } from '@/lib/referral';
 import { clearAudioUrlCache } from '@/lib/audioPlayback';
+import { clearTabMemory } from '@/lib/tabMemory';
+import { existingToken } from '@/lib/pushPermission';
+import { unregisterPushToken } from '@/lib/pushRegistration';
+import { resetPushAsk } from '@/lib/pushAsk';
 import { GhostButton } from '@/components/Buttons';
+import NotificationSettings from '@/components/NotificationSettings';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import { router } from 'expo-router';
@@ -55,6 +60,24 @@ export default function SettingsScreen() {
     // them resolvable after sign-out would mean the next person on this device
     // could still reach recordings the previous account was listening to.
     clearAudioUrlCache();
+    /**
+     * [N1] And this device's push token, BEFORE the session ends — the
+     * call is authenticated, so afterwards there is no way to make it.
+     *
+     * Someone signing out on a shared phone must stop receiving another
+     * person's felt notifications on it, and a felt notification is about
+     * a confession they wrote: leaving it registered would leak authorship
+     * to whoever signs in next.
+     */
+    try {
+      const token = await existingToken();
+      if (token) await unregisterPushToken(token);
+    } catch { /* never block a sign-out on this */ }
+    // Same reasoning, one layer up: the alerts and my-confessions caches hold
+    // THIS account's private content, and the next account to sign in on this
+    // device would paint it before its own fetch returned.
+    clearTabMemory();
+    void resetPushAsk();
     await supabase.auth.signOut();
     router.replace('/');
   }
@@ -118,6 +141,8 @@ export default function SettingsScreen() {
       />
 
       {/* Policies */}
+      <NotificationSettings />
+
       <Text style={styles.sectionLabel}>Policies</Text>
       <View style={styles.policyCard}>
         {POLICY_ROUTES.map(({ label, type }, i, arr) => (

@@ -143,7 +143,9 @@ export default function ShareAfter({
     analytics.writeStarted('share_after');
     const starter = startersFor(category ?? '')[0];
     onDone();
-    router.push({
+    // dismissTo, not push: this renders ABOVE the tabs, and pushing would
+    // stack a second tab navigator on top of the existing one.
+    router.dismissTo({
       pathname: '/write',
       params:   starter ? { starter } : {},
     });

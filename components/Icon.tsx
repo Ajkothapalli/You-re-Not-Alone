@@ -111,6 +111,26 @@ const ICONS = {
   check: { a: 'A', s: [
     { r: 'line', d: "M9.5 25.5L19.5 35L38.5 13.5", w: 'heavy' },
   ] },
+  /**
+   * Hand-authored, against this file's "do not hand-edit" rule, and said
+   * plainly rather than hidden: the feed cards needed a share control and
+   * the generated set has no share glyph, with the design source not in
+   * this repo. Replace it from the real source when there is one.
+   *
+   * Built out of the set's own vocabulary so it is not a foreign glyph:
+   * 48-unit box, connectors as `line` so they take the indigo outline,
+   * three `accent` nodes painted AFTER them so the line ends are covered,
+   * and one `shine` highlight — the same construction as star and heart.
+   * Accent 'A', the key the other action icons use (arrow_right, close,
+   * check), so it sits in the same family rather than inventing a colour.
+   */
+  share: { a: 'A', s: [
+    { r: 'line',   d: "M13 24L35 13M13 24L35 35", w: 'bold' },
+    { r: 'accent', c: [13, 24, 5.4] },
+    { r: 'accent', c: [35, 13, 5.4] },
+    { r: 'accent', c: [35, 35, 5.4] },
+    { r: 'shine',  d: "M31.8 11.3C32.3 10.3 33.2 9.7 34.3 9.5" },
+  ] },
   lock: { a: 'B', s: [
     { r: 'line', d: "M15.5 21V15.6C15.5 10.4 19.3 6.8 24 6.8C28.7 6.8 32.5 10.4 32.5 15.6V21", w: 'bold' },
     { r: 'accent', d: "M11.8 21H36.2C38 21 39.4 22.4 39.4 24.2V38.8C39.4 40.6 38 42 36.2 42H11.8C10 42 8.6 40.6 8.6 38.8V24.2C8.6 22.4 10 21 11.8 21Z" },
@@ -170,6 +190,26 @@ const ICONS = {
     { r: 'accent', c: [24.0, 24.0, 18.4] },
     { r: 'knock', d: "M15.6 24.6L21.4 30.2L32.6 18.2" },
     { r: 'shine', d: "M12.4 20C13.4 16.6 15.8 13.9 18.9 12.5" },
+  ] },
+  /**
+   * Hand-authored, like `share`, and said plainly: the generated set has no
+   * clock and the design source is not in this repo. Replace it from the
+   * real source when there is one.
+   *
+   * Built like check_circle — its nearest sibling, a disc with a mark on
+   * it — with ONE deliberate difference. check_circle fills the disc with
+   * the accent, and this icon sits on the feed clock's pill, whose ground
+   * changes through the day. One of those grounds is #FF7A2A, which IS
+   * accent 'A': an accent face would disappear into the dusk pill
+   * completely. A `body` face keeps the contrast on all four grounds, and
+   * `tone` flips it for the dark night one.
+   */
+  clock: { a: 'A', s: [
+    { r: 'body', c: [24, 24, 16.5] },
+    // Hour hand up, minute hand right — one polyline meeting at the centre.
+    { r: 'line', d: "M24 14V24.5H31.5", w: 'bold' },
+    { r: 'dot',  c: [24, 24, 2.2] },
+    { r: 'shine', d: "M13.6 19.4C14.5 16.7 16.5 14.4 19.1 13" },
   ] },
   cat_mental_health: { a: 'cat:mental_health', s: [
     { r: 'accent', d: "M24 9.6C20.6 6.6 13.9 7.4 12.6 12.4C7.9 13.2 6.2 18.8 8.9 22.4C6 26.2 7.9 32.4 12.8 32.8C13.8 38 19.8 40.6 24 37.4C28.2 40.6 34.2 38 35.2 32.8C40.1 32.4 42 26.2 39.1 22.4C41.8 18.8 40.1 13.2 35.4 12.4C34.1 7.4 27.4 6.6 24 9.6Z" },

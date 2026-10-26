@@ -1,0 +1,1291 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`each moment shows its own words just_posted matches its snapshot: push-ask-just_posted 1`] = `
+<View
+  collapsable={false}
+  style={
+    {
+      "marginVertical": 14,
+      "opacity": 0,
+      "transform": [
+        {
+          "translateY": 12,
+        },
+      ],
+    }
+  }
+  testID="push-ask-just_posted"
+>
+  <View
+    style={
+      [
+        {
+          "alignSelf": "stretch",
+          "paddingBottom": 4,
+          "paddingRight": 4,
+          "position": "relative",
+        },
+        undefined,
+      ]
+    }
+    testID="push-ask-illustration"
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 18,
+            "bottom": 0,
+            "left": 4,
+            "position": "absolute",
+            "right": 0,
+            "top": 4,
+          },
+          {
+            "backgroundColor": "#1A1A1A",
+          },
+        ]
+      }
+      testID="IllustrationCard-shadow"
+    />
+    <View
+      style={
+        [
+          {
+            "backgroundColor": "#FBF8F2",
+            "borderRadius": 18,
+            "borderWidth": 1.5,
+            "overflow": "hidden",
+          },
+          {
+            "borderColor": "#1A1A1A",
+          },
+        ]
+      }
+      testID="IllustrationCard-card"
+    >
+      <View
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      >
+        <View
+          testID="Svg"
+        >
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Rect"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Circle"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="G"
+            >
+              <View
+                testID="G"
+              >
+                <View
+                  testID="Path"
+                />
+                <View
+                  testID="Path"
+                />
+              </View>
+            </View>
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="G"
+            >
+              <View
+                testID="Path"
+              />
+            </View>
+            <View
+              testID="G"
+            >
+              <View
+                testID="Path"
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  </View>
+  <View
+    style={
+      {
+        "gap": 8,
+        "paddingTop": 14,
+      }
+    }
+  >
+    <Text
+      style={
+        {
+          "color": "#888888",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 11,
+          "letterSpacing": 1.98,
+          "textTransform": "uppercase",
+        }
+      }
+    >
+      It’s out there
+    </Text>
+    <Text
+      accessibilityRole="header"
+      style={
+        {
+          "color": "#1A1A1A",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 20,
+          "lineHeight": 26,
+        }
+      }
+    >
+      Your words are out there now.
+    </Text>
+    <Text
+      style={
+        {
+          "color": "#1A1A1A",
+          "fontFamily": "Inter_400Regular",
+          "fontSize": 15,
+          "lineHeight": 22,
+        }
+      }
+    >
+      Someone might feel them tonight, or next week. Want us to tell you when they do?
+    </Text>
+    <View
+      style={
+        {
+          "alignSelf": "flex-start",
+          "marginTop": 6,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "borderRadius": 999,
+            "paddingBottom": 4,
+            "position": "relative",
+          }
+        }
+      >
+        <View
+          style={
+            [
+              {
+                "backgroundColor": "#000000",
+                "borderRadius": 999,
+                "bottom": 0,
+                "left": 0,
+                "position": "absolute",
+                "right": 0,
+                "top": 4,
+              },
+              {
+                "backgroundColor": "#000000",
+              },
+            ]
+          }
+        />
+        <View
+          accessibilityLabel="Yes, tell me"
+          accessibilityRole="button"
+          accessibilityState={
+            {
+              "busy": false,
+              "checked": undefined,
+              "disabled": false,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          testID="push-ask-yes-just_posted"
+        >
+          <View
+            collapsable={false}
+            style={
+              {
+                "transform": [
+                  {
+                    "translateY": 0,
+                  },
+                ],
+              }
+            }
+          >
+            <View
+              style={
+                [
+                  {
+                    "alignItems": "center",
+                    "backgroundColor": "#FFE500",
+                    "borderColor": "#000000",
+                    "borderRadius": 999,
+                    "borderWidth": 2,
+                    "justifyContent": "center",
+                    "overflow": "hidden",
+                    "paddingHorizontal": 32,
+                    "paddingVertical": 16,
+                  },
+                  {
+                    "borderColor": "#000000",
+                  },
+                ]
+              }
+            >
+              <View
+                collapsable={false}
+                pointerEvents="none"
+                style={
+                  {
+                    "backgroundColor": "#000000",
+                    "bottom": 0,
+                    "left": 0,
+                    "opacity": 0,
+                    "position": "absolute",
+                    "right": 0,
+                    "top": 0,
+                  }
+                }
+              />
+              <Text
+                style={
+                  [
+                    {
+                      "color": "#0A0A0A",
+                      "fontFamily": "Inter_600SemiBold",
+                      "fontSize": 14,
+                      "letterSpacing": 2.52,
+                      "textTransform": "uppercase",
+                    },
+                    false,
+                  ]
+                }
+              >
+                Yes, tell me
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+    <View
+      accessibilityLabel="Not now"
+      accessibilityRole="button"
+      accessibilityState={
+        {
+          "busy": false,
+          "checked": undefined,
+          "disabled": false,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      hitSlop={10}
+      onBlur={[Function]}
+      onClick={[Function]}
+      onFocus={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        [
+          {
+            "alignItems": "center",
+            "justifyContent": "center",
+            "paddingHorizontal": 14,
+            "paddingVertical": 14,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      testID="push-ask-no-just_posted"
+    >
+      <Text
+        style={
+          {
+            "color": "#888888",
+            "fontFamily": "Inter_600SemiBold",
+            "fontSize": 14,
+            "letterSpacing": 2.52,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Not now
+      </Text>
+    </View>
+    <Text
+      style={
+        {
+          "color": "#888888",
+          "fontFamily": "Inter_400Regular",
+          "fontSize": 12,
+          "lineHeight": 18,
+          "marginTop": 4,
+        }
+      }
+    >
+      Only two things: when someone feels your words, and Monday’s question. Never your words themselves. Quiet from 10pm to 8am.
+    </Text>
+  </View>
+</View>
+`;
+
+exports[`each moment shows its own words proof matches its snapshot: push-ask-proof 1`] = `
+<View
+  collapsable={false}
+  style={
+    {
+      "marginVertical": 14,
+      "opacity": 0,
+      "transform": [
+        {
+          "translateY": 12,
+        },
+      ],
+    }
+  }
+  testID="push-ask-proof"
+>
+  <View
+    style={
+      [
+        {
+          "alignSelf": "stretch",
+          "paddingBottom": 4,
+          "paddingRight": 4,
+          "position": "relative",
+        },
+        undefined,
+      ]
+    }
+    testID="push-ask-illustration"
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 18,
+            "bottom": 0,
+            "left": 4,
+            "position": "absolute",
+            "right": 0,
+            "top": 4,
+          },
+          {
+            "backgroundColor": "#1A1A1A",
+          },
+        ]
+      }
+      testID="IllustrationCard-shadow"
+    />
+    <View
+      style={
+        [
+          {
+            "backgroundColor": "#FBF8F2",
+            "borderRadius": 18,
+            "borderWidth": 1.5,
+            "overflow": "hidden",
+          },
+          {
+            "borderColor": "#1A1A1A",
+          },
+        ]
+      }
+      testID="IllustrationCard-card"
+    >
+      <View
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      >
+        <View
+          testID="Svg"
+        >
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Rect"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Circle"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="G"
+            >
+              <View
+                testID="G"
+              >
+                <View
+                  testID="Path"
+                />
+                <View
+                  testID="Path"
+                />
+              </View>
+            </View>
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="G"
+            >
+              <View
+                testID="Path"
+              />
+            </View>
+            <View
+              testID="G"
+            >
+              <View
+                testID="Path"
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  </View>
+  <View
+    style={
+      {
+        "gap": 8,
+        "paddingTop": 14,
+      }
+    }
+  >
+    <Text
+      style={
+        {
+          "color": "#888888",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 11,
+          "letterSpacing": 1.98,
+          "textTransform": "uppercase",
+        }
+      }
+    >
+      Just now
+    </Text>
+    <Text
+      accessibilityRole="header"
+      style={
+        {
+          "color": "#1A1A1A",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 20,
+          "lineHeight": 26,
+        }
+      }
+    >
+      Someone felt what you wrote.
+    </Text>
+    <Text
+      style={
+        {
+          "color": "#1A1A1A",
+          "fontFamily": "Inter_400Regular",
+          "fontSize": 15,
+          "lineHeight": 22,
+        }
+      }
+    >
+      Want to know next time, even when soulyap is closed?
+    </Text>
+    <View
+      style={
+        {
+          "alignSelf": "flex-start",
+          "marginTop": 6,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "borderRadius": 999,
+            "paddingBottom": 4,
+            "position": "relative",
+          }
+        }
+      >
+        <View
+          style={
+            [
+              {
+                "backgroundColor": "#000000",
+                "borderRadius": 999,
+                "bottom": 0,
+                "left": 0,
+                "position": "absolute",
+                "right": 0,
+                "top": 4,
+              },
+              {
+                "backgroundColor": "#000000",
+              },
+            ]
+          }
+        />
+        <View
+          accessibilityLabel="Tell me when it happens"
+          accessibilityRole="button"
+          accessibilityState={
+            {
+              "busy": false,
+              "checked": undefined,
+              "disabled": false,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          testID="push-ask-yes-proof"
+        >
+          <View
+            collapsable={false}
+            style={
+              {
+                "transform": [
+                  {
+                    "translateY": 0,
+                  },
+                ],
+              }
+            }
+          >
+            <View
+              style={
+                [
+                  {
+                    "alignItems": "center",
+                    "backgroundColor": "#FFE500",
+                    "borderColor": "#000000",
+                    "borderRadius": 999,
+                    "borderWidth": 2,
+                    "justifyContent": "center",
+                    "overflow": "hidden",
+                    "paddingHorizontal": 32,
+                    "paddingVertical": 16,
+                  },
+                  {
+                    "borderColor": "#000000",
+                  },
+                ]
+              }
+            >
+              <View
+                collapsable={false}
+                pointerEvents="none"
+                style={
+                  {
+                    "backgroundColor": "#000000",
+                    "bottom": 0,
+                    "left": 0,
+                    "opacity": 0,
+                    "position": "absolute",
+                    "right": 0,
+                    "top": 0,
+                  }
+                }
+              />
+              <Text
+                style={
+                  [
+                    {
+                      "color": "#0A0A0A",
+                      "fontFamily": "Inter_600SemiBold",
+                      "fontSize": 14,
+                      "letterSpacing": 2.52,
+                      "textTransform": "uppercase",
+                    },
+                    false,
+                  ]
+                }
+              >
+                Tell me when it happens
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+    <View
+      accessibilityLabel="Not now"
+      accessibilityRole="button"
+      accessibilityState={
+        {
+          "busy": false,
+          "checked": undefined,
+          "disabled": false,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      hitSlop={10}
+      onBlur={[Function]}
+      onClick={[Function]}
+      onFocus={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        [
+          {
+            "alignItems": "center",
+            "justifyContent": "center",
+            "paddingHorizontal": 14,
+            "paddingVertical": 14,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      testID="push-ask-no-proof"
+    >
+      <Text
+        style={
+          {
+            "color": "#888888",
+            "fontFamily": "Inter_600SemiBold",
+            "fontSize": 14,
+            "letterSpacing": 2.52,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Not now
+      </Text>
+    </View>
+    <Text
+      style={
+        {
+          "color": "#888888",
+          "fontFamily": "Inter_400Regular",
+          "fontSize": 12,
+          "lineHeight": 18,
+          "marginTop": 4,
+        }
+      }
+    >
+      Only two things: when someone feels your words, and Monday’s question. Never your words themselves. Quiet from 10pm to 8am.
+    </Text>
+  </View>
+</View>
+`;
+
+exports[`each moment shows its own words question matches its snapshot: push-ask-question 1`] = `
+<View
+  collapsable={false}
+  style={
+    {
+      "marginVertical": 14,
+      "opacity": 0,
+      "transform": [
+        {
+          "translateY": 12,
+        },
+      ],
+    }
+  }
+  testID="push-ask-question"
+>
+  <View
+    style={
+      [
+        {
+          "alignSelf": "stretch",
+          "paddingBottom": 4,
+          "paddingRight": 4,
+          "position": "relative",
+        },
+        undefined,
+      ]
+    }
+    testID="push-ask-illustration"
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 18,
+            "bottom": 0,
+            "left": 4,
+            "position": "absolute",
+            "right": 0,
+            "top": 4,
+          },
+          {
+            "backgroundColor": "#1A1A1A",
+          },
+        ]
+      }
+      testID="IllustrationCard-shadow"
+    />
+    <View
+      style={
+        [
+          {
+            "backgroundColor": "#FBF8F2",
+            "borderRadius": 18,
+            "borderWidth": 1.5,
+            "overflow": "hidden",
+          },
+          {
+            "borderColor": "#1A1A1A",
+          },
+        ]
+      }
+      testID="IllustrationCard-card"
+    >
+      <View
+        accessibilityElementsHidden={true}
+        importantForAccessibility="no-hide-descendants"
+      >
+        <View
+          testID="Svg"
+        >
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Rect"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="Path"
+            />
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Circle"
+            />
+            <View
+              testID="Path"
+            />
+            <View
+              testID="G"
+            >
+              <View
+                testID="G"
+              >
+                <View
+                  testID="Path"
+                />
+                <View
+                  testID="Path"
+                />
+              </View>
+            </View>
+          </View>
+          <View
+            testID="G"
+          >
+            <View
+              testID="Path"
+            />
+            <View
+              testID="G"
+            >
+              <View
+                testID="Path"
+              />
+            </View>
+            <View
+              testID="G"
+            >
+              <View
+                testID="Path"
+              />
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+  </View>
+  <View
+    style={
+      {
+        "gap": 8,
+        "paddingTop": 14,
+      }
+    }
+  >
+    <Text
+      style={
+        {
+          "color": "#888888",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 11,
+          "letterSpacing": 1.98,
+          "textTransform": "uppercase",
+        }
+      }
+    >
+      Every Monday
+    </Text>
+    <Text
+      accessibilityRole="header"
+      style={
+        {
+          "color": "#1A1A1A",
+          "fontFamily": "Inter_600SemiBold",
+          "fontSize": 20,
+          "lineHeight": 26,
+        }
+      }
+    >
+      One question, the same for everyone.
+    </Text>
+    <Text
+      style={
+        {
+          "color": "#1A1A1A",
+          "fontFamily": "Inter_400Regular",
+          "fontSize": 15,
+          "lineHeight": 22,
+        }
+      }
+    >
+      A new one lands every Monday evening. Want it when it does?
+    </Text>
+    <View
+      style={
+        {
+          "alignSelf": "flex-start",
+          "marginTop": 6,
+        }
+      }
+    >
+      <View
+        style={
+          {
+            "borderRadius": 999,
+            "paddingBottom": 4,
+            "position": "relative",
+          }
+        }
+      >
+        <View
+          style={
+            [
+              {
+                "backgroundColor": "#000000",
+                "borderRadius": 999,
+                "bottom": 0,
+                "left": 0,
+                "position": "absolute",
+                "right": 0,
+                "top": 4,
+              },
+              {
+                "backgroundColor": "#000000",
+              },
+            ]
+          }
+        />
+        <View
+          accessibilityLabel="Send me Monday’s question"
+          accessibilityRole="button"
+          accessibilityState={
+            {
+              "busy": false,
+              "checked": undefined,
+              "disabled": false,
+              "expanded": undefined,
+              "selected": undefined,
+            }
+          }
+          accessibilityValue={
+            {
+              "max": undefined,
+              "min": undefined,
+              "now": undefined,
+              "text": undefined,
+            }
+          }
+          accessible={true}
+          collapsable={false}
+          focusable={true}
+          onBlur={[Function]}
+          onClick={[Function]}
+          onFocus={[Function]}
+          onResponderGrant={[Function]}
+          onResponderMove={[Function]}
+          onResponderRelease={[Function]}
+          onResponderTerminate={[Function]}
+          onResponderTerminationRequest={[Function]}
+          onStartShouldSetResponder={[Function]}
+          testID="push-ask-yes-question"
+        >
+          <View
+            collapsable={false}
+            style={
+              {
+                "transform": [
+                  {
+                    "translateY": 0,
+                  },
+                ],
+              }
+            }
+          >
+            <View
+              style={
+                [
+                  {
+                    "alignItems": "center",
+                    "backgroundColor": "#FFE500",
+                    "borderColor": "#000000",
+                    "borderRadius": 999,
+                    "borderWidth": 2,
+                    "justifyContent": "center",
+                    "overflow": "hidden",
+                    "paddingHorizontal": 32,
+                    "paddingVertical": 16,
+                  },
+                  {
+                    "borderColor": "#000000",
+                  },
+                ]
+              }
+            >
+              <View
+                collapsable={false}
+                pointerEvents="none"
+                style={
+                  {
+                    "backgroundColor": "#000000",
+                    "bottom": 0,
+                    "left": 0,
+                    "opacity": 0,
+                    "position": "absolute",
+                    "right": 0,
+                    "top": 0,
+                  }
+                }
+              />
+              <Text
+                style={
+                  [
+                    {
+                      "color": "#0A0A0A",
+                      "fontFamily": "Inter_600SemiBold",
+                      "fontSize": 14,
+                      "letterSpacing": 2.52,
+                      "textTransform": "uppercase",
+                    },
+                    false,
+                  ]
+                }
+              >
+                Send me Monday’s question
+              </Text>
+            </View>
+          </View>
+        </View>
+      </View>
+    </View>
+    <View
+      accessibilityLabel="Not now"
+      accessibilityRole="button"
+      accessibilityState={
+        {
+          "busy": false,
+          "checked": undefined,
+          "disabled": false,
+          "expanded": undefined,
+          "selected": undefined,
+        }
+      }
+      accessibilityValue={
+        {
+          "max": undefined,
+          "min": undefined,
+          "now": undefined,
+          "text": undefined,
+        }
+      }
+      accessible={true}
+      collapsable={false}
+      focusable={true}
+      hitSlop={10}
+      onBlur={[Function]}
+      onClick={[Function]}
+      onFocus={[Function]}
+      onResponderGrant={[Function]}
+      onResponderMove={[Function]}
+      onResponderRelease={[Function]}
+      onResponderTerminate={[Function]}
+      onResponderTerminationRequest={[Function]}
+      onStartShouldSetResponder={[Function]}
+      style={
+        [
+          {
+            "alignItems": "center",
+            "justifyContent": "center",
+            "paddingHorizontal": 14,
+            "paddingVertical": 14,
+          },
+          false,
+          false,
+          undefined,
+        ]
+      }
+      testID="push-ask-no-question"
+    >
+      <Text
+        style={
+          {
+            "color": "#888888",
+            "fontFamily": "Inter_600SemiBold",
+            "fontSize": 14,
+            "letterSpacing": 2.52,
+            "textTransform": "uppercase",
+          }
+        }
+      >
+        Not now
+      </Text>
+    </View>
+    <Text
+      style={
+        {
+          "color": "#888888",
+          "fontFamily": "Inter_400Regular",
+          "fontSize": 12,
+          "lineHeight": 18,
+          "marginTop": 4,
+        }
+      }
+    >
+      Only two things: when someone feels your words, and Monday’s question. Never your words themselves. Quiet from 10pm to 8am.
+    </Text>
+  </View>
+</View>
+`;

@@ -8,6 +8,7 @@
  * liability. Instead: a clear disclaimer, a reminder to call local
  * emergency services, and one maintained global directory.
  */
+import { markCrisisOrBlock } from '@/lib/pushAsk';
 import { analytics } from '@/lib/analytics';
 import { GhostButton } from '@/components/Buttons';
 import { useThemeColors } from '@/theme/ThemeProvider';
@@ -17,6 +18,15 @@ import { useEffect, useMemo } from 'react';
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function CrisisScreen() {
+  /**
+   * [N1] Nothing may follow crisis with a request for anything.
+   *
+   * Flagged for the whole session, not just this screen: somebody who saw
+   * crisis resources five minutes ago is not somebody to ask a favour of
+   * on the next screen either.
+   */
+  useEffect(() => { markCrisisOrBlock(); }, []);
+
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
 

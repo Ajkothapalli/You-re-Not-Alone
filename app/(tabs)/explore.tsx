@@ -53,6 +53,9 @@ import { getRecommendations, isAuthError, logReadEvent, reportConfession, type R
 import { takePrimedFeed } from '@/lib/feedPrefetch';
 import { stopAllPlayback } from '@/lib/audioPlayback';
 import { getDailyLimit, recordRead, DAILY_ALLOWANCE, PER_WRITE } from '@/lib/readAllowance';
+import FeedClock from '@/components/FeedClock';
+import PushAskCard from '@/components/PushAskCard';
+import { usePushAsk } from '@/hooks/usePushAsk';
 import { usePremium } from '@/lib/premiumContext';
 import { setConfessionHandoff } from '@/lib/confessionHandoff';
 import { shareConfessionCard } from '@/lib/shareCard';
@@ -61,9 +64,10 @@ import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, fontFamily, radius, spacing } from '@/theme/tokens';
 import { Icon } from '@/components/Icon';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform,
   ActivityIndicator,
+  ScrollView,
   AppState,
   FlatList,
   Pressable,
@@ -71,7 +75,10 @@ import { Platform,
   Text,
   View,
   type ViewStyle,
+  type LayoutChangeEvent,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { showDialog } from '@/components/AppDialog';
 import { showToast } from '@/components/Toast';
 
@@ -80,11 +87,177 @@ const DWELL_THRESHOLD_MS = 5_000;
 // Show the write + support cards after every Nth confession.
 const INTERSTITIAL_EVERY = 10;
 
+/**
+ * How stale the feed may get before returning to the tab quietly refreshes it.
+ *
+ * Long on purpose. Short enough that a reader coming back after a break is
+ * not reading yesterday's batch; long enough that flicking between tabs costs
+ * nothing. Anything that made this feel continuous would have crossed the
+ * line invariant 2 draws around automatic refilling.
+ */
+const QUIET_REFRESH_MS = 10 * 60 * 1000;
+
+
+/** Height of the floating tab bar plus its gap — see WriteFAB's styles. */
+const TAB_BAR_CLEARANCE = 74;
+
+/**
+ * [S1] The end of the feed — one component, both layouts.
+ *
+ * It was the list's ListFooterComponent and nothing else. The stack needs
+ * the same thing as its last PAGE, and the brief was explicit that it uses
+ * "exactly today's footer logic" — so rather than write it twice and let the
+ * two drift, it is one component rendered in two places.
+ *
+ * That matters more than it sounds. This is where the daily cap is
+ * explained, where the write-to-unlock-more offer lives, and where "Keep
+ * reading" sits as an explicit TAP. Two copies of that would eventually
+ * disagree about what a reader is being told about their own allowance.
+ *
+ * (The number in that offer is PER_WRITE, never a literal — including in
+ * comments. An earlier draft of this note spelled it out and tripped the
+ * guard in __tests__/copy/matchingLanguage.test.ts, which scans raw source
+ * on purpose: a stale number is just as wrong in a comment someone copies
+ * from as in the string itself.)
+ */
+export interface FeedEndProps {
+  styles:         ReturnType<typeof createStyles>;
+  filterQuestion: string | null;
+  dailyLimit:     number | null;
+  total:          number;
+  exhausted:      boolean;
+  loadingMore:    boolean;
+  onLoadMore:     () => void;
+}
+
+function FeedEnd({
+  styles, filterQuestion, dailyLimit, total, exhausted, loadingMore, onLoadMore,
+}: FeedEndProps) {
+  return (
+    <View testID="feed-end">
+    <View style={styles.footer}>
+      <Text style={styles.endHeading} accessibilityRole="header">
+        {filterQuestion !== null
+          ? 'That’s every answer so far.'
+          : dailyLimit !== null && total > dailyLimit
+            ? "That's your " + DAILY_ALLOWANCE + " for today"
+            : exhausted ? "That's everything for now" : "You're all caught up"}
+      </Text>
+      {filterQuestion !== null && (
+        <GhostButton
+          label="Add yours"
+          onPress={() => {
+            analytics.questionAnswerTapped();
+            router.navigate({ pathname: '/write', params: { questionId: filterQuestion } });
+          }}
+        />
+      )}
+      <Text style={styles.endBody}>
+        {filterQuestion !== null
+          ? 'Answers appear here as people write them.'
+          : dailyLimit !== null && total > dailyLimit
+          ? 'Write one of your own to unlock ' + PER_WRITE + ' more right now, or come back tomorrow for another ' + DAILY_ALLOWANCE + '.'
+          : exhausted
+            ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
+            : 'Come back later. New confessions appear in your categories as people write them.'}
+      </Text>
+
+      {/* Deliberately quiet — loading more is a small continuation, not
+          the thing we're asking of anyone here. Available to everyone
+          now: the feed is however much we have for your categories, and
+          more is not a reward for writing. */}
+      {!exhausted && dailyLimit === null && (
+        <Pressable
+          onPress={onLoadMore}
+          disabled={loadingMore}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Load more confessions"
+          style={{ alignSelf: 'flex-start' }}
+        >
+          <Text style={styles.loadMoreLink}>
+            {loadingMore ? 'Loading…' : 'Keep reading'}
+          </Text>
+        </Pressable>
+      )}
+
+      {/* The write invite is a PROMPT, never a gate — that part has not
+          changed. What did change (owner decision 2026-09-27): it appears
+          from DAY ONE, not after a 30-day intro window.
+
+          The comment that used to sit here described the 30-day window as
+          though the code implemented it. It never did — nothing has ever
+          called isWithinIntroWindow(), and this card has shown to every
+          reader since it was written. The decision now matches the
+          behaviour, deliberately: writing is the top priority, because
+          every reader who writes adds to the pool every other reader
+          reads, and a month of silence costs the pool more than an early
+          ask costs the reader. markInstall() still runs — the install
+          date is not recoverable once lost.
+
+          Both cards stack here, and only here: the reading has stopped,
+          so neither is interrupting the other. Mid-feed they alternate. */}
+      <View style={styles.footerCards}>
+        <InviteImpression kind="footer" />
+        <WriteInviteCard
+          onPress={() => {
+            analytics.writeInviteTapped('footer');
+            router.navigate('/write');
+          }}
+        />
+        <PremiumCard onPress={() => router.push('/plans')} />
+      </View>
+
+      {/* Quieter than everything above it on purpose: this is upkeep, not
+          an ask. As a bordered button it read as a third call to action
+          and competed with the two cards. */}
+      <Pressable
+        onPress={() => router.push('/categories?mode=edit')}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Update categories"
+        style={styles.subtleAction}
+      >
+        <Text style={styles.subtleActionLabel}>Update categories</Text>
+      </Pressable>
+    </View>
+    </View>
+  );
+}
+
+/**
+ * The feed's title bar.
+ *
+ * Module level, and it has to stay there. Declared INSIDE ExploreScreen it
+ * was a brand-new component TYPE on every render, so React could not match it
+ * to the previous tree: it unmounted the old header and mounted a fresh one
+ * every time anything in the feed changed — a felt tap, a scroll that fired
+ * an impression, the question resolving. Same pixels, whole subtree rebuilt.
+ *
+ * No back button: this is a tab destination, not a pushed screen. Drilling
+ * into a card is what pushes.
+ */
+const FeedHeader = React.memo(function FeedHeader({
+  styles, trailing,
+}: {
+  styles:    ReturnType<typeof createStyles>;
+  trailing?: React.ReactNode;
+}) {
+  return (
+    <View style={styles.topBar}>
+      <Text style={styles.screenTitle} accessibilityRole="header">Read</Text>
+      {trailing}
+    </View>
+  );
+});
+
 export default function ExploreScreen() {
   const color  = useThemeColors();
   const styles = useMemo(() => createStyles(color), [color]);
 
   const [confessions,     setConfessions]     = useState<Recommendation[]>([]);
+  /** When the feed last came back from the server. 0 = never. */
+  const lastFetchedAt = useRef(0);
 
   /**
    * id → position, rebuilt only when the feed changes.
@@ -124,14 +297,45 @@ export default function ExploreScreen() {
   const [sharingQuestion, setSharingQuestion] = useState(false);
   const nudgeShown = useRef(false);  // show at most once per session
 
-  // Rotate icons each time the user navigates back to this screen
+  /**
+   * Icons are picked ONCE per session, not per visit.
+   *
+   * This used to re-randomise on every focus. That changed a prop on every
+   * card in the feed, so returning to Read re-rendered the whole list and
+   * every card re-picked its icon — visible as the feed flickering into a
+   * different set of drawings each time the reader came back, and, with the
+   * tab now staying mounted, a full re-render for a tab switch that should
+   * have cost nothing. Variety between sessions was the point; variety
+   * between tab switches was never asked for and reads as instability.
+   */
   useFocusEffect(useCallback(() => {
-    setIconSession(Math.floor(Math.random() * 102));
+    /**
+     * A quiet refresh, at most once every QUIET_REFRESH_MS.
+     *
+     * The tabs stay mounted now, so a reader can leave Read open for an hour,
+     * come back, and be looking at an hour-old batch with no way to know it.
+     * This is NOT a refresh gesture and NOT a load-on-scroll: it replaces the
+     * batch in place, it is invisible when nothing has changed, and it never
+     * makes the feed longer. "Keep reading" is still the one explicit tap
+     * that grows it (CLAUDE.md #2).
+     *
+     * background: true is what keeps it quiet — no spinner, no error state,
+     * and a failure leaves whatever is on screen exactly where it is.
+     */
+    if (filterQuestion === null
+        && lastFetchedAt.current > 0
+        && Date.now() - lastFetchedAt.current > QUIET_REFRESH_MS) {
+      fetchRecommendations({ background: true });
+    }
+
     // Leaving the feed stops any voice mid-sentence. A recording that keeps
     // playing after the reader has navigated away is playing to nobody, out
     // loud, wherever they happen to be.
     return () => stopAllPlayback();
-  }, []));
+    // filterQuestion only: re-subscribing on every feed change would run this
+    // on each felt tap, and the age check is what decides anything anyway.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterQuestion]));
 
   // Backgrounding does the same. Nothing of this app should be audible once it
   // is not on screen.
@@ -192,18 +396,60 @@ export default function ExploreScreen() {
     handleFelt(confessions[i]);
   }, [indexById, confessions]);
 
-  const onCardPress = useCallback((id: string) => {
+  /**
+   * The pinned question card's four actions.
+   *
+   * Memoized because the card is mounted for the whole session now. Inline
+   * arrows would hand it four new props on every render of this screen —
+   * every impression, every felt, every scroll that moves the allowance —
+   * and re-render a card whose content changes once a week.
+   */
+  const onAnswerQuestion = useCallback(() => {
+    if (!question) return;
+    setQuestionEngaged(true);
+    router.navigate({ pathname: '/write', params: { questionId: question.id } });
+  }, [question]);
+
+  const onReadAnswers = useCallback(() => {
+    if (question) setFilterQuestion(question.id);
+    // Engaged: they went looking at what other people said.
+    setQuestionEngaged(true);
+  }, [question]);
+
+  const onShareQuestion  = useCallback(() => setSharingQuestion(true), []);
+  const onDismissQuestion = useCallback(() => setQuestionHidden(true), []);
+
+
+  /**
+   * What the floating tab bar covers.
+   *
+   * The bar sits at insets.bottom + 12 and is ~62 tall (components/
+   * WriteFAB.tsx), and in the stack it floats OVER a full-screen card rather
+   * than below a list. Without this the category chip and the action rail
+   * sit underneath it — visible, and unpressable.
+   */
+  const insets = useSafeAreaInsets();
+  const bottomInset = insets.bottom + TAB_BAR_CLEARANCE;
+
+  /**
+   * Open read-detail. Counts nothing.
+   *
+   * Split out from onCardPress for the stack: there, the allowance is spent
+   * by DWELLING on a card, so opening one that has already been counted must
+   * not spend a second read. The list keeps counting on open, which is still
+   * right for a layout where scrolling past is not reading.
+   */
+  const openDetail = useCallback((id: string) => {
     const i = indexById.get(id);
     if (i === undefined) return;
     const item = confessions[i];
 
-    // Opening one is what counts against the day, not scrolling past.
-    void recordRead();
     // Params lose newlines in transit — hand the confession over in memory
     // and let params serve only as a deep-link fallback.
     setConfessionHandoff({
       id:              item.id,
       text:            item.text,
+      headline:        item.headline,
       feltCount:       item.feltCount,
       paletteIndex:    i % palettes.length,
       audioDurationMs: item.audioDurationMs,
@@ -220,7 +466,69 @@ export default function ExploreScreen() {
     });
   }, [indexById, confessions]);
 
+  /** The LIST's card tap: opening one is what counts against the day there. */
+  const onCardPress = useCallback((id: string) => {
+    void recordRead();
+    openDetail(id);
+  }, [openDetail]);
+
+  /**
+   * Share, from any card.
+   *
+   * Opens the same composer the nudge does — the reader chooses how the
+   * quotation looks before anything leaves the app. Stable per the note on
+   * ReadCard's props: an inline arrow here would change every card's props
+   * on every render and silently defeat its memo.
+   */
+  const onCardShare = useCallback((id: string) => {
+    const i = indexById.get(id);
+    if (i === undefined) return;
+    setShareTarget(confessions[i]);
+    setShowShareNudge(false);
+    setComposerOpen(true);
+  }, [indexById, confessions]);
+
+
   const keyExtractor = useCallback((item: Recommendation) => item.id, []);
+
+  /**
+   * Settle the allowance once the premium answer actually arrives.
+   *
+   * The fetch below reads `premiumReady ? isPremium : true` — it fails OPEN
+   * so a billing hiccup is never the reason somebody is told they have run
+   * out. That default is right for a moment and wrong for a session: the
+   * provider starts `ready: false`, the feed loads before it settles, and
+   * `getDailyLimit` returns null. Null is UNLIMITED, and nothing ever asked
+   * again — so every free reader got an uncapped feed for the whole
+   * session, which is what "the feed is unlimited now" was.
+   *
+   * Still fails open: until `ready` flips, the limit stays whatever the
+   * fetch decided. This only replaces a guess with the truth.
+   */
+  useEffect(() => {
+    if (!premiumReady) return;
+    let alive = true;
+    void getDailyLimit({ isPremium })
+      .then((n) => { if (alive) setDailyLimit(n); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [premiumReady, isPremium]);
+
+  /**
+   * What is actually rendered, sliced to today's allowance.
+   *
+   * Memoized because .slice() returns a NEW array every call, and FlatList
+   * compares `data` by identity: an unmemoized slice told it the entire feed
+   * had changed on every single render, which is the one thing that makes
+   * every windowing option above useless.
+   *
+   * The confessions beyond the limit are not fetched-and-hidden — they are
+   * simply not rendered, and tomorrow's reset brings them back without
+   * another round trip.
+   */
+  const visible = useMemo(
+    () => (dailyLimit === null ? confessions : confessions.slice(0, dailyLimit)),
+    [confessions, dailyLimit]);
 
   async function fetchRecommendations(opts: { background?: boolean } = {}) {
     const background = opts.background === true;
@@ -277,6 +585,7 @@ export default function ExploreScreen() {
       data.forEach(c => shownIdsRef.current.add(c.id));
       setConfessions(data);
       feedCache.save(data);
+      lastFetchedAt.current = Date.now();
     } catch (e) {
       if (!background && confessions.length === 0) {
         setLoadError(isAuthError(e) ? 'auth' : 'load');
@@ -311,7 +620,10 @@ export default function ExploreScreen() {
     return () => { alive = false; };
   }, []);
 
-  useEffect(() => { getCurrentQuestion().then(setQuestion).catch(() => {}); }, []);
+  // getCurrentQuestion is NOT called here. It is already one of the three
+  // parallel requests inside fetchRecommendations, which runs on mount — a
+  // second effect meant two identical round trips on every cold start, racing
+  // each other to set the same state.
 
   /**
    * Turning the filter on or off refetches. The question's answers are a
@@ -401,6 +713,24 @@ export default function ExploreScreen() {
   const [invite, setInvite]             = useState<TargetedInvite | null>(null);
   const [inviteAfterId, setInviteAfterId] = useState<string | null>(null);
 
+  /**
+   * [N1] Moment C — THE QUESTION.
+   *
+   * Offered after the reader has engaged with this week's question: they
+   * opened "Read answers" and came back, or they answered it. Not on
+   * merely SEEING the card — that is the weakest possible version of the
+   * ask, and spending the one dialog on it would burn the other two.
+   *
+   * otherAskOnScreen is passed because the question card carries its own
+   * buttons. One ask at a time, and the question's own actions come first.
+   */
+  const [questionEngaged, setQuestionEngaged] = useState(false);
+  const questionAsk = usePushAsk(
+    questionEngaged && !questionHidden ? 'question' : null,
+    { otherAskOnScreen: !!invite },
+  );
+
+
   function handleFelt(c: Recommendation) {
     logReadEvent(c.id, 'felt');
 
@@ -454,16 +784,150 @@ export default function ExploreScreen() {
     );
   }, []);
 
-  function FeedHeader({ trailing }: { trailing?: React.ReactNode }) {
-    // No back button: this is a tab destination (the Read tab lands here
-    // during D7), not a pushed screen. Drilling into a card is what pushes.
+  /**
+   * One row.
+   *
+   * useCallback, because FlatList treats a new renderItem identity as a
+   * reason to re-render every visible row — which defeated ReadCard's memo
+   * on every state change in this screen, including the ones that have
+   * nothing to do with the list (a share sheet opening, an impression
+   * firing). The deps are the props a row actually reads.
+   */
+  const renderItem = useCallback(({ item, index }: { item: Recommendation; index: number }) => (
+    // onPress makes ReadCard render as a truncated preview with a
+    // "read more" affordance and become tappable — the full text lives
+    // on read-detail, same as the onboarding read screen.
+    <View>
+      {/* Shown wherever an answer appears — inside the filter and in its
+          ordinary category — so a reader always knows what it answers. */}
+      {item.questionId && question && item.questionId === question.id && (
+        <Text style={styles.answeringLabel} numberOfLines={1}>
+          Answering: {question.text}
+        </Text>
+      )}
+      <ReadCard
+        text={item.text}
+        headline={item.headline}
+        feltCount={item.feltCount}
+        confessionId={item.id}
+        audioDurationMs={item.audioDurationMs}
+        audioWaveform={item.audioWaveform}
+        palette={palettes[index % palettes.length]}
+        personaSeed={item.id}
+        onReport={handleReport}
+        onFelt={onCardFelt}
+        onShare={onCardShare}
+        onPress={onCardPress}
+        iconSessionOffset={iconSession}
+      />
+    </View>
+  ), [question, styles, handleReport, onCardFelt, onCardShare, onCardPress, iconSession]);
+
+  /**
+   * What goes BETWEEN two cards.
+   *
+   * Memoized for the same reason as renderItem: an inline arrow here is a new
+   * component type on every render, so React threw away and rebuilt every
+   * separator — including the interstitial cards, which then re-ran their own
+   * impression effects.
+   */
+  // ── [S1] The page model ────────────────────────────────────────────────────
+  /**
+   * The question, at the top of the feed and scrolling with it.
+   *
+   * Memoised because ListHeaderComponent is re-evaluated on every list
+   * render — a felt tap, an impression firing, a scroll — and QuestionCard
+   * is not cheap. Passing an element (not a component type) keeps React
+   * from unmounting and remounting it each time, which would restart its
+   * entrance animation while somebody was reading it.
+   */
+  const questionHeader = useMemo(() => {
+    if (!question || filterQuestion !== null || questionHidden) return null;
     return (
-      <View style={styles.topBar}>
-        <Text style={styles.screenTitle} accessibilityRole="header">Read</Text>
-        {trailing}
+      <View style={styles.questionHeader}>
+        {/* Never rendered beside the premium card — the 2026-09-27 decision
+            applies to every write invite, this one included. */}
+        <QuestionCard
+          question={question}
+          featured
+          onAnswer={onAnswerQuestion}
+          onReadAnswers={onReadAnswers}
+          onShare={onShareQuestion}
+          onDismiss={onDismissQuestion}
+        />
+        {/* [N1] Moment C, inline under the question card. */}
+        {questionAsk.moment && (
+          <PushAskCard
+            moment={questionAsk.moment}
+            onAccept={questionAsk.onAccept}
+            onDecline={questionAsk.onDecline}
+            collapsed={questionAsk.collapsed}
+          />
+        )}
       </View>
     );
-  }
+  }, [question, filterQuestion, questionHidden, styles,
+      onAnswerQuestion, onReadAnswers, onShareQuestion, onDismissQuestion,
+      questionAsk.moment, questionAsk.collapsed,
+      questionAsk.onAccept, questionAsk.onDecline]);
+
+  const Separator = useCallback(({ leadingItem }: { leadingItem?: Recommendation }) => {
+    const i = leadingItem ? indexById.get(leadingItem.id) ?? -1 : -1;
+    if (i < 0) return null;
+
+    // The targeted invite outranks whatever would otherwise appear here:
+    // it is aimed at something the reader just felt three times, and it
+    // is the only ask that gets to interrupt at a moment of its own
+    // choosing rather than on a counter.
+    if (invite && leadingItem?.id === inviteAfterId) {
+      return (
+        <View style={styles.interstitial}>
+          <TargetedWriteInvite
+            invite={invite}
+            onAccept={(inv) => {
+              setInvite(null);
+              router.navigate({
+                pathname: '/write',
+                params:   { starter: inv.starter },
+              });
+            }}
+            onDismiss={() => {
+              dismissWriteInvite();
+              setInvite(null);
+            }}
+          />
+        </View>
+      );
+    }
+
+    const slot = interstitialAt(i, INTERSTITIAL_EVERY);
+    if (!slot) return null;
+
+    // Once the targeted invite has been shown or dismissed, the generic
+    // write ask is done for the session — a reader who just answered
+    // that question should not be asked it again in blander words. The
+    // premium slot is unaffected; it was never the thing being repeated.
+    if (slot === 'write') {
+      if (!genericInviteAllowed()) return null;
+      return (
+        <View style={styles.interstitial}>
+          <InviteImpression kind="interstitial" />
+          <WriteInviteCard
+            onPress={() => {
+              analytics.writeInviteTapped('interstitial');
+              router.navigate('/write');
+            }}
+          />
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.interstitial}>
+        <PremiumCard onPress={() => router.push('/plans')} />
+      </View>
+    );
+  }, [indexById, invite, inviteAfterId, styles]);
 
   // -- Loading ------------------------------------------------------------------
   // Only a genuine cold start reaches this: with a cached feed, loading was
@@ -471,7 +935,7 @@ export default function ExploreScreen() {
   if (loading) {
     return (
       <View style={styles.root}>
-        <FeedHeader />
+        <FeedHeader styles={styles} />
         <FeedSkeleton />
       </View>
     );
@@ -486,7 +950,7 @@ export default function ExploreScreen() {
     const isAuth = loadError === 'auth';
     return (
       <View style={styles.root}>
-        <FeedHeader />
+        <FeedHeader styles={styles} />
         <View style={styles.endContent}>
           <Text style={styles.endHeading} accessibilityRole="header">
             {isAuth ? 'You\'re signed out' : 'Couldn\'t load your feed'}
@@ -508,7 +972,7 @@ export default function ExploreScreen() {
   if (confessions.length === 0) {
     return (
       <View style={styles.root}>
-        <FeedHeader />
+        <FeedHeader styles={styles} />
         <View style={styles.endContent}>
           <Text style={styles.endHeading} accessibilityRole="header">Nothing here yet</Text>
           {/* Should be near-unreachable: the feed tops up from the curated pool
@@ -523,7 +987,7 @@ export default function ExploreScreen() {
             Add more reading categories — that will bring more in.
           </Text>
           <GhostButton label="Update categories" onPress={() => router.push('/categories?mode=edit')} />
-          <GhostButton label="Write your own" onPress={() => router.replace('/write')} />
+          <GhostButton label="Write your own" onPress={() => router.navigate('/write')} />
         </View>
       </View>
     );
@@ -562,267 +1026,133 @@ export default function ExploreScreen() {
       )}
 
       <FeedHeader
+        styles={styles}
         trailing={
-          // Count what is actually readable, not what was fetched. This read
-          // confessions.length — the unsliced array — so a capped reader was
-          // told "540 to read" above a feed showing 10.
-          <Text
-            style={styles.progress}
-            accessibilityLabel={
-              dailyLimit === null
-                ? `${confessions.length} confessions to read`
-                : `${Math.min(dailyLimit, confessions.length)} confessions left today`
-            }
-          >
-            {dailyLimit === null
-              ? `${confessions.length} to read`
-              : `${Math.min(dailyLimit, confessions.length)} today`}
-          </Text>
-        }
-      />
-
-      <FlatList
-        ListHeaderComponent={
-          <>
-            {/* The question card. Hidden for the session by "Not now", and
-                never rendered beside the premium card — the 2026-09-27
-                decision applies to every write invite, this one included. */}
-            {question && !questionHidden && filterQuestion === null && (
-              <QuestionCard
-                question={question}
-                onAnswer={() => router.push({
-                  pathname: '/write',
-                  params:   { questionId: question.id },
-                })}
-                onReadAnswers={() => setFilterQuestion(question.id)}
-                onShare={() => setSharingQuestion(true)}
-                onDismiss={() => setQuestionHidden(true)}
-              />
+          <View style={styles.headerRight}>
+            {/**
+              * The hour, in the colour of the hour. A clock, not a
+              * countdown — see lib/timeOfDay.ts.
+              *
+              * Capped readers only. A premium reader has no midnight
+              * reset, so for them the pill has nothing to be about: the
+              * right answer is no pill, not a pill with softer copy.
+              *
+              * dailyLimit is null until the premium answer settles, so
+              * this appears a moment after load rather than being there
+              * from the first frame. That direction is deliberate — a
+              * premium reader never sees it at all, which is the point.
+              */}
+            {dailyLimit !== null && (
+              <FeedClock onPremium={() => router.push('/plans')} />
             )}
-
-            {/* The filter chip. Present only while filtering, because turning
-                it ON is what the card is for and two entry points to the same
-                state is one too many. */}
-            {question && filterQuestion !== null && (
-              <Pressable
-                onPress={closeFilter}
-                style={styles.filterChip}
-                accessibilityRole="button"
-                accessibilityState={{ selected: true }}
-                accessibilityLabel={`Showing answers to this week's question. Tap to show the whole feed.`}
-                testID="question-filter-chip"
-              >
-                <Text style={styles.filterChipLabel}>This week’s question</Text>
-                <Icon name="close" size={13} />
-              </Pressable>
-            )}
-          </>
-        }
-        // Sliced to today's allowance. The confessions beyond it are not
-        // fetched-and-hidden — they are simply not rendered, and tomorrow's
-        // reset brings them back without another round trip.
-        data={dailyLimit === null ? confessions : confessions.slice(0, dailyLimit)}
-        keyExtractor={keyExtractor}
-        renderItem={({ item, index }) => (
-          // onPress makes ReadCard render as a truncated preview with a
-          // "read more" affordance and become tappable — the full text lives
-          // on read-detail, same as the onboarding read screen.
-          <View>
-            {/* Shown wherever an answer appears — inside the filter and in its
-                ordinary category — so a reader always knows what it answers. */}
-            {item.questionId && question && item.questionId === question.id && (
-              <Text style={styles.answeringLabel} numberOfLines={1}>
-                Answering: {question.text}
-              </Text>
-            )}
-          <ReadCard
-            text={item.text}
-            feltCount={item.feltCount}
-            confessionId={item.id}
-            audioDurationMs={item.audioDurationMs}
-            audioWaveform={item.audioWaveform}
-            palette={palettes[index % palettes.length]}
-            personaSeed={item.id}
-            onReport={handleReport}
-            onFelt={onCardFelt}
-            onPress={onCardPress}
-            iconSessionOffset={iconSession}
-          />
-          </View>
-        )}
-        // The asks repeat every INTERSTITIAL_EVERY cards rather than only at
-        // the very end (owner decision 2026-09-13). With the feed uncapped a
-        // reader can scroll a long way and never reach the footer, so the
-        // end-of-feed placement meant most readers never saw either card.
-        // Rendered as a separator so it sits BETWEEN cards and never replaces
-        // a confession — the reader loses nothing to it.
-        //
-        // The two asks are no longer shown TOGETHER (owner decision
-        // 2026-09-27). Side by side, "write one of your own" and "become a
-        // supporter" read as one transaction, and the invitation to write —
-        // the thing this app actually needs from a reader — became the warm-up
-        // act for an upsell. They now alternate: write, then premium, then
-        // write. Only the footer still stacks both, where the reading has
-        // stopped and nothing is being interrupted.
-        ItemSeparatorComponent={({ leadingItem }) => {
-          const i = leadingItem ? indexById.get(leadingItem.id) ?? -1 : -1;
-          if (i < 0) return null;
-
-          // The targeted invite outranks whatever would otherwise appear here:
-          // it is aimed at something the reader just felt three times, and it
-          // is the only ask that gets to interrupt at a moment of its own
-          // choosing rather than on a counter.
-          if (invite && leadingItem?.id === inviteAfterId) {
-            return (
-              <View style={styles.interstitial}>
-                <TargetedWriteInvite
-                  invite={invite}
-                  onAccept={(inv) => {
-                    setInvite(null);
-                    router.replace({
-                      pathname: '/write',
-                      params:   { starter: inv.starter },
-                    });
-                  }}
-                  onDismiss={() => {
-                    dismissWriteInvite();
-                    setInvite(null);
-                  }}
-                />
-              </View>
-            );
-          }
-
-          const slot = interstitialAt(i, INTERSTITIAL_EVERY);
-          if (!slot) return null;
-
-          // Once the targeted invite has been shown or dismissed, the generic
-          // write ask is done for the session — a reader who just answered
-          // that question should not be asked it again in blander words. The
-          // premium slot is unaffected; it was never the thing being repeated.
-          if (slot === 'write') {
-            if (!genericInviteAllowed()) return null;
-            return (
-              <View style={styles.interstitial}>
-                <InviteImpression kind="interstitial" />
-                <WriteInviteCard
-                  onPress={() => {
-                    analytics.writeInviteTapped('interstitial');
-                    router.replace('/write');
-                  }}
-                />
-              </View>
-            );
-          }
-
-          return (
-            <View style={styles.interstitial}>
-              <PremiumCard onPress={() => router.push('/plans')} />
-            </View>
-          );
-        }}
-        contentContainerStyle={styles.scroll}
-        showsVerticalScrollIndicator={false}
-        /* Windowing. The feed can carry 200 items while roughly four are on
-           screen; the defaults render far more than that up front and keep
-           them all mounted, which is what made the first paint and the scroll
-           expensive. removeClippedSubviews is Android-only on purpose — it is
-           known to clip incorrectly on iOS. */
-        initialNumToRender={4}
-        maxToRenderPerBatch={4}
-        windowSize={7}
-        removeClippedSubviews={Platform.OS === 'android'}
-        keyboardShouldPersistTaps="handled"
-        viewabilityConfigCallbackPairs={viewabilityPairs}
-        ListFooterComponent={
-          <View style={styles.footer}>
-            <Text style={styles.endHeading} accessibilityRole="header">
-              {filterQuestion !== null
-                ? 'That’s every answer so far.'
-                : dailyLimit !== null && confessions.length > dailyLimit
-                  ? "That's your " + DAILY_ALLOWANCE + " for today"
-                  : exhausted ? "That's everything for now" : "You're all caught up"}
-            </Text>
-            {filterQuestion !== null && (
-              <GhostButton
-                label="Add yours"
-                onPress={() => {
-                  analytics.questionAnswerTapped();
-                  router.push({ pathname: '/write', params: { questionId: filterQuestion } });
-                }}
-              />
-            )}
-            <Text style={styles.endBody}>
-              {filterQuestion !== null
-                ? 'Answers appear here as people write them.'
-                : dailyLimit !== null && confessions.length > dailyLimit
-                ? 'Write one of your own to unlock ' + PER_WRITE + ' more right now, or come back tomorrow for another ' + DAILY_ALLOWANCE + '.'
-                : exhausted
-                  ? 'You\'ve read every confession matching your categories. Add more categories to see others.'
-                  : 'Come back later. New confessions appear in your categories as people write them.'}
-            </Text>
-
-            {/* Deliberately quiet — loading more is a small continuation, not
-                the thing we're asking of anyone here. Available to everyone
-                now: the feed is however much we have for your categories, and
-                more is not a reward for writing. */}
-            {!exhausted && dailyLimit === null && (
-              <Pressable
-                onPress={loadMore}
-                disabled={loadingMore}
-                hitSlop={10}
-                accessibilityRole="button"
-                accessibilityLabel="Load more confessions"
-                style={{ alignSelf: 'flex-start' }}
-              >
-                <Text style={styles.loadMoreLink}>
-                  {loadingMore ? 'Loading…' : 'Keep reading'}
-                </Text>
-              </Pressable>
-            )}
-
-            {/* The write invite is a PROMPT, never a gate — that part has not
-                changed. What did change (owner decision 2026-09-27): it appears
-                from DAY ONE, not after a 30-day intro window.
-
-                The comment that used to sit here described the 30-day window as
-                though the code implemented it. It never did — nothing has ever
-                called isWithinIntroWindow(), and this card has shown to every
-                reader since it was written. The decision now matches the
-                behaviour, deliberately: writing is the top priority, because
-                every reader who writes adds to the pool every other reader
-                reads, and a month of silence costs the pool more than an early
-                ask costs the reader. markInstall() still runs — the install
-                date is not recoverable once lost.
-
-                Both cards stack here, and only here: the reading has stopped,
-                so neither is interrupting the other. Mid-feed they alternate. */}
-            <View style={styles.footerCards}>
-              <InviteImpression kind="footer" />
-              <WriteInviteCard
-                onPress={() => {
-                  analytics.writeInviteTapped('footer');
-                  router.replace('/write');
-                }}
-              />
-              <PremiumCard onPress={() => router.push('/plans')} />
-            </View>
-
-            {/* Quieter than everything above it on purpose: this is upkeep, not
-                an ask. As a bordered button it read as a third call to action
-                and competed with the two cards. */}
-            <Pressable
-              onPress={() => router.push('/categories?mode=edit')}
-              hitSlop={12}
-              accessibilityRole="button"
-              accessibilityLabel="Update categories"
-              style={styles.subtleAction}
+            {/* Count what is actually readable, not what was fetched. This
+                read confessions.length — the unsliced array — so a capped
+                reader was told "540 to read" above a feed showing 10. */}
+            <Text
+              style={styles.progress}
+              accessibilityLabel={
+                dailyLimit === null
+                  ? `${confessions.length} confessions to read`
+                  : `${Math.min(dailyLimit, confessions.length)} confessions left today`
+              }
             >
-              <Text style={styles.subtleActionLabel}>Update categories</Text>
-            </Pressable>
+              {dailyLimit === null
+                ? `${confessions.length} to read`
+                : `${Math.min(dailyLimit, confessions.length)} today`}
+            </Text>
+
           </View>
         }
       />
+
+      {/**
+        * The filter chip STAYS pinned, and it is the only thing here that does.
+        *
+        * While the filter is on this is the ONLY way back to the whole feed.
+        * Scrolled out of sight it left a reader stuck in a short list with no
+        * exit — so unlike the question card it is a sibling of the list, not
+        * a row in it.
+        */}
+      {question && filterQuestion !== null && (
+        <View style={styles.pinned}>
+          <Pressable
+            onPress={closeFilter}
+            style={styles.filterChip}
+            accessibilityRole="button"
+            accessibilityState={{ selected: true }}
+            accessibilityLabel={`Showing answers to this week's question. Tap to show the whole feed.`}
+            testID="question-filter-chip"
+          >
+            <Text style={styles.filterChipLabel}>This week’s question</Text>
+            <Icon name="close" size={13} />
+          </Pressable>
+        </View>
+      )}
+
+        <FlatList
+          data={visible}
+          /**
+           * The question SCROLLS AWAY with the feed.
+           *
+           * It was pinned above the list so a reader who had started reading
+           * could always see it. In practice that meant it never left: a card
+           * permanently occupying the top of the one reading surface, above
+           * every confession, every session. The feed is other people's
+           * writing, and the question was standing in front of it.
+           *
+           * As a list header it is the first thing seen and then it is
+           * passed, like everything else here. What replaces "always
+           * visible" is "hard to miss once" — see QuestionCard's `featured`
+           * treatment.
+           *
+           * Still a header rather than a row: it is not a confession, it
+           * must never be counted as one, and `visible` is the confession
+           * array that the allowance, the impressions and the separators
+           * all index into.
+           */
+          ListHeaderComponent={questionHeader}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          // The asks repeat every INTERSTITIAL_EVERY cards rather than only at
+          // the very end (owner decision 2026-09-13). With the feed uncapped a
+          // reader can scroll a long way and never reach the footer, so the
+          // end-of-feed placement meant most readers never saw either card.
+          // Rendered as a separator so it sits BETWEEN cards and never replaces
+          // a confession — the reader loses nothing to it.
+          //
+          // The two asks are no longer shown TOGETHER (owner decision
+          // 2026-09-27). Side by side, "write one of your own" and "become a
+          // supporter" read as one transaction, and the invitation to write —
+          // the thing this app actually needs from a reader — became the warm-up
+          // act for an upsell. They now alternate: write, then premium, then
+          // write. Only the footer still stacks both, where the reading has
+          // stopped and nothing is being interrupted.
+          ItemSeparatorComponent={Separator}
+          contentContainerStyle={styles.scroll}
+          showsVerticalScrollIndicator={false}
+          /* Windowing. The feed can carry 200 items while roughly four are on
+             screen; the defaults render far more than that up front and keep
+             them all mounted, which is what made the first paint and the scroll
+             expensive. removeClippedSubviews is Android-only on purpose — it is
+             known to clip incorrectly on iOS. */
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={7}
+          removeClippedSubviews={Platform.OS === 'android'}
+          keyboardShouldPersistTaps="handled"
+          viewabilityConfigCallbackPairs={viewabilityPairs}
+          ListFooterComponent={
+            <FeedEnd
+              styles={styles}
+              filterQuestion={filterQuestion}
+              dailyLimit={dailyLimit}
+              total={confessions.length}
+              exhausted={exhausted}
+              loadingMore={loadingMore}
+              onLoadMore={loadMore}
+            />
+          }
+        />
 
       {/* Share nudge floats above the feed so it isn't stranded at the bottom */}
       {showShareNudge && (
@@ -857,6 +1187,15 @@ function createStyles(color: ColorSet) {
       alignItems:      'center',
     },
     topBar: {
+      /**
+       * Above the list, which is a later sibling and would otherwise
+       * paint over anything hanging out of the header — the clock's
+       * tooltip is the first thing that does.
+       *
+       * zIndex, not elevation: elevation would put a material drop
+       * shadow under the entire header on Android.
+       */
+      zIndex:            2,
       flexDirection:     'row',
       justifyContent:    'space-between',
       alignItems:        'center',
@@ -887,6 +1226,20 @@ function createStyles(color: ColorSet) {
       gap:        12,
       paddingTop: 8,
     },
+    /**
+      * The pinned region above the feed.
+      *
+      * Horizontal padding matches the list's own (styles.scroll) so the card
+      * lines up with the confessions under it rather than looking like a
+      * different surface bolted on top.
+      */
+    pinned: {
+      paddingHorizontal: spacing.screenPadding,
+      paddingTop:        4,
+    },
+    /** The question, inside the list. The list supplies the side padding. */
+    questionHeader: { paddingBottom: 4 },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     filterChip: {
       alignSelf:         'flex-start',
       flexDirection:     'row',

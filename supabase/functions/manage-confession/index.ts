@@ -6,12 +6,20 @@
  * (account_id IS NULL) fall back to HMAC author_token comparison.
  *
  * Actions:
- *   retire — removes confession from the match/explore pool immediately
- *            (status → 'retired'). Row is kept for DB integrity.
- *            Intended to precede an edit: client retires the old row,
- *            then submits the new text through the full pipeline.
+ *   retire         — removes confession from the match/explore pool immediately
+ *                    (status → 'retired'). Row is kept for DB integrity.
+ *                    Intended to precede an edit: client retires the old row,
+ *                    then submits the new text through the full pipeline.
+ *   remove_headline — [H1] clears confessions.headline. The headline is a
+ *                    quote from the writer, chosen by a model; removing it is
+ *                    the writer's veto over which of their own words get set
+ *                    in bold above the rest. Under the SAME sealing rule as
+ *                    an edit (real_felt_count = 0): once a real person has
+ *                    felt a confession, what they felt stops changing.
  *
- * Rate limit: 10 retire actions / account / day.
+ * Rate limits: 10 retire / account / day; 30 remove_headline / account / day.
+ * Separate counters — a writer tidying several headlines must not use up the
+ * retires that take a confession out of the pool.
  *
  * Security:
  *   - Ownership verified server-side before any mutation.
@@ -81,26 +89,47 @@ serve(async (req: Request) => {
   const confessionId = body.confessionId?.trim() ?? '';
   const action       = body.action?.trim() ?? '';
 
-  if (!confessionId)         return json({ error: 'confessionId is required.' }, 400);
-  if (action !== 'retire')   return json({ error: "Invalid action. Supported: retire" }, 400);
+  const ACTIONS = ['retire', 'remove_headline'] as const;
+  type Action = typeof ACTIONS[number];
 
-  // ── Rate limit: 10 retire actions / account / day ─────────────────────────────
+  if (!confessionId) return json({ error: 'confessionId is required.' }, 400);
+  if (!ACTIONS.includes(action as Action)) {
+    return json({ error: `Invalid action. Supported: ${ACTIONS.join(', ')}` }, 400);
+  }
+
+  // ── Rate limit, counted per action ────────────────────────────────────────────
+  // Separate keys on purpose: removing headlines and retiring confessions are
+  // different acts with very different consequences, and sharing one counter
+  // would let a writer tidying headlines run out of the ability to take a
+  // confession out of the pool.
+  const LIMITS: Record<Action, { max: number; message: string }> = {
+    retire: {
+      max: 10,
+      message: 'Daily limit reached. You can retire up to 10 confessions per day.',
+    },
+    remove_headline: {
+      max: 30,
+      message: 'Daily limit reached. You can remove up to 30 headlines per day.',
+    },
+  };
+  const limit = LIMITS[action as Action];
+
   try {
     const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { count } = await supabase
       .from('api_call_log')
       .select('id', { count: 'exact', head: true })
       .eq('account_id', user.id)
-      .eq('fn', 'manage-confession:retire')
+      .eq('fn', `manage-confession:${action}`)
       .gte('called_at', dayAgo);
 
-    if ((count ?? 0) >= 10) {
-      return json({ error: 'Daily limit reached. You can retire up to 10 confessions per day.' }, 429);
+    if ((count ?? 0) >= limit.max) {
+      return json({ error: limit.message }, 429);
     }
 
     supabase.from('api_call_log').insert({
       account_id: user.id,
-      fn:         'manage-confession:retire',
+      fn:         `manage-confession:${action}`,
       called_at:  new Date().toISOString(),
     }).catch(() => {});
   } catch {
@@ -110,7 +139,9 @@ serve(async (req: Request) => {
   // ── Fetch confession ──────────────────────────────────────────────────────────
   const { data: confession, error: fetchErr } = await supabase
     .from('confessions')
-    .select('id, status, account_id, author_token')
+    // real_felt_count is read ONLY to compute the sealing rule and is never
+    // returned — same discipline as account_id (CLAUDE.md invariant 3).
+    .select('id, status, account_id, author_token, real_felt_count')
     .eq('id', confessionId)
     .maybeSingle();
 
@@ -121,11 +152,12 @@ serve(async (req: Request) => {
 
   if (!confession) return json({ error: 'Confession not found.' }, 404);
 
-  if (confession.status === 'retired') {
-    return json({ ok: true, already: true });
-  }
-
   // ── Ownership check ───────────────────────────────────────────────────────────
+  //
+  // Moved ABOVE the already-retired short-circuit, which used to sit here and
+  // answered `{ ok: true, already: true }` to anybody who asked about a
+  // retired id — the oracle this file's own header says it avoids. Ownership
+  // is now the first thing decided, for every action.
   let isOwner = false;
 
   if (confession.account_id === user.id) {
@@ -137,7 +169,55 @@ serve(async (req: Request) => {
 
   if (!isOwner) return json({ error: 'Forbidden.' }, 403);
 
+  // ── [H1] Remove headline ──────────────────────────────────────────────────────
+  //
+  // The writer's veto over which of their own words appear in bold above the
+  // rest. Idempotent: clearing an already-null headline is a success, because
+  // from the writer's side the outcome they asked for is the outcome they got.
+  if (action === 'remove_headline') {
+    /**
+     * The sealing rule, and why it is the same one as editing.
+     *
+     * A headline is part of what a reader read. Once a real person has felt a
+     * confession, the thing they felt stops changing — that is what
+     * real_felt_count = 0 guards for edits, and a headline is no different:
+     * removing it after the fact would quietly rewrite what somebody already
+     * responded to.
+     *
+     * Enforced in the WHERE clause, not just in this check, so a felt landing
+     * between the two is a no-op rather than a race.
+     */
+    if ((confession.real_felt_count ?? 0) > 0) {
+      return json({ sealed: true }, 409);
+    }
+
+    const { data: cleared, error: clearErr } = await supabase
+      .from('confessions')
+      .update({ headline: null })
+      .eq('id', confessionId)
+      .eq('real_felt_count', 0)
+      .select('id')
+      .maybeSingle();
+
+    if (clearErr) {
+      console.error('[manage-confession] headline clear error:', clearErr.message);
+      return json({ error: 'Failed to remove headline.' }, 500);
+    }
+    // 0 rows = a real felt arrived between the check above and this write.
+    if (!cleared) return json({ sealed: true }, 409);
+
+    // The id only. Never the headline, never the text.
+    console.log('[manage-confession] headline removed confession_id:', confessionId);
+    return json({ ok: true });
+  }
+
   // ── Retire ────────────────────────────────────────────────────────────────────
+  // The already-retired short-circuit lives here now rather than above the
+  // ownership check, so it answers only the owner.
+  if (confession.status === 'retired') {
+    return json({ ok: true, already: true });
+  }
+
   // status → 'retired' removes it from confessions_public, match_confession,
   // and recommend_confessions immediately (all filter on status IN ('live','approved')).
   const { error: updateErr } = await supabase

@@ -24,6 +24,7 @@
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { checkSubstance } from '../_shared/substance.ts';
+import { pickHeadline } from '../_shared/headline.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
 import { verifyJwt } from '../_shared/auth.ts';
 
@@ -415,6 +416,23 @@ serve(async (req: Request) => {
     // ── [6] Categorize ───────────────────────────────────────────────────────
     const categories = await classifyCategories(rawText, modResult.adultSignal ?? false);
 
+    /**
+     * [6.5] Headline — regenerated, never carried over.
+     *
+     * An edit changes the words, and a headline is a quote from them. Left
+     * alone it would keep pointing at a phrase that may no longer be in the
+     * confession at all — an invented headline arrived at by omission rather
+     * than by a model, which is the exact thing this feature promises cannot
+     * happen. So it is recomputed from the new text every time, including
+     * when that yields NULL.
+     *
+     * After the crisis return above, same as submit-confession, so a crisis
+     * edit generates nothing.
+     */
+    const headlineResult = await pickHeadline(rawText, { apiKey: OPENAI_API_KEY })
+      .catch(() => ({ headline: null, source: 'none' as const }));
+    console.log(`[HEADLINE] edit source=${headlineResult.source}`);
+
     // ── [7] Atomic UPDATE with seal guard ────────────────────────────────────
     // The WHERE real_felt_count = 0 clause is the atomic seal guard.
     // If a real felt landed between step [2] and now, 0 rows are updated.
@@ -430,6 +448,9 @@ serve(async (req: Request) => {
         // Kept in step with the text it describes; a stale length would be
         // worse than none.
         char_count: rawText.length,
+        // Same reasoning, and it matters more here: a headline quoting words
+        // the writer has just deleted would be a fabrication.
+        headline:   headlineResult.headline,
       })
       .eq('id', confessionId)
       .or(ownerFilter)

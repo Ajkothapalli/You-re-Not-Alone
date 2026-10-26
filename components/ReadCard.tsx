@@ -1,7 +1,7 @@
-import * as Haptics from 'expo-haptics';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
-import { HeartIcon } from './HeartIcon';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import FeltButton from './FeltButton';
+import { Icon } from './Icon';
 import { getPersona, PersonaBadge } from './Persona';
 import VoicePlayButton from './VoicePlayButton';
 import Waveform from './Waveform';
@@ -9,13 +9,25 @@ import { ScrawlIcon, iconAtOffset } from './ScrawlIcon';
 import type { Palette } from '../theme/palettes';
 import { useTheme } from '../theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius } from '../theme/tokens';
-import { DURATION, EASING, HEARTBEAT, RISE } from '../theme/motion';
-import { announce, useReducedMotion } from '../lib/a11y';
+import { DURATION, EASING, RISE } from '../theme/motion';
+import { useReducedMotion } from '../lib/a11y';
 
 const SHADOW = 5;
 
 interface Props {
   text:               string;
+  /**
+   * [H1] A 2-8 word phrase the writer wrote, set in bold above the text.
+   *
+   * Always a literal substring of `text` — the server validates that on
+   * every write and cuts the stored value out of the text itself, so this
+   * component can render it as the writer's own words without checking.
+   *
+   * Absent on plenty of confessions (short ones never get one, and the
+   * writer can remove theirs), and a card without one must look exactly as
+   * it did before this feature existed.
+   */
+  headline?:          string;
   feltCount:          number;
   /** Set only for voice confessions. The transcript above always renders. */
   confessionId?:      string;
@@ -31,49 +43,19 @@ interface Props {
    * props every time and defeat the memo silently.
    */
   onReport:           (id: string) => void;
+  /**
+   * Opt-in: no handler, no control.
+   *
+   * app/read-detail.tsx does NOT pass one today, so the full-text screen —
+   * the most engaged a reader gets with a confession — has no way to share
+   * it. That is a gap, not a design: flagged rather than quietly widened.
+   */
+  onShare?:           (id: string) => void;
   onPress?:           (id: string) => void;
   onFelt?:            (id: string) => void;
   delay?:             number;
   personaSeed:        string;
   iconSessionOffset?: number;
-}
-
-// Single character that ticks vertically whenever `felt` flips.
-function TickChar({ char, isChanged, felt, reduceMotion, style }: {
-  char:         string;
-  isChanged:    boolean;
-  felt:         boolean;
-  reduceMotion: boolean;
-  style:        TextStyle;
-}) {
-  const hasMounted = useRef(false);
-  const y          = useRef(new Animated.Value(0)).current;
-  const opacity    = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!hasMounted.current) { hasMounted.current = true; return; }
-    if (!isChanged || reduceMotion) return;
-
-    const outY = felt ? -10 : 10;
-    const inY  = felt ?  10 : -10;
-
-    Animated.parallel([
-      Animated.timing(y,       { toValue: outY, duration: DURATION.press, easing: EASING.exit,     useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: 0,    duration: DURATION.press,                          useNativeDriver: true }),
-    ]).start(() => {
-      y.setValue(inY);
-      Animated.parallel([
-        Animated.timing(y,       { toValue: 0, duration: DURATION.quick, easing: EASING.standard, useNativeDriver: true }),
-        Animated.timing(opacity, { toValue: 1, duration: DURATION.quick,                          useNativeDriver: true }),
-      ]).start();
-    });
-  }, [felt]);
-
-  return (
-    <Animated.Text style={[style, { transform: [{ translateY: y }], opacity }]}>
-      {char}
-    </Animated.Text>
-  );
 }
 
 const MAX_LINES = 6;
@@ -87,18 +69,16 @@ const MAX_LINES = 6;
  * the callbacks below are stable per confession id in app/explore.tsx. If a
  * caller ever passes a freshly-created closure, this silently stops working.
  */
-function ReadCardInner({ text, feltCount, palette, onReport, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0, confessionId, audioDurationMs, audioWaveform }: Props) {
+function ReadCardInner({ text, headline, feltCount, palette, onReport, onShare, onPress, onFelt, delay = 0, personaSeed, iconSessionOffset = 0, confessionId, audioDurationMs, audioWaveform }: Props) {
   const { colors: color, isDark } = useTheme();
   const styles = useMemo(() => createStyles(color), [color]);
 
-  const [felt,        setFelt]        = useState(false);
   const [isTruncated, setIsTruncated] = useState(false);
   const persona = getPersona(personaSeed);
   const iconBR  = iconAtOffset(personaSeed, 0, iconSessionOffset);
   const iconTL  = iconAtOffset(personaSeed, 2, iconSessionOffset);
 
   const entranceAnim = useRef(new Animated.Value(0)).current;
-  const feltScale    = useRef(new Animated.Value(1)).current;
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -113,60 +93,7 @@ function ReadCardInner({ text, feltCount, palette, onReport, onPress, onFelt, de
     }).start();
   }, [text, reduceMotion]);
 
-  const translateY   = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [RISE.md, 0] });
-  const displayCount = feltCount + (felt ? 1 : 0);
-  // Heart icon keeps palette color; text uses paper in light (not yellow-on-white)
-  const heartColor  = felt ? palette.you : color.dim;
-  const labelColor  = felt ? (isDark ? palette.you : color.paper) : color.dim;
-
-  const oldStr  = feltCount.toLocaleString();
-  const newStr  = (feltCount + 1).toLocaleString();
-  const maxLen  = Math.max(oldStr.length, newStr.length);
-  const oldPad  = oldStr.padStart(maxLen, '\0');
-  const newPad  = newStr.padStart(maxLen, '\0');
-  const changed = newPad.split('').map((ch, i) => ch !== oldPad[i]);
-
-  function handleFelt() {
-    const next = !felt;
-    setFelt(next);
-    if (next) onFelt?.(confessionId ?? '');
-    announce(next
-      ? `Added. ${(feltCount + 1).toLocaleString()} people felt this too.`
-      : 'Removed.');
-
-    if (reduceMotion) {
-      if (next) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      else Haptics.selectionAsync().catch(() => {});
-      return;
-    }
-
-    if (next) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      Animated.sequence(
-        HEARTBEAT.map(([toValue, duration, easing]) =>
-          Animated.timing(feltScale, { toValue, duration, easing, useNativeDriver: true }),
-        ),
-      ).start();
-    } else {
-      Haptics.selectionAsync().catch(() => {});
-      Animated.sequence([
-        Animated.timing(feltScale, { toValue: 0.65, duration: DURATION.quick, easing: EASING.exit,     useNativeDriver: true }),
-        Animated.timing(feltScale, { toValue: 1.0,  duration: DURATION.base,  easing: EASING.standard, useNativeDriver: true }),
-      ]).start();
-    }
-  }
-
-  const charStyle: TextStyle = {
-    fontFamily:    fontFamily.sansBold,
-    fontSize:      font.labelSize,
-    letterSpacing: font.labelLetterSpacing,
-    textTransform: 'uppercase',
-    color:         labelColor,
-  };
-
-  const displayStr        = displayCount.toLocaleString();
-  const offset            = maxLen - displayStr.length;
-  const changedForDisplay = displayStr.split('').map((_, i) => changed[i + offset] ?? false);
+  const translateY = entranceAnim.interpolate({ inputRange: [0, 1], outputRange: [RISE.md, 0] });
 
   return (
     <Animated.View style={{ opacity: entranceAnim, transform: [{ translateY }] }}>
@@ -197,6 +124,23 @@ function ReadCardInner({ text, feltCount, palette, onReport, onPress, onFelt, de
               <View style={styles.personaRow}>
                 <PersonaBadge persona={persona} />
               </View>
+              {/* The writer's own words, quoted back. Two lines at most: a
+                  headline that wraps to three has stopped being a headline
+                  and started being the confession, which is directly below
+                  it anyway. */}
+              {headline ? (
+                <Text
+                  style={styles.headline}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                  /* Not a heading role. The card is one continuous quote from
+                     one person, and announcing a heading inside it would tell
+                     a screen-reader user there is structure here that a
+                     sighted reader can see and they cannot. */
+                >
+                  {headline}
+                </Text>
+              ) : null}
               <Text
                 style={styles.body}
                 numberOfLines={onPress ? MAX_LINES : undefined}
@@ -240,44 +184,51 @@ function ReadCardInner({ text, feltCount, palette, onReport, onPress, onFelt, de
             <View style={styles.spacer} />
 
             <View style={styles.footer}>
-              <Pressable
-                onPress={handleFelt}
-                hitSlop={12}
-                style={styles.feltRow}
-                accessibilityRole="button"
-                accessibilityState={{ selected: felt }}
-                accessibilityLabel={`${displayCount.toLocaleString()} people felt this too`}
-                accessibilityHint={felt ? 'Removes that you felt this too' : 'Adds that you felt this too'}
-              >
-                <Animated.View style={{ transform: [{ scale: feltScale }] }}>
-                  <HeartIcon filled={felt} size={18} />
-                </Animated.View>
+              <FeltButton
+                confessionId={confessionId ?? ''}
+                feltCount={feltCount}
+                palette={palette}
+                onFelt={onFelt}
+              />
 
-                <View style={styles.countRow}>
-                  {displayStr.split('').map((ch, i) => (
-                    <TickChar
-                      key={i}
-                      char={ch}
-                      isChanged={changedForDisplay[i]}
-                      felt={felt}
-                      reduceMotion={reduceMotion}
-                      style={charStyle}
-                    />
-                  ))}
-                </View>
+              <View style={styles.footerRight}>
+                {/**
+                 * Share, on every card.
+                 *
+                 * It was reachable only through a nudge that appears ONCE a
+                 * session, and only on a confession already past 50 felts —
+                 * so the overwhelming majority of confessions could not be
+                 * shared at all, and the ones that could were the ones that
+                 * least needed the help.
+                 *
+                 * Icon-only, and quieter than the heart: passing something
+                 * on is a real action but it is not the one this card is
+                 * asking for.
+                 */}
+                {onShare && (
+                  <Pressable
+                    onPress={() => onShare(confessionId ?? '')}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel="Share this confession"
+                    accessibilityHint="Opens the share card"
+                    testID={confessionId ? `share-${confessionId}` : undefined}
+                    style={({ pressed }) => pressed && styles.pressedAction}
+                  >
+                    <Icon name="share" size={18} />
+                  </Pressable>
+                )}
 
-                <Text style={[styles.feltSuffix, { color: labelColor }]}> felt this too</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => onReport(confessionId ?? '')}
-                hitSlop={12}
-                accessibilityRole="button"
-                accessibilityLabel="Report this confession"
-                accessibilityHint="Hides it and sends it for review"
-              >
-                <Text style={styles.reportLink}>report</Text>
-              </Pressable>
+                <Pressable
+                  onPress={() => onReport(confessionId ?? '')}
+                  hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="Report this confession"
+                  accessibilityHint="Hides it and sends it for review"
+                >
+                  <Text style={styles.reportLink}>report</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         </Pressable>
@@ -327,6 +278,13 @@ function createStyles(color: ColorSet) {
     personaRow: {
       marginBottom: 14,
     },
+    headline: {
+      fontFamily:   fontFamily.sansBold,
+      fontSize:     19,
+      lineHeight:   24,
+      color:        color.paper,
+      marginBottom: 8,
+    },
     body: {
       fontFamily: fontFamily.serif,
       fontSize:   font.confessionSize,
@@ -350,21 +308,8 @@ function createStyles(color: ColorSet) {
       alignItems:     'center',
       paddingTop:     16,
     },
-    feltRow: {
-      flexDirection: 'row',
-      alignItems:    'center',
-      gap:           4,
-    },
-    countRow: {
-      flexDirection: 'row',
-      overflow:      'hidden',
-    },
-    feltSuffix: {
-      fontFamily:    fontFamily.sansBold,
-      fontSize:      font.labelSize,
-      letterSpacing: font.labelLetterSpacing,
-      textTransform: 'uppercase',
-    },
+    footerRight:   { flexDirection: 'row', alignItems: 'center', gap: 14 },
+    pressedAction: { opacity: 0.6 },
     reportLink: {
       fontFamily:         fontFamily.sans,
       fontSize:           12,

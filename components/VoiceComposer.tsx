@@ -296,7 +296,10 @@ function createStyles(color: ColorSet) {
       color:      color.paper,
       fontVariant: ['tabular-nums'],
     },
-    timerWarn: { color: color.accent },
+    // accentText, not accent: at 1.16:1 on the light screen this warning
+    // was invisible at the one moment it matters — the seconds before a
+    // recording cuts off. Hue unchanged, just dark enough to see.
+    timerWarn: { color: color.accentText },
     remaining: { fontFamily: fontFamily.sans, fontSize: 13, color: color.dim },
 
     wave: { width: '100%', marginTop: 14 },

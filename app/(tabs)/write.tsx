@@ -30,9 +30,10 @@ import { useDraft } from '@/lib/draftContext';
 import { getDeviceHash } from '@/lib/deviceHash';
 import { useThemeColors } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -70,10 +71,19 @@ export default function WriteTabScreen() {
   const { prefillText, starter, questionId } =
     useLocalSearchParams<{ prefillText?: string; starter?: string; questionId?: string }>();
 
-  // Same draft state the keyboard writes to — see lib/dictation.ts. Kept in
-  // step with app/write.tsx, which is the same screen reached without the tab
-  // bar; a mic that appeared on only one of the two would be worse than none.
+  // Same draft state the keyboard writes to — see lib/dictation.ts.
   const dictation = useDictation({ value: draft, onChangeText: setDraft });
+
+  /**
+   * Put the keyboard away when this tab loses focus.
+   *
+   * This screen stays MOUNTED now (Phase NAV), so the text field keeps its
+   * focus when the writer switches away, and the keyboard stayed up over the
+   * feed — half the reading surface covered by a keyboard belonging to a
+   * screen that was no longer visible. Nothing here touches the draft: the
+   * words are still there, waiting, when they come back.
+   */
+  useFocusEffect(useCallback(() => () => { Keyboard.dismiss(); }, []));
 
   const { starters, visible: startersVisible } = useStarters(draft);
 
@@ -108,11 +118,28 @@ export default function WriteTabScreen() {
     setDraft('');
   }
 
+  /**
+   * Seed the draft from one-shot params.
+   *
+   * This used to run ONCE on mount, which was correct only because the Write
+   * screen was destroyed and rebuilt on every visit. Now that the tab stays
+   * mounted, a starter tapped in the feed arrives while this screen is
+   * already alive — and a mount-only effect would silently ignore it. So it
+   * re-runs when the params change.
+   *
+   * `!draft` is the load-bearing half and must stay: it is the difference
+   * between seeding an empty page and destroying a half-written confession
+   * because someone tapped a starter chip by accident. A non-empty draft is
+   * never overwritten, whatever arrives.
+   */
   useEffect(() => {
-    if (prefillText && !draft) setDraft(prefillText);
-    else if (starter && !draft) setDraft(starter);
+    if (draft) return;
+    if (prefillText)   setDraft(prefillText);
+    else if (starter)  setDraft(starter);
+  // `draft` is deliberately absent: including it would re-fire as the writer
+  // clears the field, re-seeding text they had just deleted.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [prefillText, starter]);
 
   /**
    * The nudge sits between the tap and the send, and never blocks.
@@ -170,7 +197,19 @@ export default function WriteTabScreen() {
         return;
       }
 
+      // The answer is recorded by QUESTION ID and nothing else — never the
+      // question's text, never the confession's. Deliberately after the crisis
+      // and blocked returns: a crisis submission is not an answer to anything,
+      // and nothing about it is ever counted.
+      if (attached && question) analytics.questionAnswerSubmitted(question.id);
+
       clearDraft();
+      // One-shot params, spent. Without this the tab stays mounted holding
+      // them, and the next visit re-seeds the confession that was just sent.
+      setAttached(false);
+      router.setParams({
+        prefillText: undefined, starter: undefined, questionId: undefined,
+      } as never);
       resetNudge();
 
       // Posted. Clear the recorder so coming back to this screen starts at the
@@ -182,7 +221,7 @@ export default function WriteTabScreen() {
       if (result.type === 'submitted') {
         analytics.confessionSubmitted(result.match?.id ?? '');
         void grantForWrite();
-        router.replace('/explore');
+        router.navigate('/explore');
         router.push({
           pathname: '/match',
           params: {
@@ -198,7 +237,7 @@ export default function WriteTabScreen() {
 
       analytics.confessionSubmitted(result.match!.id);
       void grantForWrite();
-        router.replace('/explore');
+        router.navigate('/explore');
       router.push({
         pathname: '/match',
         params: {
@@ -277,7 +316,23 @@ export default function WriteTabScreen() {
           ref={inputRef}
           value={draft}
           onChangeText={setDraft}
-          placeholder="Write it here, or say it out loud. It stays private."
+          /**
+           * The invitation to speak is only extended when speaking is
+           * possible.
+           *
+           * This read "or say it out loud" unconditionally. The mic and
+           * the voice-record entry are both correctly hidden when the
+           * recogniser is absent (Expo Go has no native speech module at
+           * all) — so on those builds the screen was inviting something
+           * it did not offer, which is what made a deliberate absence
+           * look like a broken feature.
+           *
+           * The shorter line is the one app/confession/[id].tsx already
+           * uses, so this is not new copy.
+           */
+          placeholder={dictation.available
+            ? 'Write it here, or say it out loud. It stays private.'
+            : 'Write it here. It stays private.'}
           autoFocus={false}
           style={styles.inputArea}
           accessory={

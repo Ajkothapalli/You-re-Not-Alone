@@ -2,7 +2,7 @@
  * The feed handoff is single-use and short-lived.
  *
  * It exists so the last beat of onboarding can start the feed's fetch a moment
- * before the feed mounts (app/welcome.tsx → app/explore.tsx). Everything here
+ * before the feed mounts (app/welcome.tsx → app/(tabs)/explore.tsx). Everything here
  * guards the same thing from different angles: a handoff that survived longer
  * than the navigation would be a cache, and a stale cache would eventually
  * hand someone a feed built for categories they no longer have.

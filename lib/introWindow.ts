@@ -35,6 +35,24 @@ export async function markInstall(): Promise<void> {
 }
 
 /**
+ * The install date, or null if it was never recorded.
+ *
+ * Exported so lib/pushAsk.ts can answer "is it the install day?" without
+ * writing a second install-date store — the brief was explicit about that,
+ * and two stores would eventually disagree about when somebody arrived.
+ */
+export async function getInstallDate(): Promise<number | null> {
+  try {
+    const raw = await AsyncStorage.getItem(KEY);
+    if (!raw) return null;
+    const started = Number(raw);
+    return Number.isFinite(started) ? started : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * True while the reader is still inside their first INTRO_WINDOW_DAYS.
  *
  * Fails OPEN (returns true) on a storage error: the cost of wrongly treating

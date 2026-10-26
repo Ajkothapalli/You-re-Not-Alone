@@ -31,6 +31,7 @@
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts';
 import { checkSubstance } from '../_shared/substance.ts';
+import { pickHeadline } from '../_shared/headline.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.117.2';
 import { verifyJwt } from '../_shared/auth.ts';
 
@@ -1292,6 +1293,30 @@ serve(async (req: Request) => {
     // not safety. The adult signal comes from step [2] moderation, never the LLM.
     const categories = await classifyCategories(rawText, modResult.adultSignal ?? false);
 
+    /**
+     * [4.7] HEADLINE — a 2-8 word pull-quote, copied VERBATIM from the text.
+     *
+     * Position is not arbitrary. It sits here, after the crisis hard-return
+     * at [3], which is what makes "crisis submissions generate no headline"
+     * a property of the code's SHAPE rather than a rule someone remembered:
+     * this line is unreachable from the crisis path.
+     *
+     * For a voice confession this reads rawText — the transcript as the
+     * writer edited it, which is what a reader sees — exactly as the
+     * substance check above does.
+     *
+     * Best effort, bounded at 1.5s, and wrapped anyway. A decoration that
+     * could fail a post would be a far worse bug than a missing headline,
+     * and pickHeadline already swallows everything internally; this catch is
+     * the belt to that braces.
+     *
+     * Nothing about the text or the headline is logged — only which of the
+     * three outcomes happened, which carries no content.
+     */
+    const headlineResult = await pickHeadline(rawText, { apiKey: OPENAI_API_KEY })
+      .catch(() => ({ headline: null, source: 'none' as const }));
+    console.log(`[HEADLINE] source=${headlineResult.source}`);
+
     // ── [5] STORE ──────────────────────────────────────────────────────────────
     const authorToken = await getAuthorToken(user.id);
 
@@ -1349,6 +1374,9 @@ serve(async (req: Request) => {
         // NULL unless it matched the live question. The stored text is only
         // what they wrote — the question is never prepended to it.
         question_id:            questionId,
+        // A substring of `text` above, cut out of it by the validator — never
+        // model-authored prose. NULL is always valid.
+        headline:               headlineResult.headline,
       })
       .select('id')
       .single();

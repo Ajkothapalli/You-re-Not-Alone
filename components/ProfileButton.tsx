@@ -32,7 +32,7 @@ export default function ProfileButton() {
 
   return (
     <Pressable
-      onPress={() => router.navigate('/(tabs)/you')}
+      onPress={() => router.dismissTo('/you')}
       onPressIn={() => {
         if (!reduceMotion)
           Animated.timing(press, { toValue: 1, duration: DURATION.press, useNativeDriver: true }).start();

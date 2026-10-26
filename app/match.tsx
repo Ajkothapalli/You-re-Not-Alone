@@ -22,6 +22,8 @@ import ConfessionCard from '@/components/ConfessionCard';
 import ShareFlow from '@/components/share/ShareFlow';
 import { PrimaryButton, GhostButton } from '@/components/Buttons';
 import { analytics } from '@/lib/analytics';
+import PushAskCard from '@/components/PushAskCard';
+import { usePushAsk } from '@/hooks/usePushAsk';
 import { logReadEvent } from '@/lib/api';
 import { PER_WRITE } from '@/lib/readAllowance';
 import { shareConfessionCard } from '@/lib/shareCard';
@@ -83,6 +85,16 @@ export default function MatchScreen() {
     router.back();
   }
 
+  /**
+   * [N1] Moment B — JUST POSTED.
+   *
+   * Reached only on a successful submission: crisis routes to /crisis and
+   * a moderation block to /blocked, and neither of them arrives here. So
+   * "never after crisis or a block" holds by the shape of the navigation,
+   * on top of the session flag pushAsk already checks.
+   */
+  const ask = usePushAsk('just_posted');
+
   // ── No match path ────────────────────────────────────────────────────────────
   if (isNoMatch) {
     return (
@@ -108,6 +120,16 @@ export default function MatchScreen() {
               <PrimaryButton label="Take me to feed" onPress={goToFeed} />
               <Text style={styles.unlockHint}>Writing just unlocked {PER_WRITE} more reads</Text>
             </View>
+
+            {/* Inline, under the match content — never over it. */}
+            {ask.moment && (
+              <PushAskCard
+                moment={ask.moment}
+                onAccept={ask.onAccept}
+                onDecline={ask.onDecline}
+                collapsed={ask.collapsed}
+              />
+            )}
           </ScrollView>
         )}
       </View>
@@ -163,6 +185,15 @@ export default function MatchScreen() {
             <Text style={styles.unlockHint}>Writing just unlocked {PER_WRITE} more reads</Text>
             <GhostButton label="Take me to feed" onPress={goToFeed} />
           </View>
+
+          {ask.moment && (
+            <PushAskCard
+              moment={ask.moment}
+              onAccept={ask.onAccept}
+              onDecline={ask.onDecline}
+              collapsed={ask.collapsed}
+            />
+          )}
         </ScrollView>
       )}
     </View>

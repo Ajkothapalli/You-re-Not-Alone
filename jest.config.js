@@ -25,6 +25,22 @@ module.exports = {
       'expo-font',
       'expo-status-bar',
       'expo-splash-screen',
+      // ── Added for the renderRouter suites (__tests__/nav) ─────────────────
+      // They load the REAL router instead of the mock in jest.setup.js.
+      'expo-router',
+      'expo-constants',      // expo-router reads the manifest through it
+      'standard-navigation', // expo-router's own dep, untranspiled ESM
+      // Reached through components/share/* when the feed screen is rendered.
+      'react-native-view-shot',
+      'expo-glass-effect',   // pulled in by expo-router's tab bar
+      //
+      // NOT 'expo-.*'. The blanket pattern was tried and reverted: it makes
+      // __tests__/lib/mp3Encode.test.ts take 990 SECONDS instead of 8, at 1%
+      // CPU — so something it newly transforms replaces setTimeout with
+      // something that resolves on the order of tens of seconds, and
+      // encodeMp3 yields to the event loop ~50 times. Nothing fails; the
+      // suite just stops finishing. Add packages one at a time and keep the
+      // timing of the full run in view.
       'react-native',
       '@react-native',
       '@react-navigation',

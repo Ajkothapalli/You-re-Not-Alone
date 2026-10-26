@@ -245,6 +245,7 @@ describe('Edit → Save: success path', () => {
     created_at: '2026-01-15T10:00:00Z',
     audio_duration_ms: null,
     audio_waveform: null,
+    headline: null,
   };
 
   beforeEach(() => {
@@ -455,6 +456,7 @@ describe('Security: client payloads never contain account_id or internal fields'
       created_at: '2026-01-01T00:00:00Z',
       audio_duration_ms: null,
       audio_waveform: null,
+    headline: null,
     };
     expect(own).not.toHaveProperty('account_id');
     expect(own).not.toHaveProperty('real_felt_count');
@@ -475,6 +477,7 @@ describe('Security: client payloads never contain account_id or internal fields'
         created_at: '2026-01-01T00:00:00Z',
         audio_duration_ms: null,
         audio_waveform: null,
+    headline: null,
       },
     };
     expect(result.confession).not.toHaveProperty('account_id');

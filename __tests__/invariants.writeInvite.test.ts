@@ -1,5 +1,5 @@
 /**
- * W1 invariants that live in app/explore.tsx.
+ * W1 invariants that live in app/(tabs)/explore.tsx.
  *
  * Source-level, because rendering the feed means standing up a FlatList, the
  * recommender, playback and the allowance — and the properties worth pinning
@@ -14,8 +14,10 @@ import * as path from 'path';
 const ROOT = path.join(__dirname, '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
-const explore = read('app/explore.tsx');
-const write   = read('app/write.tsx');
+const explore = read('app/(tabs)/explore.tsx');
+// One compose screen, one feed. Phase NAV deleted the root-stack duplicates of
+// both; if a second copy ever comes back, __tests__/invariants.nav.test.ts
+// fails before these do.
 const tabs    = read('app/(tabs)/write.tsx');
 const crisis  = read('app/crisis.tsx');
 
@@ -24,14 +26,35 @@ function stripComments(src: string): string {
 }
 const exploreCode = stripComments(explore);
 
+/**
+ * The body of the separator component, wherever it is declared.
+ *
+ * Slicing source by position is how three guards in this repo have quietly
+ * started asserting things about an empty string. This one fails loudly
+ * instead: if the declaration cannot be found, there is nothing to check and
+ * the caller should know.
+ */
+function separatorBody(code: string): string {
+  const start = code.indexOf('const Separator = useCallback(');
+  if (start < 0) throw new Error('separator declaration not found in explore.tsx');
+  const end = code.indexOf('\n  }, [', start);
+  if (end < 0) throw new Error('separator body has no closing dependency array');
+  return code.slice(start, end);
+}
+
 describe('the two asks are never rendered together', () => {
   it('has no block rendering WriteInviteCard and PremiumCard as siblings mid-feed', () => {
     // Checked on the separator REGION rather than by matching the old source
     // shape: any rewrite that reintroduces the pair should fail this, not just
     // a rewrite that happens to look the way the old one did.
-    const sep = exploreCode.slice(
-      exploreCode.indexOf('ItemSeparatorComponent'),
-      exploreCode.indexOf('contentContainerStyle'));
+    //
+    // Anchored on the DECLARATION, not on the JSX prop. It used to slice from
+    // `ItemSeparatorComponent` to `contentContainerStyle`, which silently
+    // became an empty region the moment the body was lifted into a
+    // useCallback and the prop became `ItemSeparatorComponent={Separator}` —
+    // an empty string passes almost every assertion below.
+    const sep = separatorBody(exploreCode);
+    expect(sep.length).toBeGreaterThan(400);
     expect(sep).toContain('WriteInviteCard');
     expect(sep).toContain('PremiumCard');
     // Each appears exactly once, on its own branch — never both in one return.
@@ -46,8 +69,7 @@ describe('the two asks are never rendered together', () => {
   it('defers the mid-feed placement to interstitialAt rather than inlining it', () => {
     expect(exploreCode).toContain('interstitialAt(i, INTERSTITIAL_EVERY)');
     // An inline modulo alongside it would mean two rules that can disagree.
-    const sep = exploreCode.slice(exploreCode.indexOf('ItemSeparatorComponent'));
-    expect(sep.slice(0, 1200)).not.toMatch(/%\s*INTERSTITIAL_EVERY/);
+    expect(separatorBody(exploreCode)).not.toMatch(/%\s*INTERSTITIAL_EVERY/);
   });
 
   it('still stacks both in the FOOTER, where nothing is being interrupted', () => {
@@ -113,8 +135,8 @@ describe('nothing reaches the crisis path', () => {
   });
 });
 
-describe('both write screens behave identically', () => {
-  it.each([['app/write.tsx', write], ['app/(tabs)/write.tsx', tabs]])(
+describe('the write screen', () => {
+  it.each([['app/(tabs)/write.tsx', tabs]])(
     '%s renders the chips and accepts a starter param', (_name, src) => {
       const code = stripComments(src);
       expect(code).toContain('<StarterChips');
@@ -125,7 +147,7 @@ describe('both write screens behave identically', () => {
       expect(code).toMatch(/\{!voiceMode && \(\s*<StarterChips/);
     });
 
-  it.each([['app/write.tsx', write], ['app/(tabs)/write.tsx', tabs]])(
+  it.each([['app/(tabs)/write.tsx', tabs]])(
     '%s does not gate submission on having used a starter', (_name, src) => {
       // Writing is never gated (CLAUDE.md #2). A submit path that consulted the
       // starter state would be exactly that.

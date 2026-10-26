@@ -10,7 +10,7 @@
  *
  * Observed on a device on 2026-09-17, as a full red screen on the write
  * screen: "Cannot find native module 'ExpoSpeechRecognition'", thrown from
- * dictation.ts and taking app/write.tsx down with it. A try/catch inside the
+ * dictation.ts and taking the write screen down with it. A try/catch inside the
  * hook cannot help — evaluation never reaches the hook. Dictation is an
  * addition to writing and must never be a precondition for it, so the module
  * resolves the native side through a guarded require instead.
@@ -37,7 +37,7 @@ jest.mock('@/components/AppDialog', () => ({ showDialog: jest.fn() }));
 jest.mock('@/lib/a11y', () => ({ useReducedMotion: () => true, announce: jest.fn() }));
 jest.mock('@/lib/analytics', () => ({ analytics: new Proxy({}, { get: () => jest.fn() }) }));
 
-import WriteScreen from '../../app/write';
+import WriteScreen from '../../app/(tabs)/write';
 import { DraftProvider } from '@/lib/draftContext';
 
 beforeEach(async () => {

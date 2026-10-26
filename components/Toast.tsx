@@ -30,10 +30,31 @@ const DEPTH   = 4;
 
 interface ToastSpec { id: number; message: string; type: ToastType }
 let nextId = 0;
-let emit: ((spec: ToastSpec) => void) | null = null;
+
+/**
+ * A STACK of hosts, not one.
+ *
+ * This was a single `emit` slot, which broke the moment a toast was raised
+ * from inside a Modal. A Modal is a separate native WINDOW drawn above the
+ * app, so the host mounted in the root layout renders behind it — the
+ * toast fired, animated, and was invisible. That is what "copy link does
+ * nothing" was: the link was on the clipboard and nothing said so.
+ *
+ * A second host inside the modal fixes it, but only if mounting one does
+ * not disable the other. With a single slot the modal's host overwrote the
+ * root's, and its cleanup then set the slot to null — so after closing the
+ * sheet once, toasts stopped appearing anywhere for the rest of the
+ * session.
+ *
+ * Last mounted wins, and unmounting restores the one beneath. The most
+ * recently mounted host is the one in the frontmost window, which is
+ * exactly where a toast should appear.
+ */
+type Emit = (spec: ToastSpec) => void;
+const hosts: Emit[] = [];
 
 export function showToast(message: string, type: ToastType = 'success'): void {
-  emit?.({ id: ++nextId, message, type });
+  hosts[hosts.length - 1]?.({ id: ++nextId, message, type });
 }
 
 export function ToastHost() {
@@ -49,7 +70,7 @@ export function ToastHost() {
   const timer      = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
-    emit = (s) => {
+    const fn: Emit = (s) => {
       if (timer.current) clearTimeout(timer.current);
       setSpec(s);
       setRendered(true);
@@ -61,7 +82,21 @@ export function ToastHost() {
       ]).start();
       timer.current = setTimeout(hide, SHOW_MS);
     };
-    return () => { emit = null; };
+    hosts.push(fn);
+    return () => {
+      const i = hosts.indexOf(fn);
+      if (i >= 0) hosts.splice(i, 1);
+      /**
+       * And cancel the dismissal.
+       *
+       * `hide` is scheduled SHOW_MS ahead. Without this, a host that goes
+       * away while a toast is up — close the share sheet right after
+       * copying, which is the normal thing to do — still runs its exit
+       * animation and setState three seconds later, against a component
+       * that is gone.
+       */
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, []);
 
   function hide() {

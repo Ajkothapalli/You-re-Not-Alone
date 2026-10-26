@@ -73,6 +73,8 @@ const mockSubmit = jest.fn().mockResolvedValue({ type: 'submitted', match: { id:
 jest.mock('@/lib/api', () => ({
   submitConfession:     (...a: unknown[]) => mockSubmit(...a),
   getReaderPreferences: jest.fn().mockResolvedValue({ categories: [] }),
+  // The real predicate — see the note in Question.test.tsx.
+  isNotGenuine: jest.requireActual('@/lib/api').isNotGenuine,
 }));
 
 jest.mock('@/lib/deviceHash', () => ({ getDeviceHash: jest.fn().mockResolvedValue('hash') }));
@@ -90,7 +92,7 @@ jest.mock('@/lib/analytics', () => ({
 jest.mock('@/lib/a11y', () => ({ useReducedMotion: () => true, announce: jest.fn() }));
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import WriteScreen from '../../app/write';
+import WriteScreen from '../../app/(tabs)/write';
 import { DraftProvider } from '@/lib/draftContext';
 import { joinSpoken, discardAudio } from '@/lib/dictation';
 
@@ -479,18 +481,16 @@ describe('no mic anywhere on the crisis path', () => {
   });
 });
 
-// ─── Both write screens ───────────────────────────────────────────────────────
+// ─── The write screen, at source level ───────────────────────────────────────
 
-describe('the tab write screen has dictation too', () => {
+describe('the write screen wires dictation to the draft', () => {
   /**
-   * There are two compose screens: app/write.tsx and app/(tabs)/write.tsx,
-   * near-duplicates of each other that predate this feature. Whichever one a
-   * reader lands on, the mic and the button label must be the same — a mic
-   * that appeared only when you arrived by one route would read as a bug.
-   *
-   * Source-level rather than a second render suite: the behaviour is proven
-   * above against the same hook and the same component, and what can actually
-   * drift between these two files is whether they still use them at all.
+   * This used to cover TWO near-duplicate compose screens (app/write.tsx and
+   * app/(tabs)/write.tsx) and assert the mic behaved the same on both.
+   * Phase NAV deleted the root-stack copy, so there is one screen and one
+   * answer. The guard is kept, narrowed: what it still catches is the wiring
+   * being changed to something the render tests above would accept but a
+   * reader would not — a mic bound to a different state than the field.
    */
   const tab = fs.readFileSync(
     path.join(__dirname, '..', '..', 'app', '(tabs)', 'write.tsx'), 'utf8',
@@ -531,5 +531,122 @@ describe('joinSpoken', () => {
   });
   it('never drops existing text for an empty transcript', () => {
     expect(joinSpoken('kept', '')).toBe('kept');
+  });
+});
+
+describe('why the mic is absent is answerable', () => {
+  /**
+   * Reported as "the dictation feature is missing". It was not — the
+   * device had no on-device recogniser, which this module deliberately
+   * requires and deliberately renders nothing for.
+   *
+   * Three different causes produce an identical empty space: no native
+   * module in the binary, no recogniser on the device, and a recogniser
+   * that is network-only. Telling them apart took a source read, an
+   * autolinking check and an APK inspection, so the reason is now
+   * logged — in development only, because a reader should still just see
+   * a screen without a mic.
+   */
+  it('says which of the three it is', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mockSupportsOnDevice.mockReturnValue(false);
+      await renderWrite();
+      const said = warn.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(said).toMatch(/\[dictation\] mic hidden/);
+      expect(said).toMatch(/on-device/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('distinguishes no-recogniser from network-only', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mockAvailable.mockReturnValue(false);
+      await renderWrite();
+      const said = warn.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(said).toMatch(/no speech recogniser/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('stays quiet when the mic is there', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { getByTestId } = await renderWrite();
+      expect(getByTestId('mic-button')).toBeTruthy();
+      const said = warn.mock.calls.map((c) => String(c[0])).join('\n');
+      expect(said).not.toMatch(/\[dictation\]/);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('the on-device rule is a privacy line, not a setting', () => {
+  it('is never relaxed to get the mic back on more devices', () => {
+    /**
+     * The tempting "fix" for a missing mic is to drop the on-device
+     * requirement. That would stream the most sensitive thing anyone
+     * writes here to Apple's or Google's servers and create a
+     * third-party processor relationship nobody disclosed.
+     *
+     * It is a product decision with a cost the module's header already
+     * states. If it is ever taken, it should be taken deliberately —
+     * not as a bug fix.
+     */
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', '..', 'lib', 'dictation.ts'), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
+
+    expect(src).toMatch(/requiresOnDeviceRecognition:\s*true/);
+    expect(src).not.toMatch(/requiresOnDeviceRecognition:\s*false/);
+    // And the gate still needs BOTH, not either.
+    expect(src).toMatch(/supportsOnDeviceRecognition\(\) === true/);
+  });
+});
+
+describe('the screen never invites what it cannot do', () => {
+  /**
+   * Reported twice as "the mic is missing". The mic was correctly hidden
+   * — but the field still said "or say it out loud", so a deliberate
+   * absence read as a broken feature.
+   *
+   * Expo Go is the common case: expo-speech-recognition ships native
+   * code, so that module cannot exist there at all and no amount of
+   * app-side work puts a mic on that screen.
+   */
+  it('offers speaking only when speaking is possible', async () => {
+    const { getByLabelText } = await renderWrite();
+    expect((getByLabelText('Your confession') as any).props.placeholder)
+      .toMatch(/say it out loud/);
+  });
+
+  it('and drops the offer when there is no recogniser', async () => {
+    mockSupportsOnDevice.mockReturnValue(false);
+    const { getByLabelText, queryByTestId } = await renderWrite();
+    const field = getByLabelText('Your confession') as any;
+
+    expect(queryByTestId('mic-button')).toBeNull();
+    expect(field.props.placeholder).not.toMatch(/say it out loud/);
+    // Still invites writing, and still makes the promise that matters.
+    expect(field.props.placeholder).toMatch(/Write it here/);
+    expect(field.props.placeholder).toMatch(/stays private/);
+  });
+
+  it('the mic and the copy are never out of step', async () => {
+    // The pairing is the point: either both are there or neither is.
+    for (const supported of [true, false]) {
+      mockSupportsOnDevice.mockReturnValue(supported);
+      const u = await renderWrite();
+      const mic  = u.queryByTestId('mic-button') !== null;
+      const says = /say it out loud/.test(
+        (u.getByLabelText('Your confession') as any).props.placeholder);
+      expect([supported, mic, says]).toEqual([supported, supported, supported]);
+    }
   });
 });

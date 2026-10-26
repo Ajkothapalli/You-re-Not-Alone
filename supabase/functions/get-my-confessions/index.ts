@@ -59,6 +59,14 @@ export interface OwnConfession {
   audio_duration_ms: number | null;
   /** Loudness envelope, 0..100 peaks. Null for a typed confession. */
   audio_waveform: number[] | null;
+  /**
+   * [H1] The pull-quote shown above this confession, or null.
+   *
+   * Returned to the OWNER so they can see which of their words were picked
+   * and remove it if they would rather it was not there. Always a substring
+   * of `text`, which they already have.
+   */
+  headline: string | null;
 }
 
 serve(async (req: Request) => {
@@ -126,7 +134,7 @@ serve(async (req: Request) => {
   // confessions shipped showing only their transcript here.
   const SELECT =
     'id, text, felt_count, status, created_at, updated_at, real_felt_count, '
-    + 'audio_duration_ms, audio_waveform';
+    + 'audio_duration_ms, audio_waveform, headline';
 
   const [newResult, legacyResult] = await Promise.all([
     supabase

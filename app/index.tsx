@@ -168,6 +168,19 @@ export default function IndexScreen() {
       void markInstall().catch(() => {});
 
       /**
+       * [S1] Resolve the remote layout switch, off the critical path.
+       *
+       * Deliberately NOT awaited. It is bounded at 3s internally and falls
+       * back to the cache and then to the default, so the worst case is a
+       * reader getting the shipped layout — but boot has three separate
+       * fixes for "stuck on the splash" already, and a config fetch in
+       * front of the first card would be the fourth.
+       *
+       * The feed reads the value synchronously when it mounts; by then this
+       * has almost always resolved, and when it has not, the default is the
+       * layout being shipped anyway.
+       */
+      /**
        * The fast path: an already-onboarded person goes straight to Read.
        *
        * Boot used to prove onboarding over the network on EVERY launch —

@@ -22,6 +22,20 @@ import { LOOK_IDS, CARD_W, CARD_H } from '@/lib/shareLooks';
 const SHORT = 'I never told anyone how much that night changed me.';           // ~52
 const LONG  = 'I still set two cups out every morning even though nobody has '
             + 'sat in that chair for three years and I cannot seem to stop.';  // ~150
+/**
+ * A real confession, at the length that was running off the bottom of the
+ * card — through the felt pill, the brand, and out of the picture.
+ *
+ * The matrix above tops out at ~150 characters, which fits every look
+ * comfortably. That is why nothing here failed while the card was shipping
+ * broken: the overflow case was never drawn.
+ */
+const OVERFLOW =
+  'everyone said the first christmas would be the hard one so i braced for months'
+  + '\n\nit was fine. we were all braced together, that\'s the thing, everyone was '
+  + 'watching everyone'
+  + '\n\nit was the second one, when the bracing stopped and they\'d all gone back '
+  + 'to normal, that flattened me';
 
 function draw(props: Partial<React.ComponentProps<typeof QuotedCard>> = {}) {
   return render(
@@ -194,5 +208,102 @@ describe('the same seed always draws the same card', () => {
     const a = await draw({ seed: 'abc' });
     const b = await draw({ seed: 'xyz' });
     expect(JSON.stringify(a.toJSON())).not.toBe(JSON.stringify(b.toJSON()));
+  });
+});
+
+describe('the tagline never lands on top of the words', () => {
+  /**
+   * The bug this pins: the tagline was absolutely positioned at a FIXED
+   * offset of 3.2 line-heights below the text's top — a guess about how many
+   * lines the text wraps to. A four-line question rendered the tagline
+   * straight through the middle of it, on every look.
+   *
+   * The fix is structural, so the test is too: text and tagline must share
+   * one positioned parent and flow, rather than being placed independently.
+   */
+  const src  = require('fs').readFileSync(
+    require('path').join(__dirname, '..', '..', 'components', 'share', 'QuotedCard.tsx'), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
+
+  it('positions the tagline by flow, never by a line-count guess', () => {
+    const tagline = code.slice(code.indexOf('quoted-card-tagline'));
+    const block   = tagline.slice(0, tagline.indexOf('</Text>'));
+    expect(block).not.toContain('position:');
+    expect(block).not.toContain('lineHeight *');
+    expect(block).toContain('marginTop');
+  });
+
+  it('the text is not absolutely positioned on its own either', () => {
+    const text  = code.slice(code.indexOf('quoted-card-text'));
+    const block = text.slice(0, text.indexOf('</Text>'));
+    expect(block).not.toContain('position:');
+    expect(block).not.toContain('top:');
+  });
+
+  it.each(LOOK_IDS)('%s renders both without overlapping styles', async (look) => {
+    const LONG_Q = 'What’s sitting in your drafts that you’ll never send?';
+    const u = await draw({ look, text: LONG_Q, tagline: 'Answer it anonymously on soulyap' });
+    const t = u.getByTestId('quoted-card-text');
+    const g = u.getByTestId('quoted-card-tagline');
+    // Neither carries its own absolute placement, so they cannot collide.
+    for (const node of [t, g]) {
+      const st = Array.isArray(node.props.style)
+        ? Object.assign({}, ...node.props.style.filter(Boolean))
+        : node.props.style ?? {};
+      expect(st.position).toBeUndefined();
+    }
+  });
+});
+
+describe('the captured card never moves', () => {
+  it('idle drift is off unless explicitly asked for', async () => {
+    // A PNG has no time axis: capturing a drifting card freezes the quotes
+    // wherever they happened to be at that millisecond.
+    const u = await draw();
+    // JSON.stringify emits no space after the colon.
+    expect(JSON.stringify(u.toJSON())).toContain('"translateY":0');
+  });
+});
+
+describe('a confession too long for the card', () => {
+  /**
+   * The card is a 1080×1920 PNG that goes to strangers and cannot be
+   * recalled. Words past its bottom edge are not a layout nit — they are
+   * the product arriving broken on someone else's phone, permanently.
+   */
+  it.each(LOOK_IDS)('%s cuts it and points at the app', async (look) => {
+    const u = await draw({ look, text: OVERFLOW });
+
+    const drawn = u.getByTestId('quoted-card-text').props.children as string;
+    expect(drawn).not.toBe(OVERFLOW);
+    expect(drawn.endsWith('…')).toBe(true);
+    expect(u.getByTestId('quoted-card-more')).toBeTruthy();
+  });
+
+  it.each(LOOK_IDS)('%s clamps the Text as a backstop', async (look) => {
+    // snippetFor cuts the string from an ESTIMATE of glyph widths. This is
+    // what makes the pixels safe when the estimate is generous.
+    const u = await draw({ look, text: OVERFLOW });
+    const t = u.getByTestId('quoted-card-text');
+    expect(typeof t.props.numberOfLines).toBe('number');
+    expect(t.props.numberOfLines).toBeGreaterThan(0);
+    expect(t.props.ellipsizeMode).toBe('tail');
+  });
+
+  it.each(LOOK_IDS)('%s overflowing', async (look) => {
+    const u = await draw({ look, text: OVERFLOW });
+    expect(u.toJSON()).toMatchSnapshot(`${look} overflowing`);
+  });
+
+  it('says nothing about a rest that does not exist', async () => {
+    const u = await draw({ look: 'classic', text: SHORT });
+    expect(u.queryByTestId('quoted-card-more')).toBeNull();
+  });
+
+  it('never shows the cue beside the question card\'s tagline', async () => {
+    // One line under the words is all the room the composition has.
+    const u = await draw({ look: 'classic', text: OVERFLOW, tagline: 'Answer it anonymously on soulyap' });
+    expect(u.getByTestId('quoted-card-tagline')).toBeTruthy();
+    expect(u.queryByTestId('quoted-card-more')).toBeNull();
   });
 });

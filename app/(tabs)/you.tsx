@@ -20,6 +20,10 @@ import { usePremium } from '@/lib/premiumContext';
 import { billingAvailable, restorePurchases } from '@/lib/purchases';
 import { supabase } from '@/lib/supabase';
 import { clearAudioUrlCache } from '@/lib/audioPlayback';
+import { readTabMemory, writeTabMemory, clearTabMemory, TAB_MEMORY } from '@/lib/tabMemory';
+import { existingToken } from '@/lib/pushPermission';
+import { unregisterPushToken } from '@/lib/pushRegistration';
+import { resetPushAsk } from '@/lib/pushAsk';
 import { useTheme } from '@/theme/ThemeProvider';
 import { type ColorSet, font, fontFamily, radius, spacing } from '@/theme/tokens';
 import Constants from 'expo-constants';
@@ -29,6 +33,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ActivityIndicator,
   Animated,
+  Dimensions,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -48,7 +53,10 @@ export default function YouScreen() {
   const insets                 = useSafeAreaInsets();
   const { colors: color, setTheme, isDark } = useTheme();
   const styles                 = useMemo(() => createStyles(color), [color]);
-  const emptyBenchFit          = useAspectFitWidth(4 / 3);
+  // Seeded to this card's inner width — screen padding (20 a side) and the
+  // card's own 2px border — so the bench is there on the first frame instead
+  // of after one blank one. onLayout corrects it on the real measurement.
+  const emptyBenchFit          = useAspectFitWidth(4 / 3, Dimensions.get('window').width - 44);
 
   // Profile state
   const [personaId, setPersonaId] = useState<string | null>(null);
@@ -58,10 +66,17 @@ export default function YouScreen() {
   const bustScale = useRef(new Animated.Value(1)).current;
   useEffect(() => { nameRef.current = name; }, [name]);
 
-  // My confessions state
-  const [confessions,        setConfessions]        = useState<OwnConfession[]>([]);
+  // My confessions state. Seeded from memory so a remount shows the last
+  // known summary rather than a spinner over a number the app already has.
+  const [confessions,        setConfessions]        =
+    useState<OwnConfession[]>(() => readTabMemory<OwnConfession[]>(TAB_MEMORY.myConfessions) ?? []);
   const [confessionsLoading, setConfessionsLoading] = useState(false);
   const [confessionsError,   setConfessionsError]   = useState<string | null>(null);
+  // loadConfessions runs from a focus effect with empty deps, so it closes
+  // over the FIRST render's `confessions`. Reading the count through a ref is
+  // what makes "is this the first load?" mean what it says.
+  const confessionsRef = useRef(confessions);
+  useEffect(() => { confessionsRef.current = confessions; }, [confessions]);
 
 
   useEffect(() => {
@@ -81,16 +96,23 @@ export default function YouScreen() {
   }, []));
 
   async function loadConfessions() {
-    setConfessionsLoading(true);
+    // The spinner is only for a first load. On every later focus the summary
+    // is already on screen and correct; replacing it with a spinner to arrive
+    // at the same number is the flicker, not the fix.
+    const firstLoad = confessionsRef.current.length === 0;
+    if (firstLoad) setConfessionsLoading(true);
     setConfessionsError(null);
     try {
       const data = await getMyConfessions();
       setConfessions(data);
+      writeTabMemory(TAB_MEMORY.myConfessions, data);
     } catch (err) {
       console.error('[you] loadConfessions error:', err);
-      setConfessionsError('Could not load confessions. Tap to retry.');
+      // Only surface the error when there is nothing behind it. A failed
+      // background refresh must not take away a summary already being read.
+      if (firstLoad) setConfessionsError('Could not load confessions. Tap to retry.');
     } finally {
-      setConfessionsLoading(false);
+      if (firstLoad) setConfessionsLoading(false);
     }
   }
 
@@ -121,6 +143,17 @@ export default function YouScreen() {
     // them resolvable after sign-out would mean the next person on this device
     // could still reach recordings the previous account was listening to.
     clearAudioUrlCache();
+    // Same reasoning, one layer up: the alerts and my-confessions caches hold
+    // THIS account's private content, and the next account to sign in on this
+    // device would paint it before its own fetch returned.
+    clearTabMemory();
+    // [N1] This device's push token too — see app/settings.tsx for why it
+    // has to happen before the session ends.
+    try {
+      const token = await existingToken();
+      if (token) await unregisterPushToken(token);
+    } catch { /* never block a sign-out on this */ }
+    void resetPushAsk();
     await supabase.auth.signOut();
     router.replace('/');
   }
@@ -186,6 +219,10 @@ export default function YouScreen() {
       // The account is gone and its recordings with it; any signed url still
       // held in memory would outlive the erasure it was just promised.
       clearAudioUrlCache();
+      clearTabMemory();
+      // Every token for the account goes with it: push_devices.account_id
+      // is ON DELETE CASCADE. This clears what is left on the device.
+      void resetPushAsk();
       await clearProfile();
       router.replace('/');
     } catch {
@@ -325,7 +362,7 @@ export default function YouScreen() {
         <View style={{ paddingRight: SHADOW, paddingBottom: SHADOW }}>
           <View pointerEvents="none" style={styles.emptyCardShadow} />
           <Pressable
-            onPress={() => router.navigate('/(tabs)/write')}
+            onPress={() => router.navigate('/write')}
             style={({ pressed }) => [styles.emptyCard, pressed && styles.emptyCardPressed]}
             accessibilityRole="button"
             accessibilityLabel="Write your first confession"

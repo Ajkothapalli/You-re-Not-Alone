@@ -319,7 +319,7 @@ describe('D7 launch route + the write gate it must not break (CLAUDE.md §2)', (
   });
 
   it('writing is never gated on having read — the readShown gate is gone', () => {
-    const src = read('app', 'write.tsx');
+    const src = read('app', '(tabs)', 'write.tsx');
     expect(src).not.toContain('session.readShown');
   });
 
@@ -329,7 +329,7 @@ describe('D7 launch route + the write gate it must not break (CLAUDE.md §2)', (
     // unconditionally as a card in the feed, so the invariant holds MORE
     // strongly than the old assertion could express. What still has to be true
     // is that nothing withholds the feed behind writing.
-    const raw = read('app', 'explore.tsx');
+    const raw = read('app', '(tabs)', 'explore.tsx');
     // Comments stripped before matching. These guards constrain CODE, and a
     // file explaining WHY it does not do something would otherwise fail the
     // guard against doing it — which has now happened four times in this repo.
@@ -586,14 +586,43 @@ describe('Source column, threshold, retire, api_call_log (Phase A–C)', () => {
       'utf8',
     );
     expect(src).toContain('api_call_log');
-    expect(src).toContain('manage-confession:retire');
+    // The key was the literal 'manage-confession:retire' until H1 gave the
+    // function a second action and made it `manage-confession:${action}`.
+    // Asserted as the PROPERTY now — every action is counted under its own
+    // key — because a shared counter would let a writer tidying headlines
+    // run out of the ability to take a confession out of the pool.
+    expect(src).toMatch(/manage-confession:\$\{action\}|manage-confession:retire/);
+    // Both actions declared, and the limits are per-action.
+    expect(src).toMatch(/const ACTIONS = \['retire', 'remove_headline'\]/);
+    expect(src).toMatch(/LIMITS: Record<Action/);
+  });
+
+  it('manage-confession decides ownership before it answers anything', () => {
+    // The already-retired short-circuit used to sit ABOVE the ownership
+    // check and answered `{ ok: true, already: true }` to anyone who asked
+    // about a retired id — the oracle this file's own header says it avoids.
+    const fs   = require('fs');
+    const path = require('path');
+    const src  = fs.readFileSync(
+      path.join(__dirname, '..', 'supabase', 'functions', 'manage-confession', 'index.ts'),
+      'utf8',
+    );
+    // Comments stripped FIRST. The note explaining the old ordering mentions
+    // `already: true` above the ownership check, and an unstripped indexOf
+    // finds the explanation instead of the code — the comment-vs-code trap
+    // this repo has fallen into repeatedly.
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
+    const forbidden = code.indexOf("return json({ error: 'Forbidden.' }, 403)");
+    const already   = code.indexOf('already: true');
+    expect(forbidden).toBeGreaterThan(-1);
+    expect(already).toBeGreaterThan(forbidden);
   });
 
   it('write.tsx reads prefillText param and seeds the draft', () => {
     const fs   = require('fs');
     const path = require('path');
     const src  = fs.readFileSync(
-      path.join(__dirname, '..', 'app', 'write.tsx'),
+      path.join(__dirname, '..', 'app', '(tabs)', 'write.tsx'),
       'utf8',
     );
     expect(src).toContain('prefillText');
@@ -846,4 +875,72 @@ describe('Manual verification required (cannot unit-test)', () => {
   it.todo('Scheduler: seed_runs row created after each successful run');
   it.todo('Scheduler: calling twice same day → second invocation returns { skipped: true, reason: "already_ran_today" }');
   it.todo('Scheduler: generated confessions are in configured languages (en + hi-Latn + te-Latn by default)');
+});
+
+// ─── Every package the app imports is actually installed ─────────────────────
+
+describe('no app code imports a package that is not a dependency', () => {
+  /**
+   * How this bit, on 2026-10-02.
+   *
+   * `react-native-gesture-handler` was added for the S2 deck. The deck was
+   * removed; the import in app/_layout.tsx was not. On Android the module
+   * was still in the binary so nothing looked wrong, and the whole test
+   * suite stayed green — but iOS had never had the pod installed, so the
+   * app died at the first line of the root layout with
+   * "TurboModuleRegistry.getEnforcing('RNGestureHandlerModule') could not
+   * be found".
+   *
+   * A NATIVE import is the worst case of this: it does not fail to resolve,
+   * it fails at runtime, on one platform, after the splash. So the rule is
+   * the blunt one — if app code imports it, it is a declared dependency.
+   */
+  const fs   = require('fs');
+  const path = require('path');
+  const ROOT = path.join(__dirname, '..');
+
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  const declared = new Set([
+    ...Object.keys(pkg.dependencies ?? {}),
+    ...Object.keys(pkg.devDependencies ?? {}),
+  ]);
+
+  function sources(dir: string): string[] {
+    const full = path.join(ROOT, dir);
+    if (!fs.existsSync(full)) return [];
+    return fs.readdirSync(full, { withFileTypes: true }).flatMap((e: any) =>
+      e.isDirectory() ? sources(path.join(dir, e.name))
+      : /\.tsx?$/.test(e.name) ? [path.join(dir, e.name)]
+      : [],
+    );
+  }
+
+  /** `react-native/Libraries/x` → `react-native`; `@scope/pkg/sub` → `@scope/pkg`. */
+  function packageOf(spec: string): string {
+    const parts = spec.split('/');
+    return spec.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+  }
+
+  const FILES = [...sources('app'), ...sources('components'), ...sources('lib'), ...sources('hooks')];
+
+  it('finds the app source to check', () => {
+    expect(FILES.length).toBeGreaterThan(50);
+  });
+
+  it.each(FILES)('%s', (file) => {
+    const src = fs.readFileSync(path.join(ROOT, file), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*/g, '');
+
+    const specs = [
+      ...src.matchAll(/(?:from|require\()\s*['"]([^'"]+)['"]/g),
+    ].map((m) => m[1]);
+
+    const missing = specs
+      // Relative paths and the @/ alias are this repo's own files.
+      .filter((sp) => !sp.startsWith('.') && !sp.startsWith('@/'))
+      .map(packageOf)
+      .filter((name) => !declared.has(name));
+
+    expect([file, [...new Set(missing)]]).toEqual([file, []]);
+  });
 });

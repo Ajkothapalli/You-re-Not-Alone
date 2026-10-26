@@ -1,17 +1,32 @@
-import { router, usePathname } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import {
-  TAB_ROUTES, activeIndex as computeActive, settled, shouldNavigate, press, IDLE,
-  type NavState,
-} from '@/lib/tabNav';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+
+/**
+ * Structurally typed rather than imported: the bottom-tabs prop types live
+ * under expo-router/build/react-navigation/, which that source marks as
+ * internal and subject to change without notice. This is the part of the
+ * contract the bar actually uses.
+ */
+export interface BottomTabBarProps {
+  state: { index: number; routeNames: string[] };
+  navigation: {
+    navigate: (name: string) => void;
+    /**
+     * Optional because it reaches us through this structural type rather
+     * than a package export — see hooks/useTabPreload.ts. The navigator
+     * does provide it; useTabPreload checks at runtime and does nothing if
+     * a future version stops.
+     */
+    preload?: (name: string) => void;
+  };
+}
+import React, { useCallback, useEffect, useRef } from 'react';
+import { Easing, Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from './Icon';
 import { useNotificationsContext } from '../lib/notificationsContext';
 import { useThemeColors } from '../theme/ThemeProvider';
-import { SPRING } from '../theme/motion';
 import { useReducedMotion } from '../lib/a11y';
+import { useTabPreload } from '../hooks/useTabPreload';
 import { fontFamily } from '../theme/tokens';
 
 const ICON        = 24;
@@ -39,7 +54,18 @@ interface TabItemProps {
   badge?:  number;
 }
 
-function TabItem({ icon, label, active, onPress, badge = 0 }: TabItemProps) {
+/**
+ * One tab.
+ *
+ * Memoized, and the onPress handlers below are memoized with it — a memo on
+ * this alone would do nothing, because a fresh `() => go(0)` arrow on every
+ * render is a changed prop. The bar re-renders on every navigation and on
+ * every unread-count change, and without both halves all four tabs and their
+ * SVG icons re-rendered each time.
+ */
+const TabItem = React.memo(function TabItem(
+  { icon, label, active, onPress, badge = 0 }: TabItemProps,
+) {
   const color = useThemeColors();
   return (
     <Pressable
@@ -72,33 +98,34 @@ function TabItem({ icon, label, active, onPress, badge = 0 }: TabItemProps) {
       </Text>
     </Pressable>
   );
-}
+});
 
-export default function WriteFAB() {
+/**
+ * The tab bar, rendered BY the navigator.
+ *
+ * It used to sit in the root layout and derive its active tab from
+ * usePathname(), which only updates once a navigation has completed — so the
+ * indicator sat still through the whole transition and the tap had no visible
+ * response. As the navigator's own tabBar it reads props.state.index, which
+ * changes in the SAME FRAME as the tap. No optimistic index, no timeout to
+ * recover from a navigation that never lands, and no list of routes it must
+ * know to hide on: a pushed screen covers it naturally.
+ */
+export default function WriteFAB({ state, navigation }: BottomTabBarProps) {
   const insets          = useSafeAreaInsets();
-  const pathname        = usePathname();
   const color           = useThemeColors();
   const { unreadCount } = useNotificationsContext();
   const reduceMotion    = useReducedMotion();
 
-  // The feed is the only read surface (owner decision 2026-09-13) — the
-  // 2-card screen this tab used to conditionally point at no longer exists.
+  // Straight from navigation state — no derivation, no lag.
+  const activeIndex = state.index;
+
   /**
-   * The indicator moves on PRESS, not on arrival.
-   *
-   * usePathname() only changes once the navigation has completed, so deriving
-   * the active tab from it alone meant the bar sat still through the whole
-   * transition — the tap had no visible response until the next screen
-   * appeared. The optimistic index is reconciled the moment the pathname
-   * agrees; see lib/tabNav.ts for the state machine and its timeout.
+   * Builds the other three screens during idle, so the first tap on each
+   * does not have to. Here because the tabBar is handed the navigator's own
+   * navigation object, which is the only thing that can dispatch PRELOAD.
    */
-  const [nav, setNav] = useState<NavState>(IDLE);
-
-  useEffect(() => {
-    if (nav.optimistic !== null && settled(nav, pathname, Date.now())) setNav(IDLE);
-  }, [pathname, nav]);
-
-  const activeIndex = computeActive(nav, pathname, Date.now());
+  useTabPreload(navigation, state.routeNames, activeIndex);
 
   const isRead   = activeIndex === 0;
   const isWrite  = activeIndex === 1;
@@ -106,14 +133,21 @@ export default function WriteFAB() {
   const isAlerts = activeIndex === 3;
 
   const go = useCallback((target: number) => {
-    const now = Date.now();
-    // Drops a tap on the active tab (which would remount the screen and throw
-    // away the feed) and repeat taps mid-transition. See shouldNavigate.
-    if (!shouldNavigate(nav, pathname, target, now)) return;
-    setNav(press(target, now));
+    // A tap on the ALREADY ACTIVE tab does nothing. Navigating to it would
+    // re-run the screen's focus effects and, on the feed, lose the reader's
+    // place — doing nothing is the correct behaviour, not a missing feature.
+    if (target === state.index) return;
     Haptics.selectionAsync().catch(() => {});
-    router.navigate(TAB_ROUTES[target]);
-  }, [nav, pathname]);
+    // navigate() on the tab navigator is a JUMP: it never creates a second
+    // copy, which is the entire point of the bar living in here.
+    navigation.navigate(state.routeNames[target]);
+  }, [state.index, state.routeNames, navigation]);
+
+  // One per tab, stable for as long as `go` is — see the note on TabItem.
+  const goRead   = useCallback(() => go(0), [go]);
+  const goWrite  = useCallback(() => go(1), [go]);
+  const goYou    = useCallback(() => go(2), [go]);
+  const goAlerts = useCallback(() => go(3), [go]);
 
   // Single animated value — the whole indicator slides, nothing per-tab.
   const slideX = useRef(
@@ -126,15 +160,16 @@ export default function WriteFAB() {
       slideX.setValue(activeIndex * TAB_STEP);
       return;
     }
-    Animated.spring(slideX, {
+    // A calm slide, not SPRING.pop. `pop` is the mount-pop token (bounciness
+    // 12) and visibly overshoots — the brand's motion is breath, not bounce
+    // (docs/design/motion.md §1). This settles in ~200ms with no overshoot.
+    Animated.timing(slideX, {
       toValue:         activeIndex * TAB_STEP,
-      ...SPRING.pop,
+      duration:        200,
+      easing:          Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
   }, [activeIndex, reduceMotion]);
-
-  // Early return must come after all hooks
-  if (!SHOW_ON.has(pathname)) return null;
 
   const indicatorTransform = [{ translateX: slideX }];
 
@@ -152,10 +187,10 @@ export default function WriteFAB() {
             style={[styles.indicatorCircle, { backgroundColor: color.accent, borderColor: color.border, transform: indicatorTransform }]}
           />
 
-          <TabItem icon="book"   label="Read"   active={isRead}   onPress={() => go(0)} />
-          <TabItem icon="pencil" label="Write"  active={isWrite}  onPress={() => go(1)} />
-          <TabItem icon="person" label="You"    active={isYou}    onPress={() => go(2)} />
-          <TabItem icon="bell"   label="Alerts" active={isAlerts} onPress={() => go(3)} badge={unreadCount} />
+          <TabItem icon="book"   label="Read"   active={isRead}   onPress={goRead} />
+          <TabItem icon="pencil" label="Write"  active={isWrite}  onPress={goWrite} />
+          <TabItem icon="person" label="You"    active={isYou}    onPress={goYou} />
+          <TabItem icon="bell"   label="Alerts" active={isAlerts} onPress={goAlerts} badge={unreadCount} />
 
         </View>
       </View>

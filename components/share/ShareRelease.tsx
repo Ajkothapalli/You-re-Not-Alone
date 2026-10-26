@@ -115,12 +115,29 @@ export default function ShareRelease({ look, category, onDone }: ShareReleasePro
     end: { x: number; y: number },
     pushX: number,
   ) {
+    /**
+     * Converted HERE, on the JS thread, not inside the worklet below.
+     *
+     * `px` is an ordinary function in lib/shareLooks.ts. Calling it from a
+     * worklet throws under the new worklets runtime — "[Worklets] Tried to
+     * synchronously call a non-worklet function `px` on the UI thread" —
+     * which took the whole release animation down the moment Share was
+     * tapped.
+     *
+     * Marking `px` as a worklet would have worked too and is the wrong
+     * trade: it is a pure design-space conversion used all over the card
+     * code, and these inputs are CONSTANT for the life of the animation.
+     * Converting once per render and closing over plain numbers is both
+     * correct and less work per frame than converting on every one.
+     */
+    const sx = px(start.x), sy = px(start.y), sw = px(start.w);
+    const push = px(10);
+
     return useAnimatedStyle(() => {
       const p  = t.value;
-      const sx = px(start.x), sy = px(start.y), sw = px(start.w);
       // Anticipation: push out and swell slightly before travelling in.
       const anticip = Math.min(p / 0.12, 1) * (p < 0.12 ? 1 : 0);
-      const x = sx + (end.x - sx) * p + pushX * anticip * px(10);
+      const x = sx + (end.x - sx) * p + pushX * anticip * push;
       const y = sy + (end.y - sy) * p;
       const w = sw + (meetW - sw) * p;
       return {

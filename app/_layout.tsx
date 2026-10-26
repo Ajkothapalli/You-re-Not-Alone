@@ -1,12 +1,15 @@
+import { pushNative } from '@/lib/pushNative';
+import { openFromPush } from '@/lib/pushRouting';
+import { existingToken } from '@/lib/pushPermission';
+import { touchPushDevice } from '@/lib/pushRegistration';
 import AnimatedSplash from '../components/AnimatedSplash';
 import { markSplashDone } from '../lib/splashGate';
 import { DialogHost } from '../components/AppDialog';
 import { ToastHost } from '../components/Toast';
-import WriteFAB from '../components/WriteFAB';
 import { DraftProvider } from '../lib/draftContext';
 import { NotificationsProvider } from '../lib/notificationsContext';
 import { PremiumProvider } from '../lib/premiumContext';
-import { Stack } from 'expo-router';
+import { useRootNavigationState, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -45,9 +48,95 @@ const PLANS_SHEET_OPTIONS = {
 };
 
 // Inner component — lives inside ThemeProvider so it can call useTheme().
+/**
+ * Catches the bug this phase existed to fix, the moment it comes back.
+ *
+ * The root stack must hold exactly ONE '(tabs)' route and no 'explore' or
+ * 'write' route at all. A stray router.push to a tab path, or re-declaring a
+ * tab screen at the root, re-creates the pile — and the symptom (screens
+ * slowly getting heavier, back walking through old copies) is subtle enough
+ * to survive a release unnoticed. This turns it into a console error the
+ * first time it happens.
+ *
+ * __DEV__ only: it is a developer tripwire, not a runtime check.
+ */
+/**
+ * [N1] Opening the app from a notification.
+ *
+ * Two cases, and forgetting the second is the classic bug: a tap while the
+ * app is running (the listener), and a tap that LAUNCHED it, where the
+ * response already happened before any listener existed and has to be
+ * fetched. Without getLastNotificationResponseAsync, tapping a push on a
+ * cold start opens the app on whatever screen it last had.
+ *
+ * Nothing here requests permission. A device receiving a push has already
+ * granted it.
+ */
+function usePushTaps() {
+  useEffect(() => {
+    let alive = true;
+
+    /**
+     * Null on a binary without the native module — see lib/pushNative.ts.
+     * Nothing to listen for on such a build, because nothing can be
+     * delivered to it.
+     */
+    const N = pushNative();
+    if (!N) return;
+
+    // The cold-start case.
+    void N.getLastNotificationResponseAsync()
+      .then((res) => {
+        if (!alive || !res) return;
+        openFromPush(res.notification.request.content.data);
+      })
+      .catch(() => {});
+
+    // The warm case.
+    const sub = N.addNotificationResponseReceivedListener((res) => {
+      openFromPush(res.notification.request.content.data);
+    });
+
+    /**
+     * Keep last_seen_at fresh, so the weekly-question cron does not skip
+     * this device as stale. Reads only: existingToken returns null rather
+     * than prompting when permission is not already granted.
+     */
+    void existingToken()
+      .then((token) => { if (token) void touchPushDevice(token); })
+      .catch(() => {});
+
+    return () => { alive = false; sub.remove(); };
+  }, []);
+}
+
+function useSingleTabsGuard() {
+  const navigation = useRootNavigationState();
+  useEffect(() => {
+    if (!__DEV__ || !navigation?.routes) return;
+    const names = navigation.routes.map((r: { name: string }) => r.name);
+    const tabs  = names.filter((n) => n === '(tabs)').length;
+    const stray = names.filter((n) => n === 'explore' || n === 'write');
+    if (tabs > 1) {
+      console.error(
+        `[nav] ${tabs} copies of (tabs) in the root stack — a navigation ` +
+        `created a second tab navigator. Use router.dismissTo() from screens ` +
+        `above the tabs. Stack: ${names.join(' → ')}`);
+    }
+    if (stray.length > 0) {
+      console.error(
+        `[nav] '${stray.join("', '")}' is in the ROOT stack — these live in ` +
+        `(tabs) now. Stack: ${names.join(' → ')}`);
+    }
+  }, [navigation]);
+}
+
 function ThemedStack() {
   const { colors, isDark } = useTheme();
   const [splashDone, setSplashDone] = useState(false);
+
+  useSingleTabsGuard();
+  usePushTaps();
 
   return (
     <>
@@ -65,7 +154,6 @@ function ThemedStack() {
         <Stack.Screen name="index"       />
         <Stack.Screen name="auth"        options={{ animation: 'none' }} />
         <Stack.Screen name="welcome"     />
-        <Stack.Screen name="read"        />
 
         {/* Main app shell — tabs live here */}
         <Stack.Screen name="(tabs)"      options={{ animation: 'none', headerShown: false }} />
@@ -85,13 +173,14 @@ function ThemedStack() {
         <Stack.Screen name="my-confessions" />
         <Stack.Screen name="categories"     options={SHEET_OPTIONS} />
 
-        {/* The scrollable reading feed — the app's only read surface
-            card during D7. (It was previously listed as deep-link-only, which
-            meant nothing in the app could actually get to it.) */}
-        <Stack.Screen name="explore" />
-
-        {/* Legacy route kept for deep-link compat */}
-        <Stack.Screen name="write"   />
+        {/* explore and write are NOT listed here any more: both now live
+            inside (tabs). Declaring them at the root is what made the stack
+            grow — expo-router 56's NAVIGATE reuses a route only when its name
+            matches the CURRENT one (layouts/StackClient.js), so Read→Write
+            pushed a fresh (tabs) and Write→Read pushed a fresh explore, each
+            copy staying mounted and re-rendering on every context change.
+            Route groups are stripped from URLs, so /explore and /write still
+            resolve — to the tab, exactly once. */}
       </Stack>
       <DialogHost />
       {!splashDone && <AnimatedSplash onDone={() => { setSplashDone(true); markSplashDone(); }} />}
@@ -116,7 +205,6 @@ export default function RootLayout() {
         <DraftProvider>
           <NotificationsProvider>
             <ThemedStack />
-            <WriteFAB />
             <ToastHost />
           </NotificationsProvider>
         </DraftProvider>
