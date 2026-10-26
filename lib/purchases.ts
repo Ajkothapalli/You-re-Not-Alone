@@ -35,9 +35,9 @@ const OFFERING    = 'default';
 
 // Map our tiers to the RevenueCat product identifiers configured in the stores.
 export const PRODUCT_IDS: Record<TierId, string> = {
-  month:    'yana_month',
-  sixmonth: 'yana_6month',
-  year:     'yana_year',
+  month:    'soulyap_month',
+  sixmonth: 'soulyap_6month',
+  year:     'soulyap_year',
 };
 
 let configured = false;
