@@ -32,12 +32,26 @@ const ACTIVE = new Set([
 // Events that revoke access.
 const INACTIVE = new Set(['EXPIRATION', 'CANCELLATION', 'BILLING_ISSUE', 'SUBSCRIPTION_PAUSED']);
 
+function timingSafeEqual(a: string, b: string): boolean {
+  if (!a || !b || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 serve(async (req) => {
   if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
 
   // Shared-secret auth — reject anything not from our RevenueCat webhook.
+  //
+  // This function is deployed with verify_jwt OFF (supabase/config.toml).
+  // RevenueCat can send exactly one custom header, "Authorization: Bearer
+  // <secret>", and Supabase's gateway would reject any non-JWT value there
+  // before this code ran. The shared secret below is therefore the ONLY
+  // authentication on this endpoint — compared in constant time, and a
+  // missing secret rejects everything rather than allowing everything.
   const auth = req.headers.get('Authorization') ?? '';
-  if (!RC_WEBHOOK_SECRET || auth !== `Bearer ${RC_WEBHOOK_SECRET}`) {
+  if (!RC_WEBHOOK_SECRET || !timingSafeEqual(auth, `Bearer ${RC_WEBHOOK_SECRET}`)) {
     return new Response('Unauthorized', { status: 401 });
   }
 
