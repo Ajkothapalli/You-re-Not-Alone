@@ -408,7 +408,9 @@ serve(async (req: Request) => {
         }
 
         // [E] Insert
-        const feltCount = Math.floor(Math.random() * 271) + 30;
+        // Never invented. This used to be a random 30-300, shown to readers as
+        // people who felt it; owner decision 2026-10-27 is real felts only.
+        const feltCount = 0;
 
         const { error: insertErr } = await supabase.from('confessions').insert({
           author_token:           autoToken,
