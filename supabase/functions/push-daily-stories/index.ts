@@ -85,8 +85,19 @@ const HINTS: Record<Category, string> = {
   faith_meaning:  'questioning beliefs, feeling spiritually lost, searching for meaning after it collapsed, doubting everything without a word for it',
 };
 
+/**
+ * The last reason the generator came back empty, surfaced in the response.
+ *
+ * Without it a failed run looked like a quiet day. From 2026-10-20 the OpenAI
+ * account ran out of credit, every call returned 429 insufficient_quota, and
+ * the function kept answering {"ok":true,"total":0} — eight days of an empty
+ * pool with nothing in the Actions log saying why. The reason now travels with
+ * the response, so the workflow log names the failure instead of hiding it.
+ */
+let llmError: string | null = null;
+
 async function generateBatch(category: Category, n: number, lang = 'en'): Promise<string[]> {
-  if (!OPENAI_API_KEY) return [];
+  if (!OPENAI_API_KEY) { llmError = 'no_openai_key'; return []; }
 
   const langLabel   = LANG_LABELS[lang] ?? 'English';
   const isRomanized = lang.endsWith('-Latn');
@@ -172,7 +183,11 @@ async function generateBatch(category: Category, n: number, lang = 'en'): Promis
   });
 
   if (!res.ok) {
-    console.error(`[GEN] LLM ${res.status} for ${category}`);
+    // The error CODE only (e.g. insufficient_quota) — never the prompt or text.
+    let code = '';
+    try { code = (await res.json())?.error?.code ?? ''; } catch { /* not JSON */ }
+    llmError = `llm_${res.status}${code ? `_${code}` : ''}`;
+    console.error(`[GEN] LLM ${res.status} ${code} for ${category}`);
     return [];
   }
 
@@ -269,6 +284,7 @@ const CORS = {
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  llmError = null; // instances are reused across requests
 
   const respond = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
@@ -425,12 +441,21 @@ serve(async (req: Request) => {
   console.log(`[PUSH] done. total=${totalInserted} languages=${languages.join(',')}`);
 
   // 4. Log this run for idempotency ─────────────────────────────────────────────
-  const { error: runErr } = await supabase.from('seed_runs').insert({
-    run_date:    runKey,
-    total:       totalInserted,
-    summary,
-  });
-  if (runErr) console.error('[PUSH] seed_runs insert failed:', runErr.message);
+  // Only a run that added something claims the day. A run that inserted
+  // nothing (the generator was down, out of credit, or every candidate was
+  // dropped) used to claim it anyway, so once the cause was fixed the same
+  // day could not be retried — the next call answered "already_ran_today".
+  if (totalInserted > 0) {
+    const { error: runErr } = await supabase.from('seed_runs').insert({
+      run_date:    runKey,
+      total:       totalInserted,
+      summary,
+    });
+    if (runErr) console.error('[PUSH] seed_runs insert failed:', runErr.message);
+  }
 
-  return respond({ ok: true, total: totalInserted, summary, date: today });
+  return respond({
+    ok: totalInserted > 0, total: totalInserted, summary, date: today,
+    ...(totalInserted === 0 && llmError ? { error: llmError } : {}),
+  });
 });
